@@ -14,19 +14,19 @@ import {
 export const initialProfiles: Profile[] = [
   {
     id: 'prof-owner-1',
-    full_name: 'Budi Santoso (Owner)',
+    full_name: 'Ardiyanto Wijaya (Owner)',
     role: 'owner',
     phone: '081211112222',
   },
   {
     id: 'prof-admin-1',
-    full_name: 'Siti Rahmawati (Admin)',
+    full_name: 'Mey Wulandari (Admin)',
     role: 'admin',
     phone: '081233334444',
   },
   {
     id: 'prof-sa-1',
-    full_name: 'Eko Prasetyo (Service Advisor)',
+    full_name: 'Dito Ade Prawira (Service Advisor)',
     role: 'sa',
     phone: '081255556666',
   },
@@ -588,7 +588,7 @@ export const initialStockMovements: StockMovement[] = [
 export const initialAuditLogs: AuditLog[] = [
   {
     id: 'audit-1',
-    user_name: 'Eko Prasetyo',
+    user_name: 'Dito Ade Prawira',
     user_role: 'sa',
     action: 'CREATE_SPK',
     target_table: 'work_orders',

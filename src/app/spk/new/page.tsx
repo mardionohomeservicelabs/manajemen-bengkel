@@ -525,7 +525,7 @@ export default function NewSPKPage() {
               </span>
               <SignatureCanvas onSave={(url) => setSignatureSA(url)} />
               <p className="text-[10px] text-slate-500 font-medium text-center">
-                Verifikasi penerimaan: Eko Prasetyo / Petugas
+                Verifikasi penerimaan: Dito Ade Prawira / Petugas
               </p>
             </div>
 

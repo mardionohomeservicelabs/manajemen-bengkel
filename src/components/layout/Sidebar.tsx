@@ -262,10 +262,10 @@ export function Sidebar() {
               <div className="overflow-hidden">
                 <div className="text-xs font-bold text-white truncate">
                   {currentRole === 'owner'
-                    ? 'Budi Santoso'
+                    ? 'Ardiyanto Wijaya'
                     : currentRole === 'admin'
-                    ? 'Siti Rahmawati'
-                    : 'Eko Prasetyo'}
+                    ? 'Mey Wulandari'
+                    : 'Dito Ade Prawira'}
                 </div>
                 <div className="text-[10px] text-maroon-400 uppercase tracking-wider font-extrabold">
                   Role: {currentRole.toUpperCase()}

@@ -196,7 +196,7 @@ export function PrintableInvoice({
               )}
               <div className="text-right">
                 <span className="text-slate-500 text-[10px] block">Kasir PIC:</span>
-                <strong className="text-slate-900">Siti Rahmawati</strong>
+                <strong className="text-slate-900">Mey Wulandari</strong>
               </div>
             </div>
 

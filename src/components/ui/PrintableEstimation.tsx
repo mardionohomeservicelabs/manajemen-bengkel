@@ -154,7 +154,7 @@ export function PrintableEstimation({
             )}
             <div className="text-right">
               <span className="text-slate-500 text-[10px] block">Service Advisor:</span>
-              <strong className="text-slate-900">Eko Prasetyo</strong>
+              <strong className="text-slate-900">Dito Ade Prawira</strong>
             </div>
           </div>
 

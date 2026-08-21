@@ -548,7 +548,7 @@ function CashierContent() {
                   </span>
                   <SignatureCanvas onSave={(url) => setSignatureAdmin(url)} />
                   <p className="text-[10px] text-slate-400 text-center">
-                    Tanda tangan oleh: Siti Rahmawati (Admin Kasir)
+                    Tanda tangan oleh: Mey Wulandari (Admin Kasir)
                   </p>
                 </div>
               </div>
