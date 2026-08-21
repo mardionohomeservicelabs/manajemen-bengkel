@@ -1,0 +1,204 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,600;1,700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary-maroon: #800000;
+  --dark-crimson: #4A0404;
+  --surface-slate: #F8FAFC;
+}
+
+body {
+  color: #0F172A;
+  background-color: #F8FAFC;
+  font-family: 'Montserrat', var(--font-montserrat), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #800000;
+}
+
+/* ==============================================================================
+   RESPONSIVE & DYNAMIC AUTO-HEIGHT DOCUMENT SYSTEM (Screen only)
+============================================================================== */
+.doc-preview-wrapper {
+  background-color: #475569;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  overflow-x: auto;
+}
+
+.doc-sheet {
+  width: 100%;
+  max-width: 820px;
+  height: auto !important;
+  min-height: auto !important;
+  background-color: #FFFFFF;
+  padding: 28px 32px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+  color-adjust: exact !important;
+}
+
+/* ==============================================================================
+   PRINT & PDF — Multi-page aware: hide everything, show only doc-sheet in flow
+============================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm;
+  }
+
+  /* Step 1: Hide all body content by default */
+  html, body {
+    background: #FFFFFF !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html body * {
+    visibility: hidden !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Step 2: Make doc-sheet and ALL descendants visible */
+  .doc-sheet,
+  .doc-sheet * {
+    visibility: visible !important;
+  }
+
+  /* Step 3: Use absolute (not fixed!) so content flows across multiple pages */
+  .doc-sheet {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #FFFFFF !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    box-sizing: border-box !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Step 4: Logo — pixel-perfect, never zoom or collapse */
+  .official-document-logo {
+    width: 246px !important;
+    min-width: 246px !important;
+    max-width: 246px !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    max-height: 48px !important;
+    object-fit: contain !important;
+    object-position: left center !important;
+    display: block !important;
+    visibility: visible !important;
+  }
+
+  /* Step 5: Other images in doc-sheet */
+  .doc-sheet img:not(.official-document-logo) {
+    max-width: 100% !important;
+    height: auto !important;
+    display: block !important;
+    object-fit: contain !important;
+    visibility: visible !important;
+  }
+
+  /* Step 6: Tables */
+  .doc-sheet table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  .doc-sheet tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .doc-sheet table, .doc-sheet th, .doc-sheet td {
+    border-color: #1e293b !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Step 7: Thermal receipt */
+  .thermal-receipt-print,
+  .thermal-receipt-print * {
+    visibility: visible !important;
+  }
+
+  .thermal-receipt-print {
+    position: absolute !important;
+    top: 0 !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    height: auto !important;
+    margin: 0 !important;
+    font-size: 11px !important;
+    line-height: 1.2 !important;
+  }
+}
+
+@media screen {
+  .print-only {
+    display: none !important;
+  }
+}
+
+/* Glassmorphism & Maroon Highlights */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.glass-maroon {
+  background: linear-gradient(135deg, #800000 0%, #4A0404 100%);
+}
