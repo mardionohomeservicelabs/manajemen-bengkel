@@ -157,17 +157,27 @@ export function Sidebar() {
       >
         {/* Brand Header */}
         <div className="p-4 border-b border-slate-800 flex items-center space-x-3 bg-gradient-to-br from-maroon-950 via-maroon-900 to-slate-950">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-maroon-700 to-maroon-950 flex flex-col items-center justify-center text-white shadow-glow border-2 border-amber-400 flex-shrink-0">
-            <span className="font-black text-xl tracking-tighter text-amber-300">M</span>
-            <span className="text-[6px] font-black uppercase tracking-widest text-white -mt-1">
-              HOME
-            </span>
-          </div>
+          {/* Logo Perisai Asli */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo-shield.png"
+            alt="Mardiono Home Service"
+            width={44}
+            height={44}
+            className="flex-shrink-0 drop-shadow-lg"
+            style={{
+              width: '44px',
+              height: '44px',
+              objectFit: 'contain',
+              objectPosition: 'center',
+              mixBlendMode: 'screen',
+            }}
+          />
           <div className="overflow-hidden">
             <h1 className="font-black text-white text-sm tracking-tight truncate uppercase">
               MARDIONO
             </h1>
-            <div className="text-[11px] text-amber-300 font-bold uppercase tracking-wider -mt-0.5">
+            <div className="text-[11px] text-blue-400 font-bold uppercase tracking-wider -mt-0.5">
               Home Service
             </div>
             <div className="text-[9px] text-slate-400 font-medium truncate">

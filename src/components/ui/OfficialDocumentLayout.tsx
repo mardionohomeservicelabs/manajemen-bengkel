@@ -21,23 +21,23 @@ export function OfficialDocumentHeader({ settings }: OfficialDocumentHeaderProps
       </div>
 
       {/* Main Header Row: Symmetrical Balance between Fixed Logo & Pure Right-Aligned Info */}
-      <div className="flex items-center justify-between py-1 px-0.5 gap-4">
-        {/* Left: Strictly Dimensioned Official Logo (Never Zoomed, Never Collapsed) */}
-        <div className="flex-shrink-0 w-[246px] h-[48px] flex items-center justify-start">
+      <div className="flex items-center justify-between py-2 px-0.5 gap-4">
+        {/* Left: Strictly Dimensioned Official Logo — Enlarged for Clarity & Symmetry */}
+        <div className="flex-shrink-0 w-[300px] h-[75px] flex items-center justify-start">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo.png"
             alt="Mardiono Home Service"
-            width={246}
-            height={48}
+            width={300}
+            height={75}
             className="official-document-logo block"
             style={{
-              width: '246px',
-              height: '48px',
-              minWidth: '246px',
-              minHeight: '48px',
-              maxWidth: '246px',
-              maxHeight: '48px',
+              width: '300px',
+              height: '75px',
+              minWidth: '300px',
+              minHeight: '75px',
+              maxWidth: '300px',
+              maxHeight: '75px',
               objectFit: 'contain',
               objectPosition: 'left center',
               display: 'block',

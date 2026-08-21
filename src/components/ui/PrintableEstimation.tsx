@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Invoice, WorkshopSettings } from '@/lib/types/database';
 import {
   formatCurrency,
@@ -34,6 +34,9 @@ export function PrintableEstimation({
 }: PrintableEstimationProps) {
   const vehicle = estimation.vehicle;
 
+  // State untuk nama SA yang bisa diketik manual
+  const [signerSA, setSignerSA] = useState<string>('');
+
   const handlePrint = () => {
     window.print();
   };
@@ -57,15 +60,27 @@ export function PrintableEstimation({
   return (
     <div className="w-full max-w-5xl mx-auto space-y-3">
       {/* Top Floating Control Bar */}
-      <div className="no-print bg-slate-900 text-white px-5 py-3 rounded-2xl flex items-center justify-between shadow-xl border border-slate-800">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-lg bg-amber-600 flex items-center justify-center text-white font-bold">
+      <div className="no-print bg-slate-900 text-white px-5 py-3 rounded-2xl flex items-center gap-4 shadow-xl border border-slate-800 flex-wrap">
+        <div className="flex items-center space-x-3 flex-1 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-amber-600 flex items-center justify-center text-white font-bold flex-shrink-0">
             <Calculator className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h3 className="font-bold text-sm">Surat Estimasi Biaya & Persetujuan Pelanggan</h3>
+            <h3 className="font-bold text-sm">Surat Estimasi Biaya &amp; Persetujuan Pelanggan</h3>
             <p className="text-[11px] text-slate-400">Ukuran Otomatis Sesuai Struktur • Mardiono Home Service</p>
           </div>
+        </div>
+
+        {/* Input Nama SA */}
+        <div className="flex flex-col gap-0.5">
+          <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">Nama Service Advisor (SA)</label>
+          <input
+            type="text"
+            value={signerSA}
+            onChange={(e) => setSignerSA(e.target.value)}
+            placeholder="Nama SA yang menandatangani..."
+            className="bg-slate-800 border border-slate-600 text-white text-xs px-2.5 py-1.5 rounded-lg w-52 focus:outline-none focus:border-amber-400 placeholder:text-slate-500"
+          />
         </div>
 
         <div className="flex items-center space-x-2.5">
@@ -266,7 +281,7 @@ export function PrintableEstimation({
                   <span className="text-[9px] text-slate-400 italic">Tanda tangan SA</span>
                 </div>
                 <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5">
-                  Eko Prasetyo (SA)
+                  {signerSA || 'Service Advisor (SA)'}
                 </p>
               </div>
 

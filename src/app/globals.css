@@ -123,14 +123,14 @@ body {
     color-adjust: exact !important;
   }
 
-  /* Step 4: Logo — pixel-perfect, never zoom or collapse */
+  /* Step 4: Logo — pixel-perfect, enlarged for clarity & symmetry, never collapse */
   .official-document-logo {
-    width: 246px !important;
-    min-width: 246px !important;
-    max-width: 246px !important;
-    height: 48px !important;
-    min-height: 48px !important;
-    max-height: 48px !important;
+    width: 300px !important;
+    min-width: 300px !important;
+    max-width: 300px !important;
+    height: 75px !important;
+    min-height: 75px !important;
+    max-height: 75px !important;
     object-fit: contain !important;
     object-position: left center !important;
     display: block !important;

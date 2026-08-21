@@ -34,6 +34,7 @@ export function PrintableInvoice({
   onClose,
 }: PrintableInvoiceProps) {
   const [printMode, setPrintMode] = useState<'sheet' | 'thermal'>('sheet');
+  const [signerKasir, setSignerKasir] = useState<string>('');
   const vehicle = invoice.vehicle;
   const isPaid = invoice.payment_status === 'paid';
 
@@ -108,6 +109,20 @@ export function PrintableInvoice({
             </button>
           </div>
         </div>
+
+        {/* Input Nama Kasir */}
+        {printMode === 'sheet' && (
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">Nama Kasir / Admin</label>
+            <input
+              type="text"
+              value={signerKasir}
+              onChange={(e) => setSignerKasir(e.target.value)}
+              placeholder="Nama kasir yang menandatangani..."
+              className="bg-slate-800 border border-slate-600 text-white text-xs px-2.5 py-1.5 rounded-lg w-52 focus:outline-none focus:border-amber-400 placeholder:text-slate-500"
+            />
+          </div>
+        )}
 
         <div className="flex items-center space-x-2.5">
           <button
@@ -348,7 +363,7 @@ export function PrintableInvoice({
                     )}
                   </div>
                   <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate">
-                    Siti Rahmawati (Admin Kasir)
+                    {signerKasir || 'Kasir / Admin Penagihan'}
                   </p>
                 </div>
 

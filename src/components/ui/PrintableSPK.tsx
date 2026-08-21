@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { WorkOrder, WorkshopSettings } from '@/lib/types/database';
 import {
   formatDate,
@@ -27,6 +27,14 @@ interface PrintableSPKProps {
 
 export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps) {
   const vehicle = workOrder.vehicle;
+
+  // State untuk nama yang bisa diketik manual di dokumen
+  const [signerSA, setSignerSA] = useState<string>(
+    workOrder.sa_profile?.full_name || ''
+  );
+  const [signerMechanic, setSignerMechanic] = useState<string>(
+    workOrder.mechanic_name || ''
+  );
 
   const handlePrint = () => {
     window.print();
@@ -60,14 +68,38 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
   return (
     <div className="w-full max-w-5xl mx-auto space-y-3">
       {/* Top Action Control Bar */}
-      <div className="no-print bg-slate-900 text-white px-5 py-3 rounded-2xl flex items-center justify-between shadow-xl border border-slate-800">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-lg bg-[#8B0000] flex items-center justify-center text-white font-bold">
+      <div className="no-print bg-slate-900 text-white px-5 py-3 rounded-2xl flex items-center gap-4 shadow-xl border border-slate-800 flex-wrap">
+        <div className="flex items-center space-x-3 flex-1 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-[#8B0000] flex items-center justify-center text-white font-bold flex-shrink-0">
             <FileText className="w-4 h-4 text-amber-300" />
           </div>
           <div>
             <h3 className="font-bold text-sm">Perintah Kerja Bengkel (PKB / SPK)</h3>
             <p className="text-[11px] text-slate-400">Ukuran Otomatis Sesuai Struktur • Mardiono Home Service</p>
+          </div>
+        </div>
+
+        {/* Input Nama Penandatangan */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">Nama Petugas / SA</label>
+            <input
+              type="text"
+              value={signerSA}
+              onChange={(e) => setSignerSA(e.target.value)}
+              placeholder="Nama SA / Petugas..."
+              className="bg-slate-800 border border-slate-600 text-white text-xs px-2.5 py-1.5 rounded-lg w-44 focus:outline-none focus:border-amber-400 placeholder:text-slate-500"
+            />
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">Nama Mekanik</label>
+            <input
+              type="text"
+              value={signerMechanic}
+              onChange={(e) => setSignerMechanic(e.target.value)}
+              placeholder="Nama mekanik..."
+              className="bg-slate-800 border border-slate-600 text-white text-xs px-2.5 py-1.5 rounded-lg w-44 focus:outline-none focus:border-amber-400 placeholder:text-slate-500"
+            />
           </div>
         </div>
 
@@ -235,7 +267,7 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
                   )}
                 </div>
                 <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate">
-                  ({workOrder.sa_profile?.full_name || 'Eko Prasetyo'})
+                  ({signerSA || 'Petugas Bengkel'})
                 </p>
               </div>
 
@@ -255,7 +287,7 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
                   )}
                 </div>
                 <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate">
-                  ({workOrder.mechanic_name || 'Agus Susanto'})
+                  ({signerMechanic || 'Teknisi / Mekanik'})
                 </p>
               </div>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ACCheckupData, WorkshopSettings, CheckConditionStatus } from '@/lib/types/database';
 import { formatDate, formatPlate, createWhatsAppLink } from '@/lib/utils';
 import { Printer, Share2, X, ThermometerSnowflake } from 'lucide-react';
@@ -20,6 +20,11 @@ export function PrintableACCheckup({
   settings,
   onClose,
 }: PrintableACCheckupProps) {
+  // State untuk nama teknisi yang bisa diketik manual
+  const [signerTeknisi, setSignerTeknisi] = useState<string>(
+    checkup.technician_name || ''
+  );
+
   const handlePrint = () => {
     window.print();
   };
@@ -56,15 +61,27 @@ export function PrintableACCheckup({
   return (
     <div className="w-full max-w-5xl mx-auto space-y-3">
       {/* Top Action Control Bar */}
-      <div className="no-print bg-slate-900 text-white px-5 py-3 rounded-2xl flex items-center justify-between shadow-xl border border-slate-800">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-lg bg-[#8B0000] flex items-center justify-center text-white font-bold">
+      <div className="no-print bg-slate-900 text-white px-5 py-3 rounded-2xl flex items-center gap-4 shadow-xl border border-slate-800 flex-wrap">
+        <div className="flex items-center space-x-3 flex-1 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-[#8B0000] flex items-center justify-center text-white font-bold flex-shrink-0">
             <ThermometerSnowflake className="w-4 h-4 text-amber-300" />
           </div>
           <div>
             <h3 className="font-bold text-sm">Formulir Pemeriksaan AC & Pendingin</h3>
             <p className="text-[11px] text-slate-400">Ukuran Otomatis Sesuai Struktur • Mardiono Home Service</p>
           </div>
+        </div>
+
+        {/* Input Nama Teknisi */}
+        <div className="flex flex-col gap-0.5">
+          <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">Nama Teknisi</label>
+          <input
+            type="text"
+            value={signerTeknisi}
+            onChange={(e) => setSignerTeknisi(e.target.value)}
+            placeholder="Nama teknisi AC..."
+            className="bg-slate-800 border border-slate-600 text-white text-xs px-2.5 py-1.5 rounded-lg w-48 focus:outline-none focus:border-amber-400 placeholder:text-slate-500"
+          />
         </div>
 
         <div className="flex items-center space-x-2.5">
@@ -272,7 +289,7 @@ export function PrintableACCheckup({
                   )}
                 </div>
                 <p className="font-bold text-slate-950 text-[11px] border-t border-slate-300 pt-1">
-                  {checkup.technician_name || 'Joko'}
+                  {signerTeknisi || 'Teknisi AC'}
                 </p>
               </div>
 
