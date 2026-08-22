@@ -107,10 +107,10 @@ export default function LoginPage() {
             <h1 className="text-xl font-black text-white uppercase tracking-wider">
               MARDIONO
             </h1>
-            <p className="text-sm font-bold text-blue-400 tracking-widest uppercase -mt-0.5">
+            <p className="text-sm font-black text-white tracking-widest uppercase -mt-0.5">
               Home Service
             </p>
-            <p className="text-xs text-slate-400 font-medium mt-2">
+            <p className="text-xs text-slate-300 font-medium mt-2">
               Sistem Manajemen Bengkel
             </p>
           </div>

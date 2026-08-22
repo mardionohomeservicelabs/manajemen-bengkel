@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import {
   UserRole,
   WorkshopSettings,
@@ -39,8 +39,8 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const { currentUser } = useAuth();
-  const [settings, setSettings] = useState<WorkshopSettings>(DBService.getSettings());
+  const { currentUser, activeBranch } = useAuth();
+  const [settings, setSettings] = useState<WorkshopSettings>(DBService.getSettings(activeBranch));
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -52,26 +52,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Role diambil langsung dari user yang login
   const currentRole: UserRole = currentUser?.role ?? 'sa';
 
-  const refreshData = () => {
-    DBService.init();
-    setSettings(DBService.getSettings());
-    setWorkOrders(DBService.getWorkOrders());
-    setInventory(DBService.getInventory());
-    setInvoices(DBService.getInvoices());
-    setCrmLogs(DBService.getCRMLogs());
-    setVehicles(DBService.getVehicles());
-  };
+  const refreshData = useCallback(() => {
+    DBService.init(activeBranch);
+    setSettings(DBService.getSettings(activeBranch));
+    setWorkOrders(DBService.getWorkOrders(activeBranch));
+    setInventory(DBService.getInventory(activeBranch));
+    setInvoices(DBService.getInvoices(activeBranch));
+    setCrmLogs(DBService.getCRMLogs(activeBranch));
+    setVehicles(DBService.getVehicles(activeBranch));
+  }, [activeBranch]);
 
   useEffect(() => {
-    DBService.init();
+    DBService.init(activeBranch);
     refreshData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeBranch, refreshData]);
 
   const updateSettings = (newSettings: Partial<WorkshopSettings>) => {
-    const updated = DBService.updateSettings(newSettings);
+    const updated = DBService.updateSettings(newSettings, activeBranch);
     setSettings(updated);
-    showToast('Pengaturan bengkel berhasil disimpan', 'success');
+    showToast(`Pengaturan bengkel (${activeBranch}) berhasil disimpan`, 'success');
   };
 
   const showToast = (message: string, type: ToastMessage['type'] = 'info', title?: string) => {

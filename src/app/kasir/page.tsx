@@ -18,6 +18,7 @@ import {
   formatDateTime,
   formatPlate,
   generateInvoiceNumber,
+  parseNumericPrice,
 } from '@/lib/utils';
 import {
   Receipt,
@@ -95,7 +96,7 @@ function CashierContent() {
   }, [selectedSpkId, workOrders, invoices]);
 
   // Calculations
-  const subtotal = items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
+  const subtotal = items.reduce((sum, item) => sum + parseNumericPrice(item.subtotal), 0);
   const taxAmount = (subtotal - discountAmount) * (taxPercent / 100);
   const totalAmount = Math.max(0, subtotal - discountAmount + taxAmount);
   const balanceDue = Math.max(0, totalAmount - downPayment);
@@ -105,7 +106,8 @@ function CashierContent() {
     if (existingIndex !== -1) {
       const updated = [...items];
       updated[existingIndex].qty += 1;
-      updated[existingIndex].subtotal = updated[existingIndex].qty * updated[existingIndex].price;
+      const numPrice = parseNumericPrice(updated[existingIndex].price);
+      updated[existingIndex].subtotal = updated[existingIndex].qty * numPrice;
       setItems(updated);
     } else {
       const newItem: InvoiceItem = {
@@ -126,7 +128,8 @@ function CashierContent() {
     const qty = Math.max(1, newQty);
     const updated = [...items];
     updated[index].qty = qty;
-    updated[index].subtotal = qty * updated[index].price;
+    const numPrice = parseNumericPrice(updated[index].price);
+    updated[index].subtotal = qty * numPrice;
     setItems(updated);
   };
 

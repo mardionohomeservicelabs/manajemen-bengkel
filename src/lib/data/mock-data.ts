@@ -32,9 +32,9 @@ export const initialProfiles: Profile[] = [
   },
 ];
 
-export const initialSettings: WorkshopSettings = {
-  id: 'workshop-default-1',
-  name: 'MARDIONO HOME SERVICE',
+export const initialSettingsMHS1: WorkshopSettings = {
+  id: 'workshop-mhs1',
+  name: 'MARDIONO HOME SERVICE 1',
   tagline: 'Engine - Tune Up - AC Mobil - Understeel - Electrical',
   phone: '0812-3076-2930',
   email: 'mardionoohomeservice@gmail.com',
@@ -43,8 +43,38 @@ export const initialSettings: WorkshopSettings = {
   logo_url: '/header-banner.png',
   bank_account_info: 'BCA: 541-098-7711 a.n Mardiono\nMandiri: 124-00-9876543-1 a.n Mardiono Home Service',
   terms_conditions: '1. Garansi servis mesin & AC berlaku 1 bulan atau 1.000 KM mana yang tercapai lebih dulu.\n2. Sparepart elektrikal tidak bergaransi kecuali cacat pabrik saat pemasangan.\n3. Kendaraan yang tidak diambil dalam tempo 7 hari setelah selesai dikenakan biaya inap.',
-  wa_template_reminder: 'Halo Bpk/Ibu [Customer], mobil kesayangan Anda [Mobil] ([Plat]) sudah mendekati jadwal servis berkala pada [Tanggal]. Kunjungi Mardiono Home Service untuk menjaga performa mobil Anda tetap prima. Balas pesan ini untuk reservasi antrean!',
+  wa_template_reminder: 'Halo Bpk/Ibu [Customer], mobil kesayangan Anda [Mobil] ([Plat]) sudah mendekati jadwal servis berkala pada [Tanggal]. Kunjungi Mardiono Home Service 1 untuk menjaga performa mobil Anda tetap prima. Balas pesan ini untuk reservasi antrean!',
 };
+
+export const initialSettingsMHS2: WorkshopSettings = {
+  id: 'workshop-mhs2',
+  name: 'MARDIONO HOME SERVICE 2',
+  tagline: 'Spesialis Mesin & AC Mobil Trosobo',
+  phone: '0812-3076-2931',
+  email: 'mhs2.trosobo@gmail.com',
+  address: 'Jl. Raya Trosobo No. 88, Krian, Sidoarjo',
+  city: 'Sidoarjo',
+  logo_url: '/header-banner.png',
+  bank_account_info: 'BCA: 541-098-8822 a.n Navira Ilham\nMandiri: 124-00-5544332-2 a.n MHS 2 Trosobo',
+  terms_conditions: '1. Garansi servis mesin & AC berlaku 1 bulan atau 1.000 KM mana yang tercapai lebih dulu.\n2. Sparepart elektrikal tidak bergaransi kecuali cacat pabrik saat pemasangan.\n3. Kendaraan yang tidak diambil dalam tempo 7 hari setelah selesai dikenakan biaya inap.',
+  wa_template_reminder: 'Halo Bpk/Ibu [Customer], mobil Anda [Mobil] ([Plat]) sudah mendekati jadwal servis berkala di Mardiono Home Service 2 (Trosobo). Balas pesan ini untuk reservasi antrean!',
+};
+
+export const initialSettingsMHS3: WorkshopSettings = {
+  id: 'workshop-mhs3',
+  name: 'MARDIONO HOME SERVICE 3',
+  tagline: 'Engine • AC • Understeel Specialist Cabang 3',
+  phone: '0812-3076-2932',
+  email: 'mhs3.surabaya@gmail.com',
+  address: 'Jl. Mastrip No. 12, Karangpilang, Surabaya',
+  city: 'Surabaya',
+  logo_url: '/header-banner.png',
+  bank_account_info: 'BCA: 541-098-9933 a.n Ardiyanto Wijaya\nMandiri: 124-00-7788990-3 a.n MHS 3',
+  terms_conditions: '1. Garansi servis mesin & AC berlaku 1 bulan atau 1.000 KM mana yang tercapai lebih dulu.\n2. Sparepart elektrikal tidak bergaransi kecuali cacat pabrik saat pemasangan.\n3. Kendaraan yang tidak diambil dalam tempo 7 hari setelah selesai dikenakan biaya inap.',
+  wa_template_reminder: 'Halo Bpk/Ibu [Customer], mobil Anda [Mobil] ([Plat]) sudah mendekati jadwal servis berkala di Mardiono Home Service 3. Balas pesan ini untuk reservasi antrean!',
+};
+
+export const initialSettings: WorkshopSettings = initialSettingsMHS1;
 
 export const initialVehicles: VehicleCustomer[] = [
   {

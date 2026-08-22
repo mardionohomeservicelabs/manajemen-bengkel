@@ -5,7 +5,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(amount: number): string {
+export function formatCurrency(amount: number | string | undefined): string {
+  if (amount === undefined || amount === null || amount === '') return 'Rp 0';
+  if (typeof amount === 'string') {
+    if (/[a-zA-Z]/.test(amount)) {
+      return amount;
+    }
+    const num = Number(amount.replace(/[^0-9.-]/g, ''));
+    if (isNaN(num)) return amount;
+    amount = num;
+  }
   if (isNaN(amount)) return 'Rp 0';
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
@@ -13,6 +22,19 @@ export function formatCurrency(amount: number): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+export function parseNumericPrice(val: number | string | undefined): number {
+  if (val === undefined || val === null || val === '') return 0;
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  if (typeof val === 'string') {
+    if (/[a-zA-Z]/.test(val)) return 0;
+    const cleaned = val.replace(/[^0-9.-]/g, '');
+    if (cleaned.length === 0) return 0;
+    const parsed = Number(cleaned);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
 }
 
 export function formatDate(dateString?: string | Date): string {

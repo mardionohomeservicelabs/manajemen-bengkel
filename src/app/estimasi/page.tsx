@@ -11,6 +11,7 @@ import {
   formatDateTime,
   formatPlate,
   generateInvoiceNumber,
+  parseNumericPrice,
 } from '@/lib/utils';
 import {
   Calculator,
@@ -50,11 +51,11 @@ function EstimationBuilderContent() {
   const [pickerCategory, setPickerCategory] = useState<string>('all');
   const [pickerSearch, setPickerSearch] = useState<string>('');
 
-  // Custom Item Form State (On-The-Fly)
+  // Custom Item Form State (On-The-Fly) — supports text or number price
   const [customItemName, setCustomItemName] = useState('');
   const [customItemIsService, setCustomItemIsService] = useState(true);
   const [customItemQty, setCustomItemQty] = useState<number>(1);
-  const [customItemPrice, setCustomItemPrice] = useState<number>(150000);
+  const [customItemPrice, setCustomItemPrice] = useState<string>('150000');
 
   const [savedEstimation, setSavedEstimation] = useState<Invoice | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -79,8 +80,8 @@ function EstimationBuilderContent() {
     }
   }, [selectedSpkId, workOrders, invoices]);
 
-  // Calculations
-  const subtotal = items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
+  // Calculations (Only numeric prices are added to the subtotal; non-numeric texts are 0)
+  const subtotal = items.reduce((sum, item) => sum + parseNumericPrice(item.subtotal), 0);
   const taxAmount = (subtotal - discountAmount) * (taxPercent / 100);
   const totalAmount = Math.max(0, subtotal - discountAmount + taxAmount);
 
@@ -89,7 +90,8 @@ function EstimationBuilderContent() {
     if (existingIndex !== -1) {
       const updated = [...items];
       updated[existingIndex].qty += 1;
-      updated[existingIndex].subtotal = updated[existingIndex].qty * updated[existingIndex].price;
+      const numPrice = parseNumericPrice(updated[existingIndex].price);
+      updated[existingIndex].subtotal = updated[existingIndex].qty * numPrice;
       setItems(updated);
     } else {
       const newItem: InvoiceItem = {
@@ -115,13 +117,24 @@ function EstimationBuilderContent() {
       return;
     }
 
+    const priceRaw = customItemPrice.trim();
+    const isText = /[a-zA-Z]/.test(priceRaw);
+    let finalPrice: number | string = priceRaw;
+    let finalSubtotal: number | string = priceRaw;
+
+    if (!isText) {
+      const numericVal = parseNumericPrice(priceRaw);
+      finalPrice = numericVal;
+      finalSubtotal = Number(customItemQty) * numericVal;
+    }
+
     const newItem: InvoiceItem = {
       name: customItemName.trim(),
       is_service: customItemIsService,
       is_custom: true,
       qty: Number(customItemQty),
-      price: Number(customItemPrice),
-      subtotal: Number(customItemQty) * Number(customItemPrice),
+      price: finalPrice,
+      subtotal: finalSubtotal,
     };
 
     setItems([...items, newItem]);
@@ -130,23 +143,36 @@ function EstimationBuilderContent() {
     // Reset custom form
     setCustomItemName('');
     setCustomItemQty(1);
-    setCustomItemPrice(100000);
+    setCustomItemPrice('100000');
   };
 
   const handleUpdateQty = (index: number, newQty: number) => {
     const qty = Math.max(1, newQty);
     const updated = [...items];
     updated[index].qty = qty;
-    updated[index].subtotal = qty * updated[index].price;
+
+    const price = updated[index].price;
+    if (typeof price === 'number' || !/[a-zA-Z]/.test(String(price))) {
+      const numPrice = parseNumericPrice(price);
+      updated[index].subtotal = qty * numPrice;
+    }
     setItems(updated);
   };
 
-  const handleUpdatePrice = (index: number, newPrice: number) => {
+  const handleUpdatePrice = (index: number, newPriceInput: string) => {
     if (currentRole !== 'owner' && !items[index].is_custom) return;
-    const price = Math.max(0, newPrice);
     const updated = [...items];
-    updated[index].price = price;
-    updated[index].subtotal = updated[index].qty * price;
+    const isText = /[a-zA-Z]/.test(newPriceInput);
+
+    if (isText) {
+      updated[index].price = newPriceInput;
+      updated[index].subtotal = newPriceInput;
+    } else {
+      const num = parseNumericPrice(newPriceInput);
+      updated[index].price = num;
+      updated[index].subtotal = updated[index].qty * num;
+    }
+
     setItems(updated);
   };
 
@@ -230,7 +256,7 @@ function EstimationBuilderContent() {
             <span>Kalkulator Estimasi Biaya & Persetujuan Pelanggan</span>
           </h1>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            Pilih dari katalog inventaris atau buat jasa/barang kustom baru langsung on-the-fly.
+            Pilih dari katalog inventaris atau buat jasa/barang kustom baru (angka maupun huruf seperti "Menyesuaikan").
           </p>
         </div>
 
@@ -375,14 +401,14 @@ function EstimationBuilderContent() {
             </div>
           )}
 
-          {/* TAB 2: CUSTOM ON-THE-FLY FORM */}
+          {/* TAB 2: CUSTOM ON-THE-FLY FORM (SUPPORTS LETTERS / NUMBERS) */}
           {itemSourceTab === 'custom' && (
             <form onSubmit={handleAddCustomItem} className="space-y-3 p-3 bg-maroon-50/30 rounded-xl border border-maroon-200 text-xs">
               <div className="font-bold text-maroon-900 text-xs">
                 Buat Jasa / Suku Cadang Kustom (On-The-Fly)
               </div>
               <p className="text-[11px] text-slate-500 leading-tight">
-                Item ini akan langsung masuk ke estimasi tanpa harus didaftarkan ke master inventaris.
+                Item ini akan langsung masuk ke estimasi tanpa harus didaftarkan ke master inventaris. Harga dapat berupa angka (contoh: 150000) atau huruf (contoh: Menyesuaikan / TBA).
               </p>
 
               <div>
@@ -427,16 +453,19 @@ function EstimationBuilderContent() {
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  Harga Satuan (Rp) <span className="text-red-500">*</span>
+                  Harga Satuan (Angka / Huruf) <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="number"
-                  min="0"
+                  type="text"
                   required
+                  placeholder="Contoh: 150000 atau Menyesuaikan"
                   value={customItemPrice}
-                  onChange={(e) => setCustomItemPrice(Number(e.target.value))}
-                  className="w-full p-2 rounded-lg border border-slate-300 font-mono font-bold text-sm text-maroon-900"
+                  onChange={(e) => setCustomItemPrice(e.target.value)}
+                  className="w-full p-2 rounded-lg border border-slate-300 font-bold text-sm text-maroon-900"
                 />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  *Jika diisi huruf (misal: "Menyesuaikan"), total tidak akan menjumlahkannya.
+                </p>
               </div>
 
               <button
@@ -477,58 +506,65 @@ function EstimationBuilderContent() {
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold text-[11px]">
                     <th className="p-2.5">Item</th>
                     <th className="p-2.5 w-16 text-center">Qty</th>
-                    <th className="p-2.5 w-24 text-right">Harga</th>
+                    <th className="p-2.5 w-28 text-right">Harga</th>
                     <th className="p-2.5 w-28 text-right">Subtotal</th>
                     <th className="p-2.5 w-8"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {items.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/60">
-                      <td className="p-2.5">
-                        <div className="font-bold text-slate-900">{item.name}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">
-                          {item.is_custom ? (
-                            <span className="text-maroon-700 font-semibold">[Kustom On-The-Fly]</span>
-                          ) : (
-                            item.code
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-2.5 text-center">
-                        <input
-                          type="number"
-                          min="1"
-                          value={item.qty}
-                          onChange={(e) => handleUpdateQty(idx, Number(e.target.value))}
-                          className="w-12 text-center p-1 rounded border border-slate-200 font-mono font-bold"
-                        />
-                      </td>
-                      <td className="p-2.5 text-right font-mono font-semibold text-slate-800">
-                        {currentRole === 'owner' || item.is_custom ? (
+                  {items.map((item, idx) => {
+                    const isItemText = typeof item.price === 'string' && /[a-zA-Z]/.test(item.price);
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/60">
+                        <td className="p-2.5">
+                          <div className="font-bold text-slate-900">{item.name}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">
+                            {item.is_custom ? (
+                              <span className="text-maroon-700 font-semibold">[Kustom On-The-Fly]</span>
+                            ) : (
+                              item.code
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-2.5 text-center">
                           <input
                             type="number"
-                            value={item.price}
-                            onChange={(e) => handleUpdatePrice(idx, Number(e.target.value))}
-                            className="w-20 text-right p-1 rounded border border-slate-200 font-mono"
+                            min="1"
+                            value={item.qty}
+                            onChange={(e) => handleUpdateQty(idx, Number(e.target.value))}
+                            className="w-12 text-center p-1 rounded border border-slate-200 font-mono font-bold"
                           />
-                        ) : (
-                          formatCurrency(item.price)
-                        )}
-                      </td>
-                      <td className="p-2.5 text-right font-mono font-black text-slate-900">
-                        {formatCurrency(item.subtotal)}
-                      </td>
-                      <td className="p-2.5 text-right">
-                        <button
-                          onClick={() => handleRemoveItem(idx)}
-                          className="text-slate-400 hover:text-red-600 p-1 transition"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="p-2.5 text-right font-semibold text-slate-800">
+                          {currentRole === 'owner' || item.is_custom ? (
+                            <input
+                              type="text"
+                              value={String(item.price)}
+                              onChange={(e) => handleUpdatePrice(idx, e.target.value)}
+                              className="w-24 text-right p-1 rounded border border-slate-200 font-bold text-xs"
+                            />
+                          ) : (
+                            <span className="font-mono">{formatCurrency(item.price)}</span>
+                          )}
+                        </td>
+                        <td className="p-2.5 text-right font-black text-slate-900">
+                          {isItemText ? (
+                            <span className="text-amber-700 text-xs italic">{item.subtotal}</span>
+                          ) : (
+                            <span className="font-mono">{formatCurrency(item.subtotal)}</span>
+                          )}
+                        </td>
+                        <td className="p-2.5 text-right">
+                          <button
+                            onClick={() => handleRemoveItem(idx)}
+                            className="text-slate-400 hover:text-red-600 p-1 transition"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}

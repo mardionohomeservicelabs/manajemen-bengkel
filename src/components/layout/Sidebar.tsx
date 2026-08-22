@@ -161,10 +161,10 @@ export function Sidebar() {
         <h1 className="font-black text-white text-sm tracking-tight truncate uppercase">
           MARDIONO
         </h1>
-        <div className="text-[11px] text-blue-400 font-bold uppercase tracking-wider -mt-0.5">
+        <div className="text-[11px] text-white font-black uppercase tracking-wider -mt-0.5">
           Home Service
         </div>
-        <div className="text-[9px] text-slate-400 font-medium truncate">
+        <div className="text-[9px] text-slate-300 font-medium truncate">
           Engine • AC • Understeel
         </div>
       </div>

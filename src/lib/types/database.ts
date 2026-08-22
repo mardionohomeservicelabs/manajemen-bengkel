@@ -250,9 +250,9 @@ export interface InvoiceItem {
   is_service: boolean;
   is_custom?: boolean;
   qty: number;
-  price: number; // Unit price
+  price: number | string; // Unit price (numeric or string text like 'Menyesuaikan')
   buy_price?: number; // HPP for profit analytics
-  subtotal: number;
+  subtotal: number | string;
 }
 
 export interface Invoice {
