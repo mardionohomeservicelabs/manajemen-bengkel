@@ -229,8 +229,8 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
             </ol>
           </div>
 
-          {/* Symmetrical Two Bottom Info Boxes: Sumber Informasi & Status Kendaraan */}
-          <div className="grid grid-cols-2 gap-3 text-xs">
+          {/* Symmetrical Two Bottom Info Boxes: Sumber Informasi & Status Kendaraan + Di Terima Di */}
+          <div className="grid grid-cols-3 gap-3 text-xs">
             <div className="border border-slate-800 rounded-xl p-2 bg-white flex items-center justify-between">
               <span className="font-bold text-slate-700">Sumber Informasi:</span>
               <span className="font-black text-[#001F7A] uppercase">{workOrder.source_info || 'REFERENSI'}</span>
@@ -238,6 +238,10 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
             <div className="border border-slate-800 rounded-xl p-2 bg-white flex items-center justify-between">
               <span className="font-bold text-slate-700">Status Kendaraan:</span>
               <span className="font-black text-[#8B0000] uppercase">{workOrder.vehicle_status || 'Ditunggu'}</span>
+            </div>
+            <div className="border border-slate-800 rounded-xl p-2 bg-white flex items-center justify-between">
+              <span className="font-bold text-slate-700">Di Terima Di:</span>
+              <span className="font-black text-emerald-800 uppercase">{workOrder.received_at_branch || '-'}</span>
             </div>
           </div>
 

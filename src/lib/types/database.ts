@@ -232,6 +232,7 @@ export interface WorkOrder {
 
   source_info?: string;
   vehicle_status?: string;
+  received_at_branch?: string; // MHS 1 | MHS 2 | MHS 3
 
   status: WorkOrderStatus;
   created_at?: string;

@@ -69,7 +69,7 @@ body {
 }
 
 /* ==============================================================================
-   PRINT & PDF — Multi-page aware: hide everything, show only doc-sheet in flow
+   PRINT & PDF — Fix: no duplicate/blank pages, only doc-sheet prints
 ============================================================================== */
 @media print {
   @page {
@@ -95,13 +95,27 @@ body {
     color-adjust: exact !important;
   }
 
-  /* Step 2: Make doc-sheet and ALL descendants visible */
+  /* Step 2: Make ONLY doc-sheet and ALL its descendants visible */
   .doc-sheet,
   .doc-sheet * {
     visibility: visible !important;
   }
 
-  /* Step 3: Use absolute (not fixed!) so content flows across multiple pages */
+  /* Step 3: doc-preview-wrapper (grey background container) — HIDDEN in print
+     This prevents the wrapper from creating an extra blank page */
+  .doc-preview-wrapper {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* Step 4: doc-sheet — the ONLY printed element */
   .doc-sheet {
     position: absolute !important;
     top: 0 !important;
@@ -118,12 +132,14 @@ body {
     border-radius: 0 !important;
     overflow: visible !important;
     box-sizing: border-box !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     color-adjust: exact !important;
   }
 
-  /* Step 4: Logo — pixel-perfect, enlarged for clarity & symmetry, never collapse */
+  /* Step 5: Logo — pixel-perfect, enlarged for clarity & symmetry, never collapse */
   .official-document-logo {
     width: 300px !important;
     min-width: 300px !important;
@@ -137,7 +153,7 @@ body {
     visibility: visible !important;
   }
 
-  /* Step 5: Other images in doc-sheet */
+  /* Step 6: Other images in doc-sheet */
   .doc-sheet img:not(.official-document-logo) {
     max-width: 100% !important;
     height: auto !important;
@@ -146,7 +162,7 @@ body {
     visibility: visible !important;
   }
 
-  /* Step 6: Tables */
+  /* Step 7: Tables */
   .doc-sheet table {
     border-collapse: collapse !important;
     width: 100% !important;
@@ -165,7 +181,7 @@ body {
     print-color-adjust: exact !important;
   }
 
-  /* Step 7: Thermal receipt */
+  /* Step 8: Thermal receipt */
   .thermal-receipt-print,
   .thermal-receipt-print * {
     visibility: visible !important;
@@ -182,6 +198,16 @@ body {
     margin: 0 !important;
     font-size: 11px !important;
     line-height: 1.2 !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* Step 9: Prevent any trailing elements from adding blank pages */
+  body::after,
+  html::after,
+  .doc-preview-wrapper::after {
+    display: none !important;
+    content: none !important;
   }
 }
 

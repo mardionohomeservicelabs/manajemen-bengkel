@@ -11,6 +11,7 @@ import {
   VehicleCustomer,
 } from '../types/database';
 import { DBService } from '../services/db-service';
+import { useAuth } from './AuthContext';
 
 export interface ToastMessage {
   id: string;
@@ -21,7 +22,6 @@ export interface ToastMessage {
 
 interface AppContextType {
   currentRole: UserRole;
-  setCurrentRole: (role: UserRole) => void;
   settings: WorkshopSettings;
   updateSettings: (newSettings: Partial<WorkshopSettings>) => void;
   workOrders: WorkOrder[];
@@ -39,7 +39,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [currentRole, setCurrentRoleState] = useState<UserRole>('owner');
+  const { currentUser } = useAuth();
   const [settings, setSettings] = useState<WorkshopSettings>(DBService.getSettings());
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -47,7 +47,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [crmLogs, setCrmLogs] = useState<CRMLog[]>([]);
   const [vehicles, setVehicles] = useState<VehicleCustomer[]>([]);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const [isSupabaseOnline, setIsSupabaseOnline] = useState<boolean>(false);
+  const [isSupabaseOnline] = useState<boolean>(false);
+
+  // Role diambil langsung dari user yang login
+  const currentRole: UserRole = currentUser?.role ?? 'sa';
 
   const refreshData = () => {
     DBService.init();
@@ -60,27 +63,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Initial mount
     DBService.init();
-    const savedRole = localStorage.getItem('acwms_role') as UserRole;
-    if (savedRole && ['owner', 'admin', 'sa'].includes(savedRole)) {
-      setCurrentRoleState(savedRole);
-    }
     refreshData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const setCurrentRole = (role: UserRole) => {
-    setCurrentRoleState(role);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('acwms_role', role);
-    }
-    const roleLabels = {
-      owner: 'Owner (Akses Penuh)',
-      admin: 'Admin Kasir & Estimasi',
-      sa: 'Service Advisor (SA)',
-    };
-    showToast(`Beralih ke peran: ${roleLabels[role]}`, 'info');
-  };
 
   const updateSettings = (newSettings: Partial<WorkshopSettings>) => {
     const updated = DBService.updateSettings(newSettings);
@@ -106,7 +92,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider
       value={{
         currentRole,
-        setCurrentRole,
         settings,
         updateSettings,
         workOrders,

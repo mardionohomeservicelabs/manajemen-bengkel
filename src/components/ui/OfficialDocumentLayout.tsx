@@ -57,7 +57,7 @@ export function OfficialDocumentHeader({ settings }: OfficialDocumentHeaderProps
             Email: <span className="text-[#001F7A] font-semibold">{email}</span>
           </p>
           <p className="text-[9px] text-slate-500 font-medium">
-            IG: <span className="text-slate-800 font-bold">@mardionoautoservice</span> • TikTok: <span className="text-slate-800 font-bold">@bengkelmardiono</span>
+            IG: <span className="text-slate-800 font-bold">@official_mardionohomeservice</span> • TikTok: <span className="text-slate-800 font-bold">@mardionotrosobo</span>
           </p>
         </div>
       </div>

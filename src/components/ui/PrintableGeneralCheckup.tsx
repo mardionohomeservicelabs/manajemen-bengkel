@@ -69,7 +69,7 @@ export function PrintableGeneralCheckup({
             <Wrench className="w-4 h-4 text-amber-300" />
           </div>
           <div>
-            <h3 className="font-bold text-sm">Lembar Quality Control General Checkup (23 Titik)</h3>
+            <h3 className="font-bold text-sm">Checklist General Checkup Tune Up & AC Mobil</h3>
             <p className="text-[11px] text-slate-400">Ukuran Otomatis Sesuai Struktur • Mardiono Home Service</p>
           </div>
         </div>
@@ -112,10 +112,10 @@ export function PrintableGeneralCheckup({
           {/* Header */}
           <OfficialDocumentHeader settings={settings} />
 
-          {/* Title Header: QUALITY CONTROL GENERAL CHECKUP */}
+          {/* Title Header: CHECKLIST GENERAL CHECKUP TUNE UP & AC MOBIL */}
           <div className="text-center pb-1">
             <h2 className="text-sm font-black tracking-wider uppercase text-slate-900 border-b-2 border-slate-900 inline-block pb-0.5">
-              QUALITY CONTROL GENERAL CHECKUP (23 TITIK)
+              CHECKLIST GENERAL CHECKUP TUNE UP &amp; AC MOBIL
             </h2>
           </div>
 

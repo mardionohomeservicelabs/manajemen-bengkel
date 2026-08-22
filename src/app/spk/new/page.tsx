@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/lib/context/AppContext';
+import { useAuth } from '@/lib/context/AuthContext';
+import { BRANCHES, BranchId } from '@/lib/auth/users';
 import { DBService } from '@/lib/services/db-service';
 import { WorkOrder } from '@/lib/types/database';
 import { formatPlate, generateSpkNumber } from '@/lib/utils';
@@ -29,6 +31,7 @@ import { PrintableSPK } from '@/components/ui/PrintableSPK';
 export default function NewSPKPage() {
   const router = useRouter();
   const { vehicles, refreshData, showToast, settings } = useApp();
+  const { activeBranch, currentUser } = useAuth();
 
   // Form states - Customer & Vehicle
   const [customerName, setCustomerName] = useState('');
@@ -54,6 +57,7 @@ export default function NewSPKPage() {
   const [sourceInfo, setSourceInfo] = useState('REFERENSI');
   const [customSource, setCustomSource] = useState('');
   const [vehicleStatus, setVehicleStatus] = useState<'Ditunggu' | 'Ditinggal'>('Ditunggu');
+  const [receivedAtBranch, setReceivedAtBranch] = useState<BranchId>(activeBranch);
 
   // 3 Digital Signatures
   const [signatureCustomer, setSignatureCustomer] = useState<string>('');
@@ -131,6 +135,7 @@ export default function NewSPKPage() {
         notes: notes || 'Ganti oli mesin, filter, tune-up berkala, dan uji fungsi sistem.',
         source_info: finalSource,
         vehicle_status: vehicleStatus,
+        received_at_branch: receivedAtBranch,
         signature_customer_url: signatureCustomer,
         signature_mechanic_url: signatureMechanic,
         signature_sa_url: signatureSA,
@@ -462,6 +467,35 @@ export default function NewSPKPage() {
                   onChange={(e) => setCustomSource(e.target.value)}
                   className="w-full text-xs p-2.5 rounded-xl border border-slate-200 mt-2 font-medium"
                 />
+              )}
+            </div>
+
+            {/* Di Terima Di (Cabang) */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
+                Di Terima Di :
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {BRANCHES.map((branch) => (
+                  <button
+                    key={branch}
+                    type="button"
+                    onClick={() => setReceivedAtBranch(branch)}
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-black transition text-center flex flex-col items-center space-y-0.5 ${
+                      receivedAtBranch === branch
+                        ? 'bg-maroon-50 border-maroon-600 text-maroon-900 shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="text-base">{branch === 'MHS 1' ? '🏠' : branch === 'MHS 2' ? '🏡' : '🏘️'}</span>
+                    <span>{branch}</span>
+                  </button>
+                ))}
+              </div>
+              {!currentUser?.canAccessAllBranches && (
+                <p className="text-[10px] text-slate-400 italic">
+                  Otomatis sesuai cabang login Anda
+                </p>
               )}
             </div>
 

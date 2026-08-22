@@ -58,7 +58,7 @@ export default function CheckupPage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center space-x-2">
             <ShieldCheck className="w-6 h-6 text-maroon-700" />
-            <span>Modul Mandiri General Checkup & QC Kendaraan</span>
+            <span>Checklist General Checkup Tune Up &amp; AC Mobil</span>
           </h1>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
             Pemeriksaan menyeluruh kendaraan (QC 23 Titik & Form Spesialis AC) dengan output dokumen PDF resmi.
