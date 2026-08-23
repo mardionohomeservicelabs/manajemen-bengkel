@@ -69,7 +69,7 @@ body {
 }
 
 /* ==============================================================================
-   PRINT & PDF — Fix: no duplicate/blank pages, only doc-sheet prints
+   PRINT & PDF — Multi-page A4, no clipping, repeating headers
 ============================================================================== */
 @media print {
   @page {
@@ -77,7 +77,7 @@ body {
     margin: 10mm 12mm;
   }
 
-  /* Step 1: Hide all body content by default */
+  /* Step 1: Hide all body content by default using visibility (preserves layout flow) */
   html, body {
     background: #FFFFFF !important;
     margin: 0 !important;
@@ -101,8 +101,15 @@ body {
     visibility: visible !important;
   }
 
-  /* Step 3: doc-preview-wrapper (grey background container) — HIDDEN in print
-     This prevents the wrapper from creating an extra blank page */
+  /* Step 3: CRITICAL — Remove UI control bars from layout entirely (not just hidden).
+     Using display:none removes them from the flow, preventing empty top-gap
+     that would push the document down and waste precious page space. */
+  .no-print {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Step 4: doc-preview-wrapper — transparent passthrough container */
   .doc-preview-wrapper {
     position: static !important;
     background: transparent !important;
@@ -115,9 +122,9 @@ body {
     break-after: avoid !important;
   }
 
-  /* Step 4: doc-sheet — the ONLY printed element (natural multi-page flow) */
+  /* Step 5: doc-sheet — the ONLY printed element (natural multi-page block flow) */
   .doc-sheet {
-    position: relative !important;
+    position: static !important;
     top: auto !important;
     left: auto !important;
     width: 100% !important;
@@ -132,6 +139,7 @@ body {
     border-radius: 0 !important;
     overflow: visible !important;
     box-sizing: border-box !important;
+    display: block !important;            /* Override flex — block enables natural multi-page flow */
     page-break-inside: auto !important;
     break-inside: auto !important;
     -webkit-print-color-adjust: exact !important;
@@ -139,12 +147,20 @@ body {
     color-adjust: exact !important;
   }
 
+  /* Step 6: CRITICAL — Override overflow:hidden within doc-sheet.
+     The overflow:hidden on table-wrapper divs is the PRIMARY cause of tables
+     being clipped at the first page boundary and not flowing to page 2+. */
+  .doc-sheet .overflow-hidden {
+    overflow: visible !important;
+  }
+
+  /* Step 7: Prevent specific sections from splitting across pages */
   .avoid-break {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
 
-  /* Step 5: Logo — pixel-perfect, enlarged for clarity & symmetry, never collapse */
+  /* Step 8: Logo — fixed dimensions, never collapse */
   .official-document-logo {
     width: 300px !important;
     min-width: 300px !important;
@@ -158,7 +174,7 @@ body {
     visibility: visible !important;
   }
 
-  /* Step 6: Other images in doc-sheet */
+  /* Step 9: Other images in doc-sheet */
   .doc-sheet img:not(.official-document-logo) {
     max-width: 100% !important;
     height: auto !important;
@@ -167,26 +183,43 @@ body {
     visibility: visible !important;
   }
 
-  /* Step 7: Tables */
+  /* Step 10: Tables — multi-page flow with repeating headers */
   .doc-sheet table {
     border-collapse: collapse !important;
     width: 100% !important;
+    overflow: visible !important;
     page-break-inside: auto !important;
     break-inside: auto !important;
   }
 
+  /* thead repeats on every printed page — standard browser print behavior */
+  .doc-sheet thead {
+    display: table-header-group !important;
+  }
+
+  .doc-sheet tbody {
+    display: table-row-group !important;
+  }
+
+  .doc-sheet tfoot {
+    display: table-footer-group !important;
+  }
+
+  /* Each row is kept intact; table itself can break across pages */
   .doc-sheet tr {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
 
-  .doc-sheet table, .doc-sheet th, .doc-sheet td {
+  .doc-sheet table,
+  .doc-sheet th,
+  .doc-sheet td {
     border-color: #1e293b !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  /* Step 8: Thermal receipt */
+  /* Step 11: Thermal receipt (80mm POS format) */
   .thermal-receipt-print,
   .thermal-receipt-print * {
     visibility: visible !important;
@@ -207,7 +240,7 @@ body {
     break-after: avoid !important;
   }
 
-  /* Step 9: Prevent any trailing elements from adding blank pages */
+  /* Step 12: Prevent trailing pseudo-elements from generating blank pages */
   body::after,
   html::after,
   .doc-preview-wrapper::after {
