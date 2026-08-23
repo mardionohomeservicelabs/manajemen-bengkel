@@ -37,6 +37,14 @@ export interface InspectionChecklistData {
   [key: string]: any;
 }
 
+export interface ChecklistPointItem {
+  no?: number;
+  label?: string;
+  checked: boolean;
+  suggest_replace: boolean;
+  notes: string;
+}
+
 // 1. QUALITY CONTROL GENERAL CHECKUP (Image 1)
 export interface QCGeneralCheckupData {
   document_number: string;
@@ -85,22 +93,22 @@ export interface QCGeneralCheckupData {
   ignition_coil_notes?: string;
 
   // 3. Checklist Fisik 16 Titik
-  filter_udara?: { checked: boolean; suggest_replace: boolean; notes: string };
-  volume_oli_engine?: { checked: boolean; suggest_replace: boolean; notes: string };
-  minyak_rem?: { checked: boolean; suggest_replace: boolean; notes: string };
-  minyak_kopling_transmisi?: { checked: boolean; suggest_replace: boolean; notes: string };
-  minyak_power_steering?: { checked: boolean; suggest_replace: boolean; notes: string };
-  air_radiator_coolant?: { checked: boolean; suggest_replace: boolean; notes: string };
-  vanbelt_engine_ac?: { checked: boolean; suggest_replace: boolean; notes: string };
-  kekencangan_mur_ban?: { checked: boolean; suggest_replace: boolean; notes: string };
-  fungsi_lampu_all?: { checked: boolean; suggest_replace: boolean; notes: string };
-  fungsi_tape_audio?: { checked: boolean; suggest_replace: boolean; notes: string };
-  klakson_horn?: { checked: boolean; suggest_replace: boolean; notes: string };
-  wheldop_velg?: { checked: boolean; suggest_replace: boolean; notes: string };
-  kebersihan_filter_cabin?: { checked: boolean; suggest_replace: boolean; notes: string };
-  tekanan_freon_ac?: { checked: boolean; suggest_replace: boolean; notes: string };
-  kebersihan_interior_plafon_stir?: { checked: boolean; suggest_replace: boolean; notes: string };
-  riset_km_oli_engine?: { checked: boolean; suggest_replace: boolean; notes: string };
+  filter_udara?: ChecklistPointItem;
+  volume_oli_engine?: ChecklistPointItem;
+  minyak_rem?: ChecklistPointItem;
+  minyak_kopling_transmisi?: ChecklistPointItem;
+  minyak_power_steering?: ChecklistPointItem;
+  air_radiator_coolant?: ChecklistPointItem;
+  vanbelt_engine_ac?: ChecklistPointItem;
+  kekencangan_mur_ban?: ChecklistPointItem;
+  fungsi_lampu_all?: ChecklistPointItem;
+  fungsi_tape_audio?: ChecklistPointItem;
+  klakson_horn?: ChecklistPointItem;
+  wheldop_velg?: ChecklistPointItem;
+  kebersihan_filter_cabin?: ChecklistPointItem;
+  tekanan_freon_ac?: ChecklistPointItem;
+  kebersihan_interior_plafon_stir?: ChecklistPointItem;
+  riset_km_oli_engine?: ChecklistPointItem;
 
   // BBM Gauge & Technician Signature
   fuel_level_fraction?: string; // 'E', '1/4', '1/2', '3/4', 'F'
