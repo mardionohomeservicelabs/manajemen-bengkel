@@ -78,32 +78,33 @@ function NewCheckupPageContent() {
   const [batterySuggestReplace, setBatterySuggestReplace] = useState<boolean>(false);
   const [batteryNotes, setBatteryNotes] = useState('Aki kering 12.6V normal');
 
-  // Sensor Cleanings
-  const [sensorMAF, setSensorMAF] = useState({ clean: true, damaged: false, repl: false, notes: '' });
-  const [sensorISC, setSensorISC] = useState({ clean: true, damaged: false, repl: false, notes: '' });
-  const [sensorAirflow, setSensorAirflow] = useState({ clean: true, damaged: false, repl: false, notes: '' });
-  const [throttleBody, setThrottleBody] = useState({ clean: true, damaged: false, repl: false, notes: '' });
-  const [sparkPlug, setSparkPlug] = useState({ clean: true, damaged: false, repl: false, notes: '' });
-  const [ignitionCoil, setIgnitionCoil] = useState({ clean: true, damaged: false, repl: false, notes: '' });
+  // Sensor Cleanings — status: 'wajib_clean' | 'rusak' | 'saran' | 'ganti' (single-select radio)
+  type SensorStatus = 'wajib_clean' | 'rusak' | 'saran' | 'ganti';
+  const [sensorMAF, setSensorMAF] = useState({ status: 'wajib_clean' as SensorStatus, notes: '' });
+  const [sensorISC, setSensorISC] = useState({ status: 'wajib_clean' as SensorStatus, notes: '' });
+  const [sensorAirflow, setSensorAirflow] = useState({ status: 'wajib_clean' as SensorStatus, notes: '' });
+  const [throttleBody, setThrottleBody] = useState({ status: 'wajib_clean' as SensorStatus, notes: '' });
+  const [sparkPlug, setSparkPlug] = useState({ status: 'wajib_clean' as SensorStatus, notes: '' });
+  const [ignitionCoil, setIgnitionCoil] = useState({ status: 'wajib_clean' as SensorStatus, notes: '' });
 
-  // 16 Checklist Points
+  // 16 Checklist Points — status: single-select radio
   const [checklistItems, setChecklistItems] = useState([
-    { no: 8, label: 'Cek Filter Udara', checked: true, suggest_replace: false, notes: 'Dibersihkan' },
-    { no: 9, label: 'Cek Volume Oli Engine', checked: true, suggest_replace: false, notes: 'Level MAX' },
-    { no: 10, label: 'Cek Minyak Rem', checked: true, suggest_replace: false, notes: 'Normal' },
-    { no: 11, label: 'Cek Minyak Kopling / Level Transmisi Matic', checked: true, suggest_replace: false, notes: 'Normal' },
-    { no: 12, label: 'Cek Minyak Power Steering', checked: true, suggest_replace: false, notes: 'Normal' },
-    { no: 13, label: 'Cek Air Radiator Coolant', checked: true, suggest_replace: false, notes: 'Jernih' },
-    { no: 14, label: 'Cek Vanbelt Engine / AC', checked: true, suggest_replace: false, notes: 'Ketegangan baik' },
-    { no: 15, label: 'Cek Kekencangan Mur Ban Roda', checked: true, suggest_replace: false, notes: '110 Nm' },
-    { no: 16, label: 'Cek Fungsi Lampu All', checked: true, suggest_replace: false, notes: 'Semua nyala' },
-    { no: 17, label: 'Cek Fungsi Tape / Audio', checked: true, suggest_replace: false, notes: 'Normal' },
-    { no: 18, label: 'Cek Klakson Horn', checked: true, suggest_replace: false, notes: 'Normal' },
-    { no: 19, label: 'Cek Wheldop Velg', checked: true, suggest_replace: false, notes: 'Kencang' },
-    { no: 20, label: 'Kebersihan Filter Cabin', checked: true, suggest_replace: false, notes: 'Bersih' },
-    { no: 21, label: 'Cek Tekanan Freon AC (Teknisi AC)', checked: true, suggest_replace: false, notes: '28 Psi' },
-    { no: 22, label: 'Cek Kebersihan Plafon, Doortrim, Stir', checked: true, suggest_replace: false, notes: 'Bersih' },
-    { no: 23, label: 'Riset Kilometer Oli Engine', checked: true, suggest_replace: false, notes: 'Sudah direset' },
+    { no: 8, label: 'Cek Filter Udara', status: 'wajib_clean' as SensorStatus, notes: 'Dibersihkan' },
+    { no: 9, label: 'Cek Volume Oli Engine', status: 'wajib_clean' as SensorStatus, notes: 'Level MAX' },
+    { no: 10, label: 'Cek Minyak Rem', status: 'wajib_clean' as SensorStatus, notes: 'Normal' },
+    { no: 11, label: 'Cek Minyak Kopling / Level Transmisi Matic', status: 'wajib_clean' as SensorStatus, notes: 'Normal' },
+    { no: 12, label: 'Cek Minyak Power Steering', status: 'wajib_clean' as SensorStatus, notes: 'Normal' },
+    { no: 13, label: 'Cek Air Radiator Coolant', status: 'wajib_clean' as SensorStatus, notes: 'Jernih' },
+    { no: 14, label: 'Cek Vanbelt Engine / AC', status: 'wajib_clean' as SensorStatus, notes: 'Ketegangan baik' },
+    { no: 15, label: 'Cek Kekencangan Mur Ban Roda', status: 'wajib_clean' as SensorStatus, notes: '110 Nm' },
+    { no: 16, label: 'Cek Fungsi Lampu All', status: 'wajib_clean' as SensorStatus, notes: 'Semua nyala' },
+    { no: 17, label: 'Cek Fungsi Tape / Audio', status: 'wajib_clean' as SensorStatus, notes: 'Normal' },
+    { no: 18, label: 'Cek Klakson Horn', status: 'wajib_clean' as SensorStatus, notes: 'Normal' },
+    { no: 19, label: 'Cek Wheldop Velg', status: 'wajib_clean' as SensorStatus, notes: 'Kencang' },
+    { no: 20, label: 'Kebersihan Filter Cabin', status: 'wajib_clean' as SensorStatus, notes: 'Bersih' },
+    { no: 21, label: 'Cek Tekanan Freon AC (Teknisi AC)', status: 'wajib_clean' as SensorStatus, notes: '28 Psi' },
+    { no: 22, label: 'Cek Kebersihan Plafon, Doortrim, Stir', status: 'wajib_clean' as SensorStatus, notes: 'Bersih' },
+    { no: 23, label: 'Riset Kilometer Oli Engine', status: 'wajib_clean' as SensorStatus, notes: 'Sudah direset' },
   ]);
 
   const [fuelLevelFraction, setFuelLevelFraction] = useState('3/4');
@@ -186,46 +187,46 @@ function NewCheckupPageContent() {
         battery_health_percent: Number(batteryHealth),
         battery_suggest_replace: batterySuggestReplace,
         battery_notes: batteryNotes,
-        sensor_maf_cleaned: sensorMAF.clean,
-        sensor_maf_damaged: sensorMAF.damaged,
-        sensor_maf_suggest_replace: sensorMAF.repl,
+        sensor_maf_cleaned: sensorMAF.status === 'wajib_clean',
+        sensor_maf_damaged: sensorMAF.status === 'rusak',
+        sensor_maf_suggest_replace: sensorMAF.status === 'saran' || sensorMAF.status === 'ganti',
         sensor_maf_notes: sensorMAF.notes,
-        sensor_isc_cleaned: sensorISC.clean,
-        sensor_isc_damaged: sensorISC.damaged,
-        sensor_isc_suggest_replace: sensorISC.repl,
+        sensor_isc_cleaned: sensorISC.status === 'wajib_clean',
+        sensor_isc_damaged: sensorISC.status === 'rusak',
+        sensor_isc_suggest_replace: sensorISC.status === 'saran' || sensorISC.status === 'ganti',
         sensor_isc_notes: sensorISC.notes,
-        sensor_airflow_cleaned: sensorAirflow.clean,
-        sensor_airflow_damaged: sensorAirflow.damaged,
-        sensor_airflow_suggest_replace: sensorAirflow.repl,
+        sensor_airflow_cleaned: sensorAirflow.status === 'wajib_clean',
+        sensor_airflow_damaged: sensorAirflow.status === 'rusak',
+        sensor_airflow_suggest_replace: sensorAirflow.status === 'saran' || sensorAirflow.status === 'ganti',
         sensor_airflow_notes: sensorAirflow.notes,
-        throttle_body_cleaned: throttleBody.clean,
-        throttle_body_damaged: throttleBody.damaged,
-        throttle_body_suggest_replace: throttleBody.repl,
+        throttle_body_cleaned: throttleBody.status === 'wajib_clean',
+        throttle_body_damaged: throttleBody.status === 'rusak',
+        throttle_body_suggest_replace: throttleBody.status === 'saran' || throttleBody.status === 'ganti',
         throttle_body_notes: throttleBody.notes,
-        spark_plug_checked: sparkPlug.clean,
-        spark_plug_damaged: sparkPlug.damaged,
-        spark_plug_suggest_replace: sparkPlug.repl,
+        spark_plug_checked: sparkPlug.status === 'wajib_clean',
+        spark_plug_damaged: sparkPlug.status === 'rusak',
+        spark_plug_suggest_replace: sparkPlug.status === 'saran' || sparkPlug.status === 'ganti',
         spark_plug_notes: sparkPlug.notes,
-        ignition_coil_checked: ignitionCoil.clean,
-        ignition_coil_damaged: ignitionCoil.damaged,
-        ignition_coil_suggest_replace: ignitionCoil.repl,
+        ignition_coil_checked: ignitionCoil.status === 'wajib_clean',
+        ignition_coil_damaged: ignitionCoil.status === 'rusak',
+        ignition_coil_suggest_replace: ignitionCoil.status === 'saran' || ignitionCoil.status === 'ganti',
         ignition_coil_notes: ignitionCoil.notes,
-        filter_udara: checklistItems[0],
-        volume_oli_engine: checklistItems[1],
-        minyak_rem: checklistItems[2],
-        minyak_kopling_transmisi: checklistItems[3],
-        minyak_power_steering: checklistItems[4],
-        air_radiator_coolant: checklistItems[5],
-        vanbelt_engine_ac: checklistItems[6],
-        kekencangan_mur_ban: checklistItems[7],
-        fungsi_lampu_all: checklistItems[8],
-        fungsi_tape_audio: checklistItems[9],
-        klakson_horn: checklistItems[10],
-        wheldop_velg: checklistItems[11],
-        kebersihan_filter_cabin: checklistItems[12],
-        tekanan_freon_ac: checklistItems[13],
-        kebersihan_interior_plafon_stir: checklistItems[14],
-        riset_km_oli_engine: checklistItems[15],
+        filter_udara: { no: checklistItems[0].no, label: checklistItems[0].label, checked: checklistItems[0].status !== 'rusak', suggest_replace: checklistItems[0].status === 'ganti' || checklistItems[0].status === 'saran', notes: `[${checklistItems[0].status.toUpperCase().replace('_',' ')}] ${checklistItems[0].notes}` },
+        volume_oli_engine: { no: checklistItems[1].no, label: checklistItems[1].label, checked: checklistItems[1].status !== 'rusak', suggest_replace: checklistItems[1].status === 'ganti' || checklistItems[1].status === 'saran', notes: `[${checklistItems[1].status.toUpperCase().replace('_',' ')}] ${checklistItems[1].notes}` },
+        minyak_rem: { no: checklistItems[2].no, label: checklistItems[2].label, checked: checklistItems[2].status !== 'rusak', suggest_replace: checklistItems[2].status === 'ganti' || checklistItems[2].status === 'saran', notes: `[${checklistItems[2].status.toUpperCase().replace('_',' ')}] ${checklistItems[2].notes}` },
+        minyak_kopling_transmisi: { no: checklistItems[3].no, label: checklistItems[3].label, checked: checklistItems[3].status !== 'rusak', suggest_replace: checklistItems[3].status === 'ganti' || checklistItems[3].status === 'saran', notes: `[${checklistItems[3].status.toUpperCase().replace('_',' ')}] ${checklistItems[3].notes}` },
+        minyak_power_steering: { no: checklistItems[4].no, label: checklistItems[4].label, checked: checklistItems[4].status !== 'rusak', suggest_replace: checklistItems[4].status === 'ganti' || checklistItems[4].status === 'saran', notes: `[${checklistItems[4].status.toUpperCase().replace('_',' ')}] ${checklistItems[4].notes}` },
+        air_radiator_coolant: { no: checklistItems[5].no, label: checklistItems[5].label, checked: checklistItems[5].status !== 'rusak', suggest_replace: checklistItems[5].status === 'ganti' || checklistItems[5].status === 'saran', notes: `[${checklistItems[5].status.toUpperCase().replace('_',' ')}] ${checklistItems[5].notes}` },
+        vanbelt_engine_ac: { no: checklistItems[6].no, label: checklistItems[6].label, checked: checklistItems[6].status !== 'rusak', suggest_replace: checklistItems[6].status === 'ganti' || checklistItems[6].status === 'saran', notes: `[${checklistItems[6].status.toUpperCase().replace('_',' ')}] ${checklistItems[6].notes}` },
+        kekencangan_mur_ban: { no: checklistItems[7].no, label: checklistItems[7].label, checked: checklistItems[7].status !== 'rusak', suggest_replace: checklistItems[7].status === 'ganti' || checklistItems[7].status === 'saran', notes: `[${checklistItems[7].status.toUpperCase().replace('_',' ')}] ${checklistItems[7].notes}` },
+        fungsi_lampu_all: { no: checklistItems[8].no, label: checklistItems[8].label, checked: checklistItems[8].status !== 'rusak', suggest_replace: checklistItems[8].status === 'ganti' || checklistItems[8].status === 'saran', notes: `[${checklistItems[8].status.toUpperCase().replace('_',' ')}] ${checklistItems[8].notes}` },
+        fungsi_tape_audio: { no: checklistItems[9].no, label: checklistItems[9].label, checked: checklistItems[9].status !== 'rusak', suggest_replace: checklistItems[9].status === 'ganti' || checklistItems[9].status === 'saran', notes: `[${checklistItems[9].status.toUpperCase().replace('_',' ')}] ${checklistItems[9].notes}` },
+        klakson_horn: { no: checklistItems[10].no, label: checklistItems[10].label, checked: checklistItems[10].status !== 'rusak', suggest_replace: checklistItems[10].status === 'ganti' || checklistItems[10].status === 'saran', notes: `[${checklistItems[10].status.toUpperCase().replace('_',' ')}] ${checklistItems[10].notes}` },
+        wheldop_velg: { no: checklistItems[11].no, label: checklistItems[11].label, checked: checklistItems[11].status !== 'rusak', suggest_replace: checklistItems[11].status === 'ganti' || checklistItems[11].status === 'saran', notes: `[${checklistItems[11].status.toUpperCase().replace('_',' ')}] ${checklistItems[11].notes}` },
+        kebersihan_filter_cabin: { no: checklistItems[12].no, label: checklistItems[12].label, checked: checklistItems[12].status !== 'rusak', suggest_replace: checklistItems[12].status === 'ganti' || checklistItems[12].status === 'saran', notes: `[${checklistItems[12].status.toUpperCase().replace('_',' ')}] ${checklistItems[12].notes}` },
+        tekanan_freon_ac: { no: checklistItems[13].no, label: checklistItems[13].label, checked: checklistItems[13].status !== 'rusak', suggest_replace: checklistItems[13].status === 'ganti' || checklistItems[13].status === 'saran', notes: `[${checklistItems[13].status.toUpperCase().replace('_',' ')}] ${checklistItems[13].notes}` },
+        kebersihan_interior_plafon_stir: { no: checklistItems[14].no, label: checklistItems[14].label, checked: checklistItems[14].status !== 'rusak', suggest_replace: checklistItems[14].status === 'ganti' || checklistItems[14].status === 'saran', notes: `[${checklistItems[14].status.toUpperCase().replace('_',' ')}] ${checklistItems[14].notes}` },
+        riset_km_oli_engine: { no: checklistItems[15].no, label: checklistItems[15].label, checked: checklistItems[15].status !== 'rusak', suggest_replace: checklistItems[15].status === 'ganti' || checklistItems[15].status === 'saran', notes: `[${checklistItems[15].status.toUpperCase().replace('_',' ')}] ${checklistItems[15].notes}` },
         fuel_level_fraction: fuelLevelFraction,
         technician_signature_url: signatureTech,
         improvement_suggestions: saranList.filter((s) => s.trim().length > 0),
@@ -538,54 +539,52 @@ function NewCheckupPageContent() {
               </div>
 
               <div className="space-y-2">
-                {[
+                {([
                   { label: '2. Bersihkan Sensor MAF', state: sensorMAF, set: setSensorMAF },
                   { label: '3. Bersihkan Sensor ISC', state: sensorISC, set: setSensorISC },
                   { label: '4. Bersihkan Sensor Airflow', state: sensorAirflow, set: setSensorAirflow },
                   { label: '5. Bersihkan Throttle Body Module', state: throttleBody, set: setThrottleBody },
                   { label: '6. Cek Busi Spark Plug', state: sparkPlug, set: setSparkPlug },
                   { label: '7. Cek Coil Pengapian', state: ignitionCoil, set: setIgnitionCoil },
-                ].map((row, idx) => (
+                ] as const).map((row, idx) => (
                   <div
                     key={idx}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 rounded-xl border border-slate-100 bg-slate-50/50 gap-2 text-xs"
+                    className="flex flex-col gap-2 p-2.5 rounded-xl border border-slate-100 bg-slate-50/50 text-xs"
                   >
-                    <span className="font-bold text-slate-800 sm:w-60">{row.label}</span>
-                    <div className="flex items-center space-x-3">
-                      <label className="flex items-center space-x-1 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={row.state.clean}
-                          onChange={(e) => row.set({ ...row.state, clean: e.target.checked })}
-                          className="w-4 h-4 accent-red-700"
-                        />
-                        <span className="font-medium text-slate-700">Wajib Clean</span>
-                      </label>
-                      <label className="flex items-center space-x-1 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={row.state.damaged}
-                          onChange={(e) => row.set({ ...row.state, damaged: e.target.checked })}
-                          className="w-4 h-4 accent-red-700"
-                        />
-                        <span className="font-medium text-red-600">Rusak</span>
-                      </label>
-                      <label className="flex items-center space-x-1 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={row.state.repl}
-                          onChange={(e) => row.set({ ...row.state, repl: e.target.checked })}
-                          className="w-4 h-4 accent-red-700"
-                        />
-                        <span className="font-bold text-red-700">Saran Ganti</span>
-                      </label>
+                    <span className="font-bold text-slate-800">{row.label}</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {([
+                        { value: 'wajib_clean', label: 'Wajib Clean', color: 'text-emerald-700 border-emerald-400 bg-emerald-50' },
+                        { value: 'rusak', label: 'Rusak', color: 'text-red-700 border-red-400 bg-red-50' },
+                        { value: 'saran', label: 'Saran', color: 'text-amber-700 border-amber-400 bg-amber-50' },
+                        { value: 'ganti', label: 'Ganti', color: 'text-orange-700 border-orange-400 bg-orange-50' },
+                      ] as const).map((opt) => (
+                        <label
+                          key={opt.value}
+                          className={`flex items-center space-x-1.5 cursor-pointer px-3 py-1.5 rounded-lg border-2 font-bold transition ${
+                            row.state.status === opt.value
+                              ? opt.color + ' ring-2 ring-offset-1'
+                              : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name={`sensor-${idx}`}
+                            value={opt.value}
+                            checked={row.state.status === opt.value}
+                            onChange={() => row.set({ ...row.state, status: opt.value })}
+                            className="sr-only"
+                          />
+                          <span>{opt.label}</span>
+                        </label>
+                      ))}
                     </div>
                     <input
                       type="text"
                       placeholder="Keterangan temuan..."
                       value={row.state.notes}
                       onChange={(e) => row.set({ ...row.state, notes: e.target.value })}
-                      className="text-xs p-1.5 rounded-lg border border-slate-200 bg-white sm:w-64"
+                      className="text-xs p-1.5 rounded-lg border border-slate-200 bg-white w-full"
                     />
                   </div>
                 ))}
@@ -602,40 +601,41 @@ function NewCheckupPageContent() {
                 {checklistItems.map((item, idx) => (
                   <div
                     key={item.no}
-                    className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/50 space-y-1.5"
+                    className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/50 space-y-2"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-800">
-                        {item.no}. {item.label}
-                      </span>
-                      <div className="flex items-center space-x-2">
-                        <label className="flex items-center space-x-1 cursor-pointer">
+                    <span className="font-bold text-slate-800 block">
+                      {item.no}. {item.label}
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {([
+                        { value: 'wajib_clean', label: 'Wajib Clean', color: 'text-emerald-700 border-emerald-400 bg-emerald-50' },
+                        { value: 'rusak', label: 'Rusak', color: 'text-red-700 border-red-400 bg-red-50' },
+                        { value: 'saran', label: 'Saran', color: 'text-amber-700 border-amber-400 bg-amber-50' },
+                        { value: 'ganti', label: 'Ganti', color: 'text-orange-700 border-orange-400 bg-orange-50' },
+                      ] as const).map((opt) => (
+                        <label
+                          key={opt.value}
+                          className={`flex items-center space-x-1 cursor-pointer px-2.5 py-1 rounded-lg border-2 font-bold transition ${
+                            item.status === opt.value
+                              ? opt.color + ' ring-1 ring-offset-1'
+                              : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300'
+                          }`}
+                        >
                           <input
-                            type="checkbox"
-                            checked={item.checked}
-                            onChange={(e) => {
+                            type="radio"
+                            name={`checklist-${item.no}`}
+                            value={opt.value}
+                            checked={item.status === opt.value}
+                            onChange={() => {
                               const updated = [...checklistItems];
-                              updated[idx].checked = e.target.checked;
+                              updated[idx] = { ...updated[idx], status: opt.value };
                               setChecklistItems(updated);
                             }}
-                            className="w-4 h-4 accent-red-700"
+                            className="sr-only"
                           />
-                          <span className="text-[11px] font-medium text-slate-600">Cek</span>
+                          <span className="text-[11px]">{opt.label}</span>
                         </label>
-                        <label className="flex items-center space-x-1 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={item.suggest_replace}
-                            onChange={(e) => {
-                              const updated = [...checklistItems];
-                              updated[idx].suggest_replace = e.target.checked;
-                              setChecklistItems(updated);
-                            }}
-                            className="w-4 h-4 accent-red-700"
-                          />
-                          <span className="text-[11px] font-bold text-red-600">Ganti</span>
-                        </label>
-                      </div>
+                      ))}
                     </div>
                     <input
                       type="text"
@@ -643,7 +643,7 @@ function NewCheckupPageContent() {
                       value={item.notes}
                       onChange={(e) => {
                         const updated = [...checklistItems];
-                        updated[idx].notes = e.target.value;
+                        updated[idx] = { ...updated[idx], notes: e.target.value };
                         setChecklistItems(updated);
                       }}
                       className="w-full text-[11px] p-1.5 rounded border border-slate-200 bg-white"

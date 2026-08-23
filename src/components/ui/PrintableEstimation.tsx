@@ -273,11 +273,11 @@ export function PrintableEstimation({
               </div>
             </div>
 
-            {/* KETERANGAN KHUSUS & KETENTUAN ESTIMASI RESMI (Sesuai Permintaan Pengguna) */}
+            {/* KETERANGAN KHUSUS & KETENTUAN ESTIMASI RESMI */}
             <div className="border-2 border-[#8B0000] rounded-xl p-3 bg-amber-50/40 text-slate-900 text-[10px] sm:text-[10.5px] space-y-2 leading-relaxed">
               {/* Highlight Keterangan */}
               <div className="bg-[#8B0000] text-white p-2 rounded-lg font-black text-center text-[10px] sm:text-[11px] uppercase tracking-wide shadow-xs">
-                APABILA SELAMA PENGECEKAN TERDAPAT SPAREPART YANG PERLU DIGANTI AKAN KAMI KONFIRMASIKAN TERLEBIH DAHULU. HARGA DIATAS BERSIFAT ESTIMASI SEMENTARA
+                APABILA SELAMA PENGECEKAN TERDAPAT SPAREPART YANG PERLU DIGANTI, AKAN KAMI KONFIRMASIKAN TERLEBIH DAHULU. HARGA DI ATAS BERSIFAT ESTIMASI SEMENTARA.
               </div>
 
               {/* Ketentuan Estimasi Berbutir */}
@@ -285,14 +285,14 @@ export function PrintableEstimation({
                 <h5 className="font-black text-[#8B0000] uppercase text-[11px] mb-1">
                   KETENTUAN ESTIMASI:
                 </h5>
-                <ol className="space-y-1 pl-1 font-medium">
-                  <li><strong>1.</strong> Membatasi customer tidak diperkenankan membawa sparepart sendiri pada Overhaul Mesin/Transmisi.</li>
-                  <li><strong>2. 3.</strong> Segala resiko akibat part bawaan sendiri tidak menjadi tanggung jawab/garansi kami.</li>
-                  <li className="pl-4 italic text-slate-700">Apabila bawa part sendiri, batas maksimal 2 hari, selebihnya biaya parkir <strong>Rp 25.000/hari</strong></li>
-                  <li className="pl-4 font-bold text-red-900">Jika Membawa Part Sendiri Tidak Ada Garansi Dalam Bentuk Apapun.</li>
-                  <li><strong>5.</strong> Apabila Sparepart Sudah Terpasang Dan Tidak Berfungsi, Kami Berlakukan Jasa Double</li>
-                  <li>Harga Yang Estimasi Yang Muncul Berlaku <strong>1 Minggu Dari Tanggal Estimasi Di Keluarkan</strong></li>
-                  <li><strong>7.</strong> Apabila Harga Sparepart Ada Kenaikan Akan Kami Infokan Kembali Dengan Estimasi Terbaru</li>
+                <ol className="space-y-1 pl-1 font-medium list-none">
+                  <li><strong>1.</strong> Customer tidak diperkenankan membawa sparepart sendiri pada pekerjaan Overhaul Mesin/Transmisi.</li>
+                  <li><strong>2.</strong> Segala risiko akibat part bawaan sendiri tidak menjadi tanggung jawab/garansi kami.</li>
+                  <li><strong>3.</strong> Apabila membawa part sendiri, batas maksimal pengadaan part adalah 2 hari. Selebihnya akan dikenakan biaya parkir <strong>Rp25.000/hari</strong>.</li>
+                  <li><strong>4.</strong> Jika membawa part sendiri, tidak ada garansi dalam bentuk apa pun.</li>
+                  <li><strong>5.</strong> Apabila sparepart sudah terpasang dan tidak berfungsi, kami berlakukan jasa double.</li>
+                  <li><strong>6.</strong> Harga estimasi yang muncul berlaku selama <strong>1 minggu</strong> dari tanggal estimasi dikeluarkan.</li>
+                  <li><strong>7.</strong> Apabila harga sparepart mengalami kenaikan, akan kami informasikan kembali dengan estimasi terbaru.</li>
                 </ol>
               </div>
             </div>
