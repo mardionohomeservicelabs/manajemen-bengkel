@@ -13,17 +13,9 @@ import {
 } from '../types/database';
 import { BranchId } from '../auth/users';
 import {
-  initialVehicles,
-  initialInventory,
-  initialWorkOrders,
-  initialInvoices,
-  initialCRMLogs,
   initialSettingsMHS1,
   initialSettingsMHS2,
   initialSettingsMHS3,
-  initialStockMovements,
-  initialAuditLogs,
-  initialCheckups,
 } from '../data/mock-data';
 
 const BASE_STORAGE_KEYS = {
@@ -88,6 +80,32 @@ export class DBService {
   static init(targetBranch?: BranchId): void {
     if (typeof window === 'undefined') return;
 
+    // Pastikan data MHS 1 bersih dan kosong dari data dummy/mock bawaan
+    const CLEAN_MHS1_FLAG = 'acwms_mhs1_cleared_v4';
+    if (!localStorage.getItem(CLEAN_MHS1_FLAG)) {
+      const mhs1Branch: BranchId = 'MHS 1';
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.VEHICLES, mhs1Branch), []);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.INVENTORY, mhs1Branch), []);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, mhs1Branch), []);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.INVOICES, mhs1Branch), []);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.CRM_LOGS, mhs1Branch), []);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.MOVEMENTS, mhs1Branch), []);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.AUDIT, mhs1Branch), []);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, mhs1Branch), []);
+
+      // Hapus data storage legacy lama (tanpa suffix) agar tidak tertinggal
+      localStorage.removeItem(BASE_STORAGE_KEYS.VEHICLES);
+      localStorage.removeItem(BASE_STORAGE_KEYS.INVENTORY);
+      localStorage.removeItem(BASE_STORAGE_KEYS.WORK_ORDERS);
+      localStorage.removeItem(BASE_STORAGE_KEYS.INVOICES);
+      localStorage.removeItem(BASE_STORAGE_KEYS.CRM_LOGS);
+      localStorage.removeItem(BASE_STORAGE_KEYS.MOVEMENTS);
+      localStorage.removeItem(BASE_STORAGE_KEYS.AUDIT);
+      localStorage.removeItem(BASE_STORAGE_KEYS.CHECKUPS);
+
+      localStorage.setItem(CLEAN_MHS1_FLAG, 'true');
+    }
+
     const branches: BranchId[] = targetBranch ? [targetBranch] : ['MHS 1', 'MHS 2', 'MHS 3'];
 
     branches.forEach((branch) => {
@@ -101,26 +119,7 @@ export class DBService {
       const keyAudit = getBranchKey(BASE_STORAGE_KEYS.AUDIT, branch);
       const keyCheckups = getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, branch);
 
-      // Auto-migration dari storage lama tanpa suffix ke MHS 1
-      if (branch === 'MHS 1') {
-        if (!localStorage.getItem(keyInventory) && localStorage.getItem(BASE_STORAGE_KEYS.INVENTORY)) {
-          localStorage.setItem(keyInventory, localStorage.getItem(BASE_STORAGE_KEYS.INVENTORY)!);
-        }
-        if (!localStorage.getItem(keyWorkOrders) && localStorage.getItem(BASE_STORAGE_KEYS.WORK_ORDERS)) {
-          localStorage.setItem(keyWorkOrders, localStorage.getItem(BASE_STORAGE_KEYS.WORK_ORDERS)!);
-        }
-        if (!localStorage.getItem(keyInvoices) && localStorage.getItem(BASE_STORAGE_KEYS.INVOICES)) {
-          localStorage.setItem(keyInvoices, localStorage.getItem(BASE_STORAGE_KEYS.INVOICES)!);
-        }
-        if (!localStorage.getItem(keyVehicles) && localStorage.getItem(BASE_STORAGE_KEYS.VEHICLES)) {
-          localStorage.setItem(keyVehicles, localStorage.getItem(BASE_STORAGE_KEYS.VEHICLES)!);
-        }
-        if (!localStorage.getItem(keyCheckups) && localStorage.getItem(BASE_STORAGE_KEYS.CHECKUPS)) {
-          localStorage.setItem(keyCheckups, localStorage.getItem(BASE_STORAGE_KEYS.CHECKUPS)!);
-        }
-      }
-
-      // Inisialisasi Settings per cabang
+      // Inisialisasi Settings resmi per cabang
       if (!localStorage.getItem(keySettings)) {
         const defaultBranchSettings =
           branch === 'MHS 1'
@@ -131,44 +130,44 @@ export class DBService {
         setLocal(keySettings, defaultBranchSettings);
       }
 
-      // Inisialisasi Vehicles / Customer
+      // Inisialisasi Vehicles / Customer (Kosong secara default)
       if (!localStorage.getItem(keyVehicles)) {
-        setLocal(keyVehicles, branch === 'MHS 1' ? initialVehicles : []);
+        setLocal(keyVehicles, []);
       }
 
-      // Inisialisasi Inventory per cabang
+      // Inisialisasi Inventory per cabang (Kosong secara default)
       if (!localStorage.getItem(keyInventory)) {
-        setLocal(keyInventory, initialInventory);
+        setLocal(keyInventory, []);
       }
 
-      // Inisialisasi Work Orders (SPK) per cabang
+      // Inisialisasi Work Orders (SPK) per cabang (Kosong secara default)
       if (!localStorage.getItem(keyWorkOrders)) {
-        setLocal(keyWorkOrders, branch === 'MHS 1' ? initialWorkOrders : []);
+        setLocal(keyWorkOrders, []);
       }
 
-      // Inisialisasi Invoices & Estimasi per cabang
+      // Inisialisasi Invoices & Estimasi per cabang (Kosong secara default)
       if (!localStorage.getItem(keyInvoices)) {
-        setLocal(keyInvoices, branch === 'MHS 1' ? initialInvoices : []);
+        setLocal(keyInvoices, []);
       }
 
-      // Inisialisasi CRM per cabang
+      // Inisialisasi CRM per cabang (Kosong secara default)
       if (!localStorage.getItem(keyCrm)) {
-        setLocal(keyCrm, branch === 'MHS 1' ? initialCRMLogs : []);
+        setLocal(keyCrm, []);
       }
 
-      // Inisialisasi Stock Movements per cabang
+      // Inisialisasi Stock Movements per cabang (Kosong secara default)
       if (!localStorage.getItem(keyMovements)) {
-        setLocal(keyMovements, branch === 'MHS 1' ? initialStockMovements : []);
+        setLocal(keyMovements, []);
       }
 
-      // Inisialisasi Audit Logs per cabang
+      // Inisialisasi Audit Logs per cabang (Kosong secara default)
       if (!localStorage.getItem(keyAudit)) {
-        setLocal(keyAudit, branch === 'MHS 1' ? initialAuditLogs : []);
+        setLocal(keyAudit, []);
       }
 
-      // Inisialisasi Checkups per cabang
+      // Inisialisasi Checkups per cabang (Kosong secara default)
       if (!localStorage.getItem(keyCheckups)) {
-        setLocal(keyCheckups, branch === 'MHS 1' ? initialCheckups : []);
+        setLocal(keyCheckups, []);
       }
     });
   }
@@ -250,7 +249,7 @@ export class DBService {
   // --- INVENTORY & SPAREPARTS (PER CABANG) ---
   static getInventory(branch?: BranchId): InventoryItem[] {
     const key = getBranchKey(BASE_STORAGE_KEYS.INVENTORY, branch);
-    return getLocal<InventoryItem[]>(key, initialInventory);
+    return getLocal<InventoryItem[]>(key, []);
   }
 
   static getInventoryById(id: string, branch?: BranchId): InventoryItem | undefined {
@@ -614,14 +613,14 @@ export class DBService {
         ? initialSettingsMHS2
         : initialSettingsMHS3;
 
-    setLocal(keyVehicles, activeBranch === 'MHS 1' ? initialVehicles : []);
-    setLocal(keyInventory, initialInventory);
-    setLocal(keyWorkOrders, activeBranch === 'MHS 1' ? initialWorkOrders : []);
-    setLocal(keyInvoices, activeBranch === 'MHS 1' ? initialInvoices : []);
-    setLocal(keyCrm, activeBranch === 'MHS 1' ? initialCRMLogs : []);
+    setLocal(keyVehicles, []);
+    setLocal(keyInventory, []);
+    setLocal(keyWorkOrders, []);
+    setLocal(keyInvoices, []);
+    setLocal(keyCrm, []);
     setLocal(keySettings, defaultBranchSettings);
-    setLocal(keyMovements, activeBranch === 'MHS 1' ? initialStockMovements : []);
-    setLocal(keyAudit, activeBranch === 'MHS 1' ? initialAuditLogs : []);
-    setLocal(keyCheckups, activeBranch === 'MHS 1' ? initialCheckups : []);
+    setLocal(keyMovements, []);
+    setLocal(keyAudit, []);
+    setLocal(keyCheckups, []);
   }
 }
