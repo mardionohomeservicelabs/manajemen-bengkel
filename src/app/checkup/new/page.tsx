@@ -78,8 +78,8 @@ function NewCheckupPageContent() {
   const [batterySuggestReplace, setBatterySuggestReplace] = useState<boolean>(false);
   const [batteryNotes, setBatteryNotes] = useState('Aki kering 12.6V normal');
 
-  // Sensor Cleanings — status: 'wajib_clean' | 'rusak' | 'saran' | 'ganti' (single-select radio)
-  type SensorStatus = 'wajib_clean' | 'rusak' | 'saran' | 'ganti';
+  // Sensor Cleanings — 3 options: 'wajib_clean' | 'rusak' | 'saran_ganti' (single-select radio)
+  type SensorStatus = 'wajib_clean' | 'rusak' | 'saran_ganti';
   const [sensorMAF, setSensorMAF] = useState({ status: 'wajib_clean' as SensorStatus, notes: '' });
   const [sensorISC, setSensorISC] = useState({ status: 'wajib_clean' as SensorStatus, notes: '' });
   const [sensorAirflow, setSensorAirflow] = useState({ status: 'wajib_clean' as SensorStatus, notes: '' });
@@ -87,24 +87,25 @@ function NewCheckupPageContent() {
   const [sparkPlug, setSparkPlug] = useState({ status: 'wajib_clean' as SensorStatus, notes: '' });
   const [ignitionCoil, setIgnitionCoil] = useState({ status: 'wajib_clean' as SensorStatus, notes: '' });
 
-  // 16 Checklist Points — status: single-select radio
+  // 16 Checklist Points — 2 options: 'checklist' | 'saran_ganti' (single-select radio)
+  type ChecklistItemStatus = 'checklist' | 'saran_ganti';
   const [checklistItems, setChecklistItems] = useState([
-    { no: 8, label: 'Cek Filter Udara', status: 'wajib_clean' as SensorStatus, notes: 'Dibersihkan' },
-    { no: 9, label: 'Cek Volume Oli Engine', status: 'wajib_clean' as SensorStatus, notes: 'Level MAX' },
-    { no: 10, label: 'Cek Minyak Rem', status: 'wajib_clean' as SensorStatus, notes: 'Normal' },
-    { no: 11, label: 'Cek Minyak Kopling / Level Transmisi Matic', status: 'wajib_clean' as SensorStatus, notes: 'Normal' },
-    { no: 12, label: 'Cek Minyak Power Steering', status: 'wajib_clean' as SensorStatus, notes: 'Normal' },
-    { no: 13, label: 'Cek Air Radiator Coolant', status: 'wajib_clean' as SensorStatus, notes: 'Jernih' },
-    { no: 14, label: 'Cek Vanbelt Engine / AC', status: 'wajib_clean' as SensorStatus, notes: 'Ketegangan baik' },
-    { no: 15, label: 'Cek Kekencangan Mur Ban Roda', status: 'wajib_clean' as SensorStatus, notes: '110 Nm' },
-    { no: 16, label: 'Cek Fungsi Lampu All', status: 'wajib_clean' as SensorStatus, notes: 'Semua nyala' },
-    { no: 17, label: 'Cek Fungsi Tape / Audio', status: 'wajib_clean' as SensorStatus, notes: 'Normal' },
-    { no: 18, label: 'Cek Klakson Horn', status: 'wajib_clean' as SensorStatus, notes: 'Normal' },
-    { no: 19, label: 'Cek Wheldop Velg', status: 'wajib_clean' as SensorStatus, notes: 'Kencang' },
-    { no: 20, label: 'Kebersihan Filter Cabin', status: 'wajib_clean' as SensorStatus, notes: 'Bersih' },
-    { no: 21, label: 'Cek Tekanan Freon AC (Teknisi AC)', status: 'wajib_clean' as SensorStatus, notes: '28 Psi' },
-    { no: 22, label: 'Cek Kebersihan Plafon, Doortrim, Stir', status: 'wajib_clean' as SensorStatus, notes: 'Bersih' },
-    { no: 23, label: 'Riset Kilometer Oli Engine', status: 'wajib_clean' as SensorStatus, notes: 'Sudah direset' },
+    { no: 8, label: 'Cek Filter Udara', status: 'checklist' as ChecklistItemStatus, notes: 'Dibersihkan' },
+    { no: 9, label: 'Cek Volume Oli Engine', status: 'checklist' as ChecklistItemStatus, notes: 'Level MAX' },
+    { no: 10, label: 'Cek Minyak Rem', status: 'checklist' as ChecklistItemStatus, notes: 'Normal' },
+    { no: 11, label: 'Cek Minyak Kopling / Level Transmisi Matic', status: 'checklist' as ChecklistItemStatus, notes: 'Normal' },
+    { no: 12, label: 'Cek Minyak Power Steering', status: 'checklist' as ChecklistItemStatus, notes: 'Normal' },
+    { no: 13, label: 'Cek Air Radiator Coolant', status: 'checklist' as ChecklistItemStatus, notes: 'Jernih' },
+    { no: 14, label: 'Cek Vanbelt Engine / AC', status: 'checklist' as ChecklistItemStatus, notes: 'Ketegangan baik' },
+    { no: 15, label: 'Cek Kekencangan Mur Ban Roda', status: 'checklist' as ChecklistItemStatus, notes: '110 Nm' },
+    { no: 16, label: 'Cek Fungsi Lampu All', status: 'checklist' as ChecklistItemStatus, notes: 'Semua nyala' },
+    { no: 17, label: 'Cek Fungsi Tape / Audio', status: 'checklist' as ChecklistItemStatus, notes: 'Normal' },
+    { no: 18, label: 'Cek Klakson Horn', status: 'checklist' as ChecklistItemStatus, notes: 'Normal' },
+    { no: 19, label: 'Cek Wheldop Velg', status: 'checklist' as ChecklistItemStatus, notes: 'Kencang' },
+    { no: 20, label: 'Kebersihan Filter Cabin', status: 'checklist' as ChecklistItemStatus, notes: 'Bersih' },
+    { no: 21, label: 'Cek Tekanan Freon AC (Teknisi AC)', status: 'checklist' as ChecklistItemStatus, notes: '28 Psi' },
+    { no: 22, label: 'Cek Kebersihan Plafon, Doortrim, Stir', status: 'checklist' as ChecklistItemStatus, notes: 'Bersih' },
+    { no: 23, label: 'Riset Kilometer Oli Engine', status: 'checklist' as ChecklistItemStatus, notes: 'Sudah direset' },
   ]);
 
   const [fuelLevelFraction, setFuelLevelFraction] = useState('3/4');
@@ -189,44 +190,44 @@ function NewCheckupPageContent() {
         battery_notes: batteryNotes,
         sensor_maf_cleaned: sensorMAF.status === 'wajib_clean',
         sensor_maf_damaged: sensorMAF.status === 'rusak',
-        sensor_maf_suggest_replace: sensorMAF.status === 'saran' || sensorMAF.status === 'ganti',
+        sensor_maf_suggest_replace: sensorMAF.status === 'saran_ganti',
         sensor_maf_notes: sensorMAF.notes,
         sensor_isc_cleaned: sensorISC.status === 'wajib_clean',
         sensor_isc_damaged: sensorISC.status === 'rusak',
-        sensor_isc_suggest_replace: sensorISC.status === 'saran' || sensorISC.status === 'ganti',
+        sensor_isc_suggest_replace: sensorISC.status === 'saran_ganti',
         sensor_isc_notes: sensorISC.notes,
         sensor_airflow_cleaned: sensorAirflow.status === 'wajib_clean',
         sensor_airflow_damaged: sensorAirflow.status === 'rusak',
-        sensor_airflow_suggest_replace: sensorAirflow.status === 'saran' || sensorAirflow.status === 'ganti',
+        sensor_airflow_suggest_replace: sensorAirflow.status === 'saran_ganti',
         sensor_airflow_notes: sensorAirflow.notes,
         throttle_body_cleaned: throttleBody.status === 'wajib_clean',
         throttle_body_damaged: throttleBody.status === 'rusak',
-        throttle_body_suggest_replace: throttleBody.status === 'saran' || throttleBody.status === 'ganti',
+        throttle_body_suggest_replace: throttleBody.status === 'saran_ganti',
         throttle_body_notes: throttleBody.notes,
         spark_plug_checked: sparkPlug.status === 'wajib_clean',
         spark_plug_damaged: sparkPlug.status === 'rusak',
-        spark_plug_suggest_replace: sparkPlug.status === 'saran' || sparkPlug.status === 'ganti',
+        spark_plug_suggest_replace: sparkPlug.status === 'saran_ganti',
         spark_plug_notes: sparkPlug.notes,
         ignition_coil_checked: ignitionCoil.status === 'wajib_clean',
         ignition_coil_damaged: ignitionCoil.status === 'rusak',
-        ignition_coil_suggest_replace: ignitionCoil.status === 'saran' || ignitionCoil.status === 'ganti',
+        ignition_coil_suggest_replace: ignitionCoil.status === 'saran_ganti',
         ignition_coil_notes: ignitionCoil.notes,
-        filter_udara: { no: checklistItems[0].no, label: checklistItems[0].label, checked: checklistItems[0].status !== 'rusak', suggest_replace: checklistItems[0].status === 'ganti' || checklistItems[0].status === 'saran', notes: `[${checklistItems[0].status.toUpperCase().replace('_',' ')}] ${checklistItems[0].notes}` },
-        volume_oli_engine: { no: checklistItems[1].no, label: checklistItems[1].label, checked: checklistItems[1].status !== 'rusak', suggest_replace: checklistItems[1].status === 'ganti' || checklistItems[1].status === 'saran', notes: `[${checklistItems[1].status.toUpperCase().replace('_',' ')}] ${checklistItems[1].notes}` },
-        minyak_rem: { no: checklistItems[2].no, label: checklistItems[2].label, checked: checklistItems[2].status !== 'rusak', suggest_replace: checklistItems[2].status === 'ganti' || checklistItems[2].status === 'saran', notes: `[${checklistItems[2].status.toUpperCase().replace('_',' ')}] ${checklistItems[2].notes}` },
-        minyak_kopling_transmisi: { no: checklistItems[3].no, label: checklistItems[3].label, checked: checklistItems[3].status !== 'rusak', suggest_replace: checklistItems[3].status === 'ganti' || checklistItems[3].status === 'saran', notes: `[${checklistItems[3].status.toUpperCase().replace('_',' ')}] ${checklistItems[3].notes}` },
-        minyak_power_steering: { no: checklistItems[4].no, label: checklistItems[4].label, checked: checklistItems[4].status !== 'rusak', suggest_replace: checklistItems[4].status === 'ganti' || checklistItems[4].status === 'saran', notes: `[${checklistItems[4].status.toUpperCase().replace('_',' ')}] ${checklistItems[4].notes}` },
-        air_radiator_coolant: { no: checklistItems[5].no, label: checklistItems[5].label, checked: checklistItems[5].status !== 'rusak', suggest_replace: checklistItems[5].status === 'ganti' || checklistItems[5].status === 'saran', notes: `[${checklistItems[5].status.toUpperCase().replace('_',' ')}] ${checklistItems[5].notes}` },
-        vanbelt_engine_ac: { no: checklistItems[6].no, label: checklistItems[6].label, checked: checklistItems[6].status !== 'rusak', suggest_replace: checklistItems[6].status === 'ganti' || checklistItems[6].status === 'saran', notes: `[${checklistItems[6].status.toUpperCase().replace('_',' ')}] ${checklistItems[6].notes}` },
-        kekencangan_mur_ban: { no: checklistItems[7].no, label: checklistItems[7].label, checked: checklistItems[7].status !== 'rusak', suggest_replace: checklistItems[7].status === 'ganti' || checklistItems[7].status === 'saran', notes: `[${checklistItems[7].status.toUpperCase().replace('_',' ')}] ${checklistItems[7].notes}` },
-        fungsi_lampu_all: { no: checklistItems[8].no, label: checklistItems[8].label, checked: checklistItems[8].status !== 'rusak', suggest_replace: checklistItems[8].status === 'ganti' || checklistItems[8].status === 'saran', notes: `[${checklistItems[8].status.toUpperCase().replace('_',' ')}] ${checklistItems[8].notes}` },
-        fungsi_tape_audio: { no: checklistItems[9].no, label: checklistItems[9].label, checked: checklistItems[9].status !== 'rusak', suggest_replace: checklistItems[9].status === 'ganti' || checklistItems[9].status === 'saran', notes: `[${checklistItems[9].status.toUpperCase().replace('_',' ')}] ${checklistItems[9].notes}` },
-        klakson_horn: { no: checklistItems[10].no, label: checklistItems[10].label, checked: checklistItems[10].status !== 'rusak', suggest_replace: checklistItems[10].status === 'ganti' || checklistItems[10].status === 'saran', notes: `[${checklistItems[10].status.toUpperCase().replace('_',' ')}] ${checklistItems[10].notes}` },
-        wheldop_velg: { no: checklistItems[11].no, label: checklistItems[11].label, checked: checklistItems[11].status !== 'rusak', suggest_replace: checklistItems[11].status === 'ganti' || checklistItems[11].status === 'saran', notes: `[${checklistItems[11].status.toUpperCase().replace('_',' ')}] ${checklistItems[11].notes}` },
-        kebersihan_filter_cabin: { no: checklistItems[12].no, label: checklistItems[12].label, checked: checklistItems[12].status !== 'rusak', suggest_replace: checklistItems[12].status === 'ganti' || checklistItems[12].status === 'saran', notes: `[${checklistItems[12].status.toUpperCase().replace('_',' ')}] ${checklistItems[12].notes}` },
-        tekanan_freon_ac: { no: checklistItems[13].no, label: checklistItems[13].label, checked: checklistItems[13].status !== 'rusak', suggest_replace: checklistItems[13].status === 'ganti' || checklistItems[13].status === 'saran', notes: `[${checklistItems[13].status.toUpperCase().replace('_',' ')}] ${checklistItems[13].notes}` },
-        kebersihan_interior_plafon_stir: { no: checklistItems[14].no, label: checklistItems[14].label, checked: checklistItems[14].status !== 'rusak', suggest_replace: checklistItems[14].status === 'ganti' || checklistItems[14].status === 'saran', notes: `[${checklistItems[14].status.toUpperCase().replace('_',' ')}] ${checklistItems[14].notes}` },
-        riset_km_oli_engine: { no: checklistItems[15].no, label: checklistItems[15].label, checked: checklistItems[15].status !== 'rusak', suggest_replace: checklistItems[15].status === 'ganti' || checklistItems[15].status === 'saran', notes: `[${checklistItems[15].status.toUpperCase().replace('_',' ')}] ${checklistItems[15].notes}` },
+        filter_udara: { no: checklistItems[0].no, label: checklistItems[0].label, checked: checklistItems[0].status === 'checklist', suggest_replace: checklistItems[0].status === 'saran_ganti', notes: checklistItems[0].notes },
+        volume_oli_engine: { no: checklistItems[1].no, label: checklistItems[1].label, checked: checklistItems[1].status === 'checklist', suggest_replace: checklistItems[1].status === 'saran_ganti', notes: checklistItems[1].notes },
+        minyak_rem: { no: checklistItems[2].no, label: checklistItems[2].label, checked: checklistItems[2].status === 'checklist', suggest_replace: checklistItems[2].status === 'saran_ganti', notes: checklistItems[2].notes },
+        minyak_kopling_transmisi: { no: checklistItems[3].no, label: checklistItems[3].label, checked: checklistItems[3].status === 'checklist', suggest_replace: checklistItems[3].status === 'saran_ganti', notes: checklistItems[3].notes },
+        minyak_power_steering: { no: checklistItems[4].no, label: checklistItems[4].label, checked: checklistItems[4].status === 'checklist', suggest_replace: checklistItems[4].status === 'saran_ganti', notes: checklistItems[4].notes },
+        air_radiator_coolant: { no: checklistItems[5].no, label: checklistItems[5].label, checked: checklistItems[5].status === 'checklist', suggest_replace: checklistItems[5].status === 'saran_ganti', notes: checklistItems[5].notes },
+        vanbelt_engine_ac: { no: checklistItems[6].no, label: checklistItems[6].label, checked: checklistItems[6].status === 'checklist', suggest_replace: checklistItems[6].status === 'saran_ganti', notes: checklistItems[6].notes },
+        kekencangan_mur_ban: { no: checklistItems[7].no, label: checklistItems[7].label, checked: checklistItems[7].status === 'checklist', suggest_replace: checklistItems[7].status === 'saran_ganti', notes: checklistItems[7].notes },
+        fungsi_lampu_all: { no: checklistItems[8].no, label: checklistItems[8].label, checked: checklistItems[8].status === 'checklist', suggest_replace: checklistItems[8].status === 'saran_ganti', notes: checklistItems[8].notes },
+        fungsi_tape_audio: { no: checklistItems[9].no, label: checklistItems[9].label, checked: checklistItems[9].status === 'checklist', suggest_replace: checklistItems[9].status === 'saran_ganti', notes: checklistItems[9].notes },
+        klakson_horn: { no: checklistItems[10].no, label: checklistItems[10].label, checked: checklistItems[10].status === 'checklist', suggest_replace: checklistItems[10].status === 'saran_ganti', notes: checklistItems[10].notes },
+        wheldop_velg: { no: checklistItems[11].no, label: checklistItems[11].label, checked: checklistItems[11].status === 'checklist', suggest_replace: checklistItems[11].status === 'saran_ganti', notes: checklistItems[11].notes },
+        kebersihan_filter_cabin: { no: checklistItems[12].no, label: checklistItems[12].label, checked: checklistItems[12].status === 'checklist', suggest_replace: checklistItems[12].status === 'saran_ganti', notes: checklistItems[12].notes },
+        tekanan_freon_ac: { no: checklistItems[13].no, label: checklistItems[13].label, checked: checklistItems[13].status === 'checklist', suggest_replace: checklistItems[13].status === 'saran_ganti', notes: checklistItems[13].notes },
+        kebersihan_interior_plafon_stir: { no: checklistItems[14].no, label: checklistItems[14].label, checked: checklistItems[14].status === 'checklist', suggest_replace: checklistItems[14].status === 'saran_ganti', notes: checklistItems[14].notes },
+        riset_km_oli_engine: { no: checklistItems[15].no, label: checklistItems[15].label, checked: checklistItems[15].status === 'checklist', suggest_replace: checklistItems[15].status === 'saran_ganti', notes: checklistItems[15].notes },
         fuel_level_fraction: fuelLevelFraction,
         technician_signature_url: signatureTech,
         improvement_suggestions: saranList.filter((s) => s.trim().length > 0),
@@ -554,14 +555,13 @@ function NewCheckupPageContent() {
                     <span className="font-bold text-slate-800">{row.label}</span>
                     <div className="flex flex-wrap items-center gap-2">
                       {([
-                        { value: 'wajib_clean', label: 'Wajib Clean', color: 'text-emerald-700 border-emerald-400 bg-emerald-50' },
-                        { value: 'rusak', label: 'Rusak', color: 'text-red-700 border-red-400 bg-red-50' },
-                        { value: 'saran', label: 'Saran', color: 'text-amber-700 border-amber-400 bg-amber-50' },
-                        { value: 'ganti', label: 'Ganti', color: 'text-orange-700 border-orange-400 bg-orange-50' },
+                        { value: 'wajib_clean', label: '1. Wajib Clean', color: 'text-emerald-700 border-emerald-500 bg-emerald-50' },
+                        { value: 'rusak', label: '2. Cek Rusak', color: 'text-red-700 border-red-500 bg-red-50' },
+                        { value: 'saran_ganti', label: '3. Saran Ganti', color: 'text-amber-700 border-amber-500 bg-amber-50' },
                       ] as const).map((opt) => (
                         <label
                           key={opt.value}
-                          className={`flex items-center space-x-1.5 cursor-pointer px-3 py-1.5 rounded-lg border-2 font-bold transition ${
+                          className={`flex items-center space-x-1.5 cursor-pointer px-3 py-1.5 rounded-lg border-2 font-bold transition text-xs ${
                             row.state.status === opt.value
                               ? opt.color + ' ring-2 ring-offset-1'
                               : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
@@ -606,18 +606,16 @@ function NewCheckupPageContent() {
                     <span className="font-bold text-slate-800 block">
                       {item.no}. {item.label}
                     </span>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-2">
                       {([
-                        { value: 'wajib_clean', label: 'Wajib Clean', color: 'text-emerald-700 border-emerald-400 bg-emerald-50' },
-                        { value: 'rusak', label: 'Rusak', color: 'text-red-700 border-red-400 bg-red-50' },
-                        { value: 'saran', label: 'Saran', color: 'text-amber-700 border-amber-400 bg-amber-50' },
-                        { value: 'ganti', label: 'Ganti', color: 'text-orange-700 border-orange-400 bg-orange-50' },
+                        { value: 'checklist', label: '1. Checklist', color: 'text-emerald-700 border-emerald-500 bg-emerald-50' },
+                        { value: 'saran_ganti', label: '2. Saran Ganti', color: 'text-red-700 border-red-500 bg-red-50' },
                       ] as const).map((opt) => (
                         <label
                           key={opt.value}
-                          className={`flex items-center space-x-1 cursor-pointer px-2.5 py-1 rounded-lg border-2 font-bold transition ${
+                          className={`flex items-center space-x-1 cursor-pointer px-3 py-1.5 rounded-lg border-2 font-bold transition text-xs ${
                             item.status === opt.value
-                              ? opt.color + ' ring-1 ring-offset-1'
+                              ? opt.color + ' ring-2 ring-offset-1'
                               : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300'
                           }`}
                         >
@@ -633,7 +631,7 @@ function NewCheckupPageContent() {
                             }}
                             className="sr-only"
                           />
-                          <span className="text-[11px]">{opt.label}</span>
+                          <span>{opt.label}</span>
                         </label>
                       ))}
                     </div>

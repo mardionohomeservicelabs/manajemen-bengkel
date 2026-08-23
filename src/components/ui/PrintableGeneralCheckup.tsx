@@ -207,25 +207,29 @@ export function PrintableGeneralCheckup({
                   <thead>
                     <tr className="bg-slate-100 border-b border-slate-300 font-bold text-slate-900">
                       <th className="p-1.5 border-r border-slate-300">Sensor / Komponen</th>
-                      <th className="p-1.5 w-14 text-center border-r border-slate-300">Clean</th>
-                      <th className="p-1.5 w-14 text-center">Ganti</th>
+                      <th className="p-1.5 w-12 text-center border-r border-slate-300">Clean</th>
+                      <th className="p-1.5 w-12 text-center border-r border-slate-300">Rusak</th>
+                      <th className="p-1.5 w-12 text-center">Ganti</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     {[
-                      { label: '2. Bersihkan Sensor MAF', clean: checkup.sensor_maf_cleaned, repl: checkup.sensor_maf_suggest_replace },
-                      { label: '3. Bersihkan Sensor ISC', clean: checkup.sensor_isc_cleaned, repl: checkup.sensor_isc_suggest_replace },
-                      { label: '4. Bersihkan Sensor Airflow', clean: checkup.sensor_airflow_cleaned, repl: checkup.sensor_airflow_suggest_replace },
-                      { label: '5. Bersihkan Throttle Body', clean: checkup.throttle_body_cleaned, repl: checkup.throttle_body_suggest_replace },
-                      { label: '6. Bersihkan Busi Spark Plug', clean: checkup.spark_plug_checked, repl: checkup.spark_plug_suggest_replace },
-                      { label: '7. Bersihkan Coil Pengapian', clean: checkup.ignition_coil_checked, repl: checkup.ignition_coil_suggest_replace },
+                      { label: '2. Bersihkan Sensor MAF', clean: checkup.sensor_maf_cleaned, damaged: checkup.sensor_maf_damaged, repl: checkup.sensor_maf_suggest_replace },
+                      { label: '3. Bersihkan Sensor ISC', clean: checkup.sensor_isc_cleaned, damaged: checkup.sensor_isc_damaged, repl: checkup.sensor_isc_suggest_replace },
+                      { label: '4. Bersihkan Sensor Airflow', clean: checkup.sensor_airflow_cleaned, damaged: checkup.sensor_airflow_damaged, repl: checkup.sensor_airflow_suggest_replace },
+                      { label: '5. Bersihkan Throttle Body', clean: checkup.throttle_body_cleaned, damaged: checkup.throttle_body_damaged, repl: checkup.throttle_body_suggest_replace },
+                      { label: '6. Bersihkan Busi Spark Plug', clean: checkup.spark_plug_checked, damaged: checkup.spark_plug_damaged, repl: checkup.spark_plug_suggest_replace },
+                      { label: '7. Bersihkan Coil Pengapian', clean: checkup.ignition_coil_checked, damaged: checkup.ignition_coil_damaged, repl: checkup.ignition_coil_suggest_replace },
                     ].map((row, idx) => (
                       <tr key={idx} className="hover:bg-slate-50">
                         <td className="p-1.5 font-bold text-slate-900 border-r border-slate-300">{row.label}</td>
                         <td className="p-1.5 text-center border-r border-slate-300 font-bold text-emerald-800">
                           {row.clean ? 'CLEAN' : '-'}
                         </td>
-                        <td className="p-1.5 text-center font-black text-red-700">
+                        <td className="p-1.5 text-center border-r border-slate-300 font-bold text-red-600">
+                          {row.damaged ? 'RUSAK' : '-'}
+                        </td>
+                        <td className="p-1.5 text-center font-black text-amber-700">
                           {row.repl ? 'GANTI' : '-'}
                         </td>
                       </tr>
