@@ -10,11 +10,13 @@ import {
   PlusCircle,
   ShieldCheck,
   Building2,
+  Database,
+  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 
 export function Navbar() {
-  const { currentRole } = useApp();
+  const { currentRole, isSupabaseOnline, isSyncing, syncWithSupabase } = useApp();
   const { currentUser, activeBranch } = useAuth();
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDate, setCurrentDate] = useState<string>('');
@@ -48,7 +50,7 @@ export function Navbar() {
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b-2 border-maroon-800/20 shadow-subtle no-print">
       <div className="px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between gap-4">
 
-        {/* Left: Tanggal & Jam + Cabang */}
+        {/* Left: Tanggal & Jam + Cabang + Supabase Status */}
         <div className="flex items-center space-x-3">
           {/* Badge Cabang */}
           <div className="flex items-center space-x-1.5 bg-maroon-50 border border-maroon-200 px-2.5 py-1 rounded-full">
@@ -57,6 +59,22 @@ export function Navbar() {
               {activeBranch}
             </span>
           </div>
+
+          {/* Badge Database Supabase */}
+          <button
+            onClick={() => syncWithSupabase()}
+            title="Klik untuk sinkronisasi ulang dengan Supabase Database"
+            className={`hidden lg:flex items-center space-x-1.5 text-[10.5px] font-bold px-2.5 py-1 rounded-full border transition ${
+              isSupabaseOnline
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'
+                : 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${isSupabaseOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+            <Database className="w-3 h-3 text-slate-600" />
+            <span>{isSyncing ? 'Sinkronisasi...' : isSupabaseOnline ? 'Supabase Terhubung' : 'Offline Mode'}</span>
+            <RefreshCw className={`w-2.5 h-2.5 ml-0.5 text-slate-500 ${isSyncing ? 'animate-spin text-emerald-600' : ''}`} />
+          </button>
 
           <div className="hidden md:flex items-center space-x-3 text-xs text-slate-600 border-l border-slate-300 pl-3">
             <span className="flex items-center space-x-1 font-semibold">

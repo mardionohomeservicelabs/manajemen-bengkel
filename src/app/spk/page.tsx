@@ -30,7 +30,7 @@ import Link from 'next/link';
 import { PrintableSPK } from '@/components/ui/PrintableSPK';
 
 function SPKListContent() {
-  const { workOrders, refreshData, showToast, settings, currentRole } = useApp();
+  const { workOrders, refreshData, showToast, settings, currentRole, updateWorkOrderStatusAsync } = useApp();
   const searchParams = useSearchParams();
   const targetId = searchParams.get('id');
 
@@ -59,11 +59,10 @@ function SPKListContent() {
     return matchesSearch && matchesStatus;
   });
 
-  const handleUpdateStatus = (id: string, newStatus: WorkOrderStatus) => {
-    const success = DBService.updateWorkOrderStatus(id, newStatus, currentRole);
+  const handleUpdateStatus = async (id: string, newStatus: WorkOrderStatus) => {
+    const success = await updateWorkOrderStatusAsync(id, newStatus);
     if (success) {
-      refreshData();
-      showToast('Status SPK berhasil diperbarui', 'success');
+      showToast('Status SPK berhasil diperbarui di Supabase', 'success');
       if (selectedOrder && selectedOrder.id === id) {
         setSelectedOrder({ ...selectedOrder, status: newStatus });
       }

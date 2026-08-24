@@ -30,7 +30,7 @@ import { PrintableSPK } from '@/components/ui/PrintableSPK';
 
 export default function NewSPKPage() {
   const router = useRouter();
-  const { vehicles, refreshData, showToast, settings } = useApp();
+  const { vehicles, refreshData, showToast, settings, saveVehicleAsync, saveWorkOrderAsync } = useApp();
   const { activeBranch, currentUser } = useAuth();
 
   // Form states - Customer & Vehicle
@@ -92,7 +92,7 @@ export default function NewSPKPage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName || !phoneNumber || !licensePlate || !complaints) {
       showToast('Mohon lengkapi Nama, No. WhatsApp, Plat Nomor, dan Keluhan.', 'error');
@@ -102,8 +102,8 @@ export default function NewSPKPage() {
     setIsSubmitting(true);
 
     try {
-      // 1. Save or update vehicle
-      const savedVehicle = DBService.saveVehicle({
+      // 1. Save or update vehicle in Supabase
+      const savedVehicle = await saveVehicleAsync({
         customer_name: customerName,
         phone_number: phoneNumber,
         email,
@@ -123,10 +123,10 @@ export default function NewSPKPage() {
         entryDate.setHours(Number(hours), Number(minutes), 0);
       }
 
-      // 2. Save work order with 3 signatures & new PKB fields
+      // 2. Save work order with 3 signatures & PKB fields in Supabase
       const finalSource = sourceInfo === 'LAINNYA' ? (customSource || 'Lainnya') : sourceInfo;
       const spkNumber = generateSpkNumber();
-      const newWorkOrder = DBService.saveWorkOrder({
+      const newWorkOrder = await saveWorkOrderAsync({
         spk_number: spkNumber,
         vehicle_id: savedVehicle.id,
         mechanic_name: mechanicName,
@@ -143,12 +143,11 @@ export default function NewSPKPage() {
         entry_date: entryDate.toISOString(),
       });
 
-      refreshData();
-      showToast(`PKB ${spkNumber} berhasil dibuat!`, 'success');
+      showToast(`PKB ${spkNumber} berhasil disimpan permanen ke Supabase!`, 'success');
       setCreatedOrder(newWorkOrder);
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal menyimpan PKB. Silakan coba lagi.', 'error');
+    } catch (err: any) {
+      console.error('Error saving SPK to Supabase:', err);
+      showToast('Gagal menyimpan ke Supabase: ' + (err?.message || 'Terjadi kesalahan jaringan'), 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -601,7 +600,7 @@ export default function NewSPKPage() {
             className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-maroon-700 hover:bg-maroon-800 text-white font-black text-xs px-6 py-2.5 rounded-xl shadow-md transition disabled:opacity-50"
           >
             <Save className="w-4 h-4" />
-            <span>{isSubmitting ? 'Menyimpan PKB...' : 'Simpan & Terbitkan PKB'}</span>
+            <span>{isSubmitting ? 'Menyimpan ke Supabase...' : 'Simpan & Terbitkan PKB'}</span>
           </button>
         </div>
       </form>

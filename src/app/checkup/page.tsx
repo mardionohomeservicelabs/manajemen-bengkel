@@ -24,8 +24,7 @@ import { PrintableGeneralCheckup } from '@/components/ui/PrintableGeneralCheckup
 import { PrintableACCheckup } from '@/components/ui/PrintableACCheckup';
 
 export default function CheckupPage() {
-  const { settings, showToast, refreshData } = useApp();
-  const checkups = DBService.getCheckups();
+  const { settings, showToast, refreshData, checkups, deleteCheckupAsync, isSyncing } = useApp();
 
   const [activeTab, setActiveTab] = useState<'all' | 'qc_general' | 'ac_specialist'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -41,12 +40,11 @@ export default function CheckupPage() {
     return matchesTab && matchesSearch;
   });
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('Hapus lembar checkup ini?')) {
-      DBService.deleteCheckup(id);
-      refreshData();
-      showToast('Data checkup berhasil dihapus', 'info');
+    if (window.confirm('Hapus lembar checkup ini dari database Supabase?')) {
+      await deleteCheckupAsync(id);
+      showToast('Data checkup berhasil dihapus dari database Supabase', 'info');
     }
   };
 

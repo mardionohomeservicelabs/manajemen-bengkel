@@ -74,15 +74,14 @@ const COLUMNS: { id: WorkOrderStatus; title: string; color: string; border: stri
 ];
 
 export default function QueueBoardPage() {
-  const { workOrders, refreshData, showToast, settings, currentRole } = useApp();
+  const { workOrders, showToast, settings, currentRole, updateWorkOrderStatusAsync } = useApp();
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
 
-  const handleStatusChange = (orderId: string, newStatus: WorkOrderStatus) => {
-    const success = DBService.updateWorkOrderStatus(orderId, newStatus, currentRole);
+  const handleStatusChange = async (orderId: string, newStatus: WorkOrderStatus) => {
+    const success = await updateWorkOrderStatusAsync(orderId, newStatus);
     if (success) {
-      refreshData();
-      showToast('Status antrean berhasil dipindahkan', 'success');
+      showToast('Status antrean berhasil diperbarui di Supabase', 'success');
     }
   };
 

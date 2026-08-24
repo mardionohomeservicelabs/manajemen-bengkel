@@ -38,9 +38,10 @@ function NewCheckupPageContent() {
   const searchParams = useSearchParams();
   const spkIdParam = searchParams.get('spkId');
 
-  const { vehicles, workOrders, refreshData, showToast, settings } = useApp();
+  const { vehicles, workOrders, refreshData, showToast, settings, saveCheckupAsync } = useApp();
 
   const [checkupType, setCheckupType] = useState<CheckupType>('qc_general');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Selected Active SPK
   const [selectedSpkId, setSelectedSpkId] = useState<string>(spkIdParam || '');
@@ -166,140 +167,146 @@ function NewCheckupPageContent() {
     setSelectedSpkId(spkId);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const selectedSpk = workOrders.find((w) => w.id === selectedSpkId);
+    setIsSubmitting(true);
 
-    if (checkupType === 'qc_general') {
-      const docNo = `QC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(
-        100 + Math.random() * 900
-      )}`;
+    try {
+      if (checkupType === 'qc_general') {
+        const docNo = `QC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(
+          100 + Math.random() * 900
+        )}`;
 
-      const qcData: QCGeneralCheckupData = {
-        document_number: docNo,
-        check_date: checkDate,
-        technician_name: technicianName,
-        customer_name: customerName,
-        car_model: carModel,
-        license_plate: formatPlate(licensePlate),
-        mileage: Number(mileage),
-        battery_condition: batteryCondition,
-        battery_health_percent: Number(batteryHealth),
-        battery_suggest_replace: batterySuggestReplace,
-        battery_notes: batteryNotes,
-        sensor_maf_cleaned: sensorMAF.status === 'wajib_clean',
-        sensor_maf_damaged: sensorMAF.status === 'rusak',
-        sensor_maf_suggest_replace: sensorMAF.status === 'saran_ganti',
-        sensor_maf_notes: sensorMAF.notes,
-        sensor_isc_cleaned: sensorISC.status === 'wajib_clean',
-        sensor_isc_damaged: sensorISC.status === 'rusak',
-        sensor_isc_suggest_replace: sensorISC.status === 'saran_ganti',
-        sensor_isc_notes: sensorISC.notes,
-        sensor_airflow_cleaned: sensorAirflow.status === 'wajib_clean',
-        sensor_airflow_damaged: sensorAirflow.status === 'rusak',
-        sensor_airflow_suggest_replace: sensorAirflow.status === 'saran_ganti',
-        sensor_airflow_notes: sensorAirflow.notes,
-        throttle_body_cleaned: throttleBody.status === 'wajib_clean',
-        throttle_body_damaged: throttleBody.status === 'rusak',
-        throttle_body_suggest_replace: throttleBody.status === 'saran_ganti',
-        throttle_body_notes: throttleBody.notes,
-        spark_plug_checked: sparkPlug.status === 'wajib_clean',
-        spark_plug_damaged: sparkPlug.status === 'rusak',
-        spark_plug_suggest_replace: sparkPlug.status === 'saran_ganti',
-        spark_plug_notes: sparkPlug.notes,
-        ignition_coil_checked: ignitionCoil.status === 'wajib_clean',
-        ignition_coil_damaged: ignitionCoil.status === 'rusak',
-        ignition_coil_suggest_replace: ignitionCoil.status === 'saran_ganti',
-        ignition_coil_notes: ignitionCoil.notes,
-        filter_udara: { no: checklistItems[0].no, label: checklistItems[0].label, checked: checklistItems[0].status === 'checklist', suggest_replace: checklistItems[0].status === 'saran_ganti', notes: checklistItems[0].notes },
-        volume_oli_engine: { no: checklistItems[1].no, label: checklistItems[1].label, checked: checklistItems[1].status === 'checklist', suggest_replace: checklistItems[1].status === 'saran_ganti', notes: checklistItems[1].notes },
-        minyak_rem: { no: checklistItems[2].no, label: checklistItems[2].label, checked: checklistItems[2].status === 'checklist', suggest_replace: checklistItems[2].status === 'saran_ganti', notes: checklistItems[2].notes },
-        minyak_kopling_transmisi: { no: checklistItems[3].no, label: checklistItems[3].label, checked: checklistItems[3].status === 'checklist', suggest_replace: checklistItems[3].status === 'saran_ganti', notes: checklistItems[3].notes },
-        minyak_power_steering: { no: checklistItems[4].no, label: checklistItems[4].label, checked: checklistItems[4].status === 'checklist', suggest_replace: checklistItems[4].status === 'saran_ganti', notes: checklistItems[4].notes },
-        air_radiator_coolant: { no: checklistItems[5].no, label: checklistItems[5].label, checked: checklistItems[5].status === 'checklist', suggest_replace: checklistItems[5].status === 'saran_ganti', notes: checklistItems[5].notes },
-        vanbelt_engine_ac: { no: checklistItems[6].no, label: checklistItems[6].label, checked: checklistItems[6].status === 'checklist', suggest_replace: checklistItems[6].status === 'saran_ganti', notes: checklistItems[6].notes },
-        kekencangan_mur_ban: { no: checklistItems[7].no, label: checklistItems[7].label, checked: checklistItems[7].status === 'checklist', suggest_replace: checklistItems[7].status === 'saran_ganti', notes: checklistItems[7].notes },
-        fungsi_lampu_all: { no: checklistItems[8].no, label: checklistItems[8].label, checked: checklistItems[8].status === 'checklist', suggest_replace: checklistItems[8].status === 'saran_ganti', notes: checklistItems[8].notes },
-        fungsi_tape_audio: { no: checklistItems[9].no, label: checklistItems[9].label, checked: checklistItems[9].status === 'checklist', suggest_replace: checklistItems[9].status === 'saran_ganti', notes: checklistItems[9].notes },
-        klakson_horn: { no: checklistItems[10].no, label: checklistItems[10].label, checked: checklistItems[10].status === 'checklist', suggest_replace: checklistItems[10].status === 'saran_ganti', notes: checklistItems[10].notes },
-        wheldop_velg: { no: checklistItems[11].no, label: checklistItems[11].label, checked: checklistItems[11].status === 'checklist', suggest_replace: checklistItems[11].status === 'saran_ganti', notes: checklistItems[11].notes },
-        kebersihan_filter_cabin: { no: checklistItems[12].no, label: checklistItems[12].label, checked: checklistItems[12].status === 'checklist', suggest_replace: checklistItems[12].status === 'saran_ganti', notes: checklistItems[12].notes },
-        tekanan_freon_ac: { no: checklistItems[13].no, label: checklistItems[13].label, checked: checklistItems[13].status === 'checklist', suggest_replace: checklistItems[13].status === 'saran_ganti', notes: checklistItems[13].notes },
-        kebersihan_interior_plafon_stir: { no: checklistItems[14].no, label: checklistItems[14].label, checked: checklistItems[14].status === 'checklist', suggest_replace: checklistItems[14].status === 'saran_ganti', notes: checklistItems[14].notes },
-        riset_km_oli_engine: { no: checklistItems[15].no, label: checklistItems[15].label, checked: checklistItems[15].status === 'checklist', suggest_replace: checklistItems[15].status === 'saran_ganti', notes: checklistItems[15].notes },
-        fuel_level_fraction: fuelLevelFraction,
-        technician_signature_url: signatureTech,
-        improvement_suggestions: saranList.filter((s) => s.trim().length > 0),
-      };
+        const qcData: QCGeneralCheckupData = {
+          document_number: docNo,
+          check_date: checkDate,
+          technician_name: technicianName,
+          customer_name: customerName,
+          car_model: carModel,
+          license_plate: formatPlate(licensePlate),
+          mileage: Number(mileage),
+          battery_condition: batteryCondition,
+          battery_health_percent: Number(batteryHealth),
+          battery_suggest_replace: batterySuggestReplace,
+          battery_notes: batteryNotes,
+          sensor_maf_cleaned: sensorMAF.status === 'wajib_clean',
+          sensor_maf_damaged: sensorMAF.status === 'rusak',
+          sensor_maf_suggest_replace: sensorMAF.status === 'saran_ganti',
+          sensor_maf_notes: sensorMAF.notes,
+          sensor_isc_cleaned: sensorISC.status === 'wajib_clean',
+          sensor_isc_damaged: sensorISC.status === 'rusak',
+          sensor_isc_suggest_replace: sensorISC.status === 'saran_ganti',
+          sensor_isc_notes: sensorISC.notes,
+          sensor_airflow_cleaned: sensorAirflow.status === 'wajib_clean',
+          sensor_airflow_damaged: sensorAirflow.status === 'rusak',
+          sensor_airflow_suggest_replace: sensorAirflow.status === 'saran_ganti',
+          sensor_airflow_notes: sensorAirflow.notes,
+          throttle_body_cleaned: throttleBody.status === 'wajib_clean',
+          throttle_body_damaged: throttleBody.status === 'rusak',
+          throttle_body_suggest_replace: throttleBody.status === 'saran_ganti',
+          throttle_body_notes: throttleBody.notes,
+          spark_plug_checked: sparkPlug.status === 'wajib_clean',
+          spark_plug_damaged: sparkPlug.status === 'rusak',
+          spark_plug_suggest_replace: sparkPlug.status === 'saran_ganti',
+          spark_plug_notes: sparkPlug.notes,
+          ignition_coil_checked: ignitionCoil.status === 'wajib_clean',
+          ignition_coil_damaged: ignitionCoil.status === 'rusak',
+          ignition_coil_suggest_replace: ignitionCoil.status === 'saran_ganti',
+          ignition_coil_notes: ignitionCoil.notes,
+          filter_udara: { no: checklistItems[0].no, label: checklistItems[0].label, checked: checklistItems[0].status === 'checklist', suggest_replace: checklistItems[0].status === 'saran_ganti', notes: checklistItems[0].notes },
+          volume_oli_engine: { no: checklistItems[1].no, label: checklistItems[1].label, checked: checklistItems[1].status === 'checklist', suggest_replace: checklistItems[1].status === 'saran_ganti', notes: checklistItems[1].notes },
+          minyak_rem: { no: checklistItems[2].no, label: checklistItems[2].label, checked: checklistItems[2].status === 'checklist', suggest_replace: checklistItems[2].status === 'saran_ganti', notes: checklistItems[2].notes },
+          minyak_kopling_transmisi: { no: checklistItems[3].no, label: checklistItems[3].label, checked: checklistItems[3].status === 'checklist', suggest_replace: checklistItems[3].status === 'saran_ganti', notes: checklistItems[3].notes },
+          minyak_power_steering: { no: checklistItems[4].no, label: checklistItems[4].label, checked: checklistItems[4].status === 'checklist', suggest_replace: checklistItems[4].status === 'saran_ganti', notes: checklistItems[4].notes },
+          air_radiator_coolant: { no: checklistItems[5].no, label: checklistItems[5].label, checked: checklistItems[5].status === 'checklist', suggest_replace: checklistItems[5].status === 'saran_ganti', notes: checklistItems[5].notes },
+          vanbelt_engine_ac: { no: checklistItems[6].no, label: checklistItems[6].label, checked: checklistItems[6].status === 'checklist', suggest_replace: checklistItems[6].status === 'saran_ganti', notes: checklistItems[6].notes },
+          kekencangan_mur_ban: { no: checklistItems[7].no, label: checklistItems[7].label, checked: checklistItems[7].status === 'checklist', suggest_replace: checklistItems[7].status === 'saran_ganti', notes: checklistItems[7].notes },
+          fungsi_lampu_all: { no: checklistItems[8].no, label: checklistItems[8].label, checked: checklistItems[8].status === 'checklist', suggest_replace: checklistItems[8].status === 'saran_ganti', notes: checklistItems[8].notes },
+          fungsi_tape_audio: { no: checklistItems[9].no, label: checklistItems[9].label, checked: checklistItems[9].status === 'checklist', suggest_replace: checklistItems[9].status === 'saran_ganti', notes: checklistItems[9].notes },
+          klakson_horn: { no: checklistItems[10].no, label: checklistItems[10].label, checked: checklistItems[10].status === 'checklist', suggest_replace: checklistItems[10].status === 'saran_ganti', notes: checklistItems[10].notes },
+          wheldop_velg: { no: checklistItems[11].no, label: checklistItems[11].label, checked: checklistItems[11].status === 'checklist', suggest_replace: checklistItems[11].status === 'saran_ganti', notes: checklistItems[11].notes },
+          kebersihan_filter_cabin: { no: checklistItems[12].no, label: checklistItems[12].label, checked: checklistItems[12].status === 'checklist', suggest_replace: checklistItems[12].status === 'saran_ganti', notes: checklistItems[12].notes },
+          tekanan_freon_ac: { no: checklistItems[13].no, label: checklistItems[13].label, checked: checklistItems[13].status === 'checklist', suggest_replace: checklistItems[13].status === 'saran_ganti', notes: checklistItems[13].notes },
+          kebersihan_interior_plafon_stir: { no: checklistItems[14].no, label: checklistItems[14].label, checked: checklistItems[14].status === 'checklist', suggest_replace: checklistItems[14].status === 'saran_ganti', notes: checklistItems[14].notes },
+          riset_km_oli_engine: { no: checklistItems[15].no, label: checklistItems[15].label, checked: checklistItems[15].status === 'checklist', suggest_replace: checklistItems[15].status === 'saran_ganti', notes: checklistItems[15].notes },
+          fuel_level_fraction: fuelLevelFraction,
+          technician_signature_url: signatureTech,
+          improvement_suggestions: saranList.filter((s) => s.trim().length > 0),
+        };
 
-      const record = DBService.saveCheckup({
-        type: 'qc_general',
-        document_number: docNo,
-        work_order_id: selectedSpkId || undefined,
-        vehicle_id: selectedSpk?.vehicle_id || undefined,
-        customer_name: customerName,
-        license_plate: formatPlate(licensePlate),
-        car_model: carModel,
-        technician_name: technicianName,
-        check_date: checkDate,
-        qc_data: qcData,
-        created_at: new Date().toISOString(),
-      });
+        const record = await saveCheckupAsync({
+          type: 'qc_general',
+          document_number: docNo,
+          work_order_id: selectedSpkId || undefined,
+          vehicle_id: selectedSpk?.vehicle_id || undefined,
+          customer_name: customerName,
+          license_plate: formatPlate(licensePlate),
+          car_model: carModel,
+          technician_name: technicianName,
+          check_date: checkDate,
+          qc_data: qcData,
+          created_at: new Date().toISOString(),
+        });
 
-      refreshData();
-      showToast('Formulir QC General Checkup berhasil disimpan secara otomatis!', 'success');
-      setSavedRecord(record);
-    } else {
-      const docNo = `AC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(
-        100 + Math.random() * 900
-      )}`;
+        showToast('Formulir QC General Checkup berhasil disimpan permanen ke Supabase!', 'success');
+        setSavedRecord(record);
+      } else {
+        const docNo = `AC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(
+          100 + Math.random() * 900
+        )}`;
 
-      const acData: ACCheckupData = {
-        document_number: docNo,
-        customer_name: customerName,
-        car_model: carModel,
-        mileage: Number(mileage),
-        license_plate: formatPlate(licensePlate),
-        check_date: checkDate,
-        technician_name: technicianName,
-        location_city: settings.city || 'Sidoarjo',
-        compressor_clutch: acCompressor,
-        drive_belt: acDriveBelt,
-        condenser_radiator: acCondenser,
-        hoses_pipes: acHoses,
-        air_coolant: acCoolant,
-        func_magnetic_clutch: acFuncClutch,
-        radiator_condenser_fan: acRadiatorFan,
-        blower_airflow: acBlower,
-        sight_glass_odour: acSightGlass,
-        air_vent_temperature: acVentTemp,
-        low_pressure_psi: acLowPsi,
-        high_pressure_psi: acHighPsi,
-        cabin_filter_condition: acCabinFilter,
-        evaporator_drain_condition: acDrain,
-        recommendations: acRecommendations,
-        customer_signature_url: signatureCustomer,
-        technician_signature_url: signatureTech,
-      };
+        const acData: ACCheckupData = {
+          document_number: docNo,
+          customer_name: customerName,
+          car_model: carModel,
+          mileage: Number(mileage),
+          license_plate: formatPlate(licensePlate),
+          check_date: checkDate,
+          technician_name: technicianName,
+          location_city: settings.city || 'Sidoarjo',
+          compressor_clutch: acCompressor,
+          drive_belt: acDriveBelt,
+          condenser_radiator: acCondenser,
+          hoses_pipes: acHoses,
+          air_coolant: acCoolant,
+          func_magnetic_clutch: acFuncClutch,
+          radiator_condenser_fan: acRadiatorFan,
+          blower_airflow: acBlower,
+          sight_glass_odour: acSightGlass,
+          air_vent_temperature: acVentTemp,
+          low_pressure_psi: acLowPsi,
+          high_pressure_psi: acHighPsi,
+          cabin_filter_condition: acCabinFilter,
+          evaporator_drain_condition: acDrain,
+          recommendations: acRecommendations,
+          customer_signature_url: signatureCustomer,
+          technician_signature_url: signatureTech,
+        };
 
-      const record = DBService.saveCheckup({
-        type: 'ac_specialist',
-        document_number: docNo,
-        work_order_id: selectedSpkId || undefined,
-        vehicle_id: selectedSpk?.vehicle_id || undefined,
-        customer_name: customerName,
-        license_plate: formatPlate(licensePlate),
-        car_model: carModel,
-        technician_name: technicianName,
-        check_date: checkDate,
-        ac_data: acData,
-        created_at: new Date().toISOString(),
-      });
+        const record = await saveCheckupAsync({
+          type: 'ac_specialist',
+          document_number: docNo,
+          work_order_id: selectedSpkId || undefined,
+          vehicle_id: selectedSpk?.vehicle_id || undefined,
+          customer_name: customerName,
+          license_plate: formatPlate(licensePlate),
+          car_model: carModel,
+          technician_name: technicianName,
+          check_date: checkDate,
+          ac_data: acData,
+          created_at: new Date().toISOString(),
+        });
 
-      refreshData();
-      showToast('Formulir Pemeriksaan AC & Pendingin berhasil disimpan secara otomatis!', 'success');
-      setSavedRecord(record);
+        showToast('Formulir Pemeriksaan AC & Pendingin berhasil disimpan permanen ke Supabase!', 'success');
+        setSavedRecord(record);
+      }
+    } catch (err: any) {
+      console.error('Error saving checkup to Supabase:', err);
+      showToast('Gagal menyimpan ke Supabase: ' + (err?.message || 'Terjadi kesalahan jaringan'), 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -882,10 +889,11 @@ function NewCheckupPageContent() {
           </Link>
           <button
             type="submit"
-            className="inline-flex items-center space-x-2 bg-maroon-700 hover:bg-maroon-800 text-white font-black text-xs px-6 py-2.5 rounded-xl shadow-md transition"
+            disabled={isSubmitting}
+            className="inline-flex items-center space-x-2 bg-maroon-700 hover:bg-maroon-800 text-white font-black text-xs px-6 py-2.5 rounded-xl shadow-md transition disabled:opacity-50"
           >
             <Save className="w-4 h-4" />
-            <span>Simpan & Terbitkan Formulir Checkup</span>
+            <span>{isSubmitting ? 'Menyimpan ke Supabase...' : 'Simpan & Terbitkan Formulir Checkup'}</span>
           </button>
         </div>
       </form>
