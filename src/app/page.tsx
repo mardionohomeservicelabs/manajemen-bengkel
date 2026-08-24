@@ -74,6 +74,8 @@ export default function DashboardPage() {
                     ? 'Owner (Akses Penuh)'
                     : currentRole === 'admin'
                     ? 'Admin Kasir & Operasional'
+                    : currentRole === 'mekanik'
+                    ? 'Mekanik Servis'
                     : 'Service Advisor (SA)'}
                 </strong>
               </span>

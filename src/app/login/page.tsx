@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 
 export default function LoginPage() {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, currentUser } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -29,9 +29,13 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated && mounted) {
-      window.location.href = '/';
+      if (currentUser?.role === 'mekanik') {
+        window.location.href = '/checkup';
+      } else {
+        window.location.href = '/';
+      }
     }
-  }, [isAuthenticated, mounted]);
+  }, [isAuthenticated, mounted, currentUser]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,7 +56,11 @@ export default function LoginPage() {
     if (!result.success) {
       setError(result.error || 'Login gagal. Silakan coba lagi.');
     } else {
-      window.location.href = '/';
+      if (result.user?.role === 'mekanik') {
+        window.location.href = '/checkup';
+      } else {
+        window.location.href = '/';
+      }
     }
   };
 

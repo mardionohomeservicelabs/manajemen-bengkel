@@ -73,29 +73,31 @@ export function Navbar() {
         {/* Right: User Info + Quick Actions */}
         <div className="flex items-center space-x-3">
 
-          {/* Quick Intake Button */}
-          <Link
-            href="/spk/new"
-            className="inline-flex items-center space-x-1.5 bg-maroon-700 hover:bg-maroon-800 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm transition hover:shadow duration-150"
-          >
-            <PlusCircle className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Intake SPK Baru</span>
-            <span className="sm:hidden">+ SPK</span>
-          </Link>
+          {/* Quick Intake Button (SA, Admin, Owner only) */}
+          {currentRole !== 'mekanik' && (
+            <Link
+              href="/spk/new"
+              className="inline-flex items-center space-x-1.5 bg-maroon-700 hover:bg-maroon-800 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm transition hover:shadow duration-150"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Intake SPK Baru</span>
+              <span className="sm:hidden">+ SPK</span>
+            </Link>
+          )}
 
           {/* Quick Checkup Button */}
           <Link
             href="/checkup/new"
-            className="hidden sm:inline-flex items-center space-x-1.5 bg-red-800 hover:bg-red-900 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm transition hover:shadow duration-150"
+            className="inline-flex items-center space-x-1.5 bg-red-800 hover:bg-red-900 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm transition hover:shadow duration-150"
           >
             <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
-            <span>Checkup QC/AC</span>
+            <span>+ Checkup QC/AC</span>
           </Link>
 
           {/* User Pill */}
           <div className="hidden sm:flex items-center space-x-2 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl">
             <div className="w-6 h-6 rounded-md bg-maroon-900 flex items-center justify-center text-amber-300 font-black text-[10px]">
-              {currentRole === 'owner' ? 'OW' : currentRole === 'admin' ? 'AD' : 'SA'}
+              {currentRole === 'owner' ? 'OW' : currentRole === 'admin' ? 'AD' : currentRole === 'mekanik' ? 'MK' : 'SA'}
             </div>
             <div className="leading-none">
               <div className="text-[11px] font-black text-slate-900">

@@ -7,17 +7,20 @@ import { Navbar } from '@/components/layout/Navbar';
 import { Sidebar } from '@/components/layout/Sidebar';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, currentUser } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
   const isLoginPage = pathname === '/login';
+  const isMekanik = currentUser?.role === 'mekanik';
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !isLoginPage) {
       router.push('/login');
+    } else if (!isLoading && isAuthenticated && isMekanik && !pathname.startsWith('/checkup')) {
+      router.replace('/checkup');
     }
-  }, [isLoading, isAuthenticated, isLoginPage, router]);
+  }, [isLoading, isAuthenticated, isLoginPage, isMekanik, pathname, router]);
 
   // Halaman login: tampilkan saja tanpa shell
   if (isLoginPage) {
@@ -41,6 +44,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950">
         <div className="w-8 h-8 border-2 border-maroon-700/30 border-t-maroon-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Mekanik mencoba membuka halaman non-checkup: tampilkan pesan akses terbatas selagi redirect
+  if (isMekanik && !pathname.startsWith('/checkup')) {
+    return (
+      <div className="flex min-h-screen">
+        <Sidebar />
+        <div className="flex-1 flex flex-col min-w-0 lg:pl-64 transition-all duration-200">
+          <Navbar />
+          <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto flex items-center justify-center">
+            <div className="text-center p-8 bg-white rounded-2xl border border-slate-200 shadow-card max-w-md">
+              <div className="w-12 h-12 rounded-2xl bg-maroon-100 text-maroon-700 flex items-center justify-center mx-auto mb-3 font-black text-sm">
+                MK
+              </div>
+              <h2 className="text-base font-black text-slate-900">Hak Akses Terbatas (Role Mekanik)</h2>
+              <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                Role Mekanik hanya memiliki akses ke modul <strong>General Checkup, Tune-Up &amp; AC Mobil</strong>. Mengalihkan ke lembar checklist...
+              </p>
+            </div>
+          </main>
+        </div>
       </div>
     );
   }

@@ -6,7 +6,7 @@
 // ============================================================
 
 export type BranchId = 'MHS 1' | 'MHS 2' | 'MHS 3';
-export type UserRole = 'owner' | 'admin' | 'sa';
+export type UserRole = 'owner' | 'admin' | 'sa' | 'mekanik';
 
 export interface AppUser {
   id: string;
@@ -41,6 +41,14 @@ export const APP_USERS: AppUser[] = [
     branch: 'MHS 1',
   },
   {
+    id: 'mhs1-mekanik-agus',
+    email: 'mekanik@mhs1.mardiono',
+    password: 'mhs1mekanik',
+    full_name: 'Agus Susanto',
+    role: 'mekanik',
+    branch: 'MHS 1',
+  },
+  {
     id: 'mhs1-owner-ardiyanto',
     email: 'ardiyanto@mardiono',
     password: 'owner123',
@@ -65,6 +73,14 @@ export const APP_USERS: AppUser[] = [
     password: 'mhs2sa',
     full_name: 'Mey Wulandari',
     role: 'sa',
+    branch: 'MHS 2',
+  },
+  {
+    id: 'mhs2-mekanik-budi',
+    email: 'mekanik@mhs2.mardiono',
+    password: 'mhs2mekanik',
+    full_name: 'Budi Santoso',
+    role: 'mekanik',
     branch: 'MHS 2',
   },
   {
@@ -95,6 +111,14 @@ export const APP_USERS: AppUser[] = [
     branch: 'MHS 3',
   },
   {
+    id: 'mhs3-mekanik-agus',
+    email: 'mekanik@mhs3.mardiono',
+    password: 'mhs3mekanik',
+    full_name: 'Agus Susanto',
+    role: 'mekanik',
+    branch: 'MHS 3',
+  },
+  {
     id: 'mhs3-owner-ardiyanto',
     email: 'ardiyanto3@mardiono',
     password: 'owner789',
@@ -102,6 +126,16 @@ export const APP_USERS: AppUser[] = [
     role: 'owner',
     branch: 'MHS 3',
     canAccessAllBranches: true,
+  },
+
+  // ─────────── AKUN GLOBAL MEKANIK (KEMUDAHAN TESTING) ───────────
+  {
+    id: 'global-mekanik',
+    email: 'mekanik@mardiono',
+    password: 'mekanik123',
+    full_name: 'Mekanik Servis',
+    role: 'mekanik',
+    branch: 'MHS 1',
   },
 ];
 
@@ -135,4 +169,5 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   owner: 'Owner',
   admin: 'Admin',
   sa: 'Service Advisor',
+  mekanik: 'Mekanik',
 };

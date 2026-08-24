@@ -17,7 +17,7 @@ interface AuthContextType {
   activeBranch: BranchId;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => { success: boolean; error?: string };
+  login: (email: string, password: string) => { success: boolean; user?: AppUser; error?: string };
   logout: () => void;
   setActiveBranch: (branch: BranchId) => void;
 }
@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(
-    (email: string, password: string): { success: boolean; error?: string } => {
+    (email: string, password: string): { success: boolean; user?: AppUser; error?: string } => {
       const user = authenticateUser(email, password);
       if (!user) {
         return { success: false, error: 'Email atau password salah. Silakan coba lagi.' };
@@ -78,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(stored));
 
-      return { success: true };
+      return { success: true, user };
     },
     []
   );

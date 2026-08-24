@@ -74,7 +74,7 @@ body {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 10mm 12mm;
+    margin: 6mm 8mm;
   }
 
   /* Step 1: Hide all body content by default using visibility (preserves layout flow) */
@@ -162,12 +162,12 @@ body {
 
   /* Step 8: Logo — fixed dimensions, never collapse */
   .official-document-logo {
-    width: 300px !important;
-    min-width: 300px !important;
-    max-width: 300px !important;
-    height: 75px !important;
-    min-height: 75px !important;
-    max-height: 75px !important;
+    width: 260px !important;
+    min-width: 260px !important;
+    max-width: 260px !important;
+    height: 65px !important;
+    min-height: 65px !important;
+    max-height: 65px !important;
     object-fit: contain !important;
     object-position: left center !important;
     display: block !important;
@@ -219,7 +219,55 @@ body {
     print-color-adjust: exact !important;
   }
 
-  /* Step 11: Thermal receipt (80mm POS format) */
+  /* Step 11: General Checkup Precision Fit Layout for Single A4 Page */
+  .printable-qc-sheet {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .printable-qc-sheet .official-document-header-wrap {
+    margin-bottom: 2px !important;
+  }
+
+  .printable-qc-sheet .official-document-logo {
+    width: 210px !important;
+    min-width: 210px !important;
+    max-width: 210px !important;
+    height: 52px !important;
+    min-height: 52px !important;
+    max-height: 52px !important;
+  }
+
+  .printable-qc-sheet .official-document-footer-wrap {
+    margin-top: 4px !important;
+    padding-top: 2px !important;
+  }
+
+  .printable-qc-sheet table th,
+  .printable-qc-sheet table td {
+    padding: 1.5px 3.5px !important;
+    font-size: 7.5pt !important;
+    line-height: 1.15 !important;
+  }
+
+  .printable-qc-sheet h2 {
+    font-size: 9pt !important;
+    margin-bottom: 1px !important;
+    padding-bottom: 1px !important;
+  }
+
+  .printable-qc-sheet ol {
+    margin: 0 !important;
+    padding-left: 12px !important;
+  }
+
+  .printable-qc-sheet ol li {
+    font-size: 7pt !important;
+    line-height: 1.2 !important;
+    margin-bottom: 0.5px !important;
+  }
+
+  /* Step 12: Thermal receipt (80mm POS format) */
   .thermal-receipt-print,
   .thermal-receipt-print * {
     visibility: visible !important;
@@ -240,7 +288,7 @@ body {
     break-after: avoid !important;
   }
 
-  /* Step 12: Prevent trailing pseudo-elements from generating blank pages */
+  /* Step 13: Prevent trailing pseudo-elements from generating blank pages */
   body::after,
   html::after,
   .doc-preview-wrapper::after {

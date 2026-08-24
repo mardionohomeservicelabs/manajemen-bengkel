@@ -1,4 +1,4 @@
-export type UserRole = 'owner' | 'admin' | 'sa';
+export type UserRole = 'owner' | 'admin' | 'sa' | 'mekanik';
 
 export type WorkOrderStatus =
   | 'queue'          // Antrean Masuk

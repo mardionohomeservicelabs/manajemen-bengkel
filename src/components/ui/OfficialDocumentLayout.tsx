@@ -12,7 +12,7 @@ export function OfficialDocumentHeader({ settings }: OfficialDocumentHeaderProps
   const email = settings?.email || 'mardionoohomeservice@gmail.com';
 
   return (
-    <div className="w-full space-y-2 mb-3 avoid-break">
+    <div className="w-full space-y-2 mb-3 avoid-break official-document-header-wrap">
       {/* Top Multi-tone Geometric Accent Stripe */}
       <div className="w-full flex h-1.5 rounded-t overflow-hidden">
         <div className="w-[60%] bg-gradient-to-r from-[#700000] via-[#8B0000] to-[#B30000]" />
@@ -82,7 +82,7 @@ export function OfficialDocumentFooter({
   termsNote,
 }: OfficialDocumentFooterProps) {
   return (
-    <div className="w-full space-y-1.5 mt-4 pt-2 avoid-break">
+    <div className="w-full space-y-1.5 mt-4 pt-2 avoid-break official-document-footer-wrap">
       {/* Upper Footer: Terms / Disclaimer */}
       <div className="flex justify-between items-center text-[9px] sm:text-[9.5px] text-slate-600 border-t border-slate-300 pt-1.5 font-medium">
         <span>

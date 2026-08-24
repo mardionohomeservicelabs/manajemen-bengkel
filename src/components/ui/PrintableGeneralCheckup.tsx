@@ -108,7 +108,7 @@ export function PrintableGeneralCheckup({
 
       {/* DYNAMIC AUTO-HEIGHT DOCUMENT PREVIEW CONTAINER */}
       <div className="doc-preview-wrapper rounded-2xl">
-        <div className="doc-sheet space-y-2.5">
+        <div className="doc-sheet printable-qc-sheet space-y-2">
           {/* Header */}
           <OfficialDocumentHeader settings={settings} />
 
@@ -316,23 +316,23 @@ export function PrintableGeneralCheckup({
             </div>
 
             {/* Tanda Tangan Teknisi Pemeriksa (4 / 12) */}
-            <div className="col-span-4 border border-slate-800 rounded-xl p-2 bg-white flex flex-col justify-between h-[160px] text-center">
+            <div className="col-span-4 border border-slate-800 rounded-xl p-2 bg-white flex flex-col justify-between min-h-[110px] text-center">
               <p className="font-black text-[#8B0000] text-[10px] uppercase">
                 Teknisi Pemeriksa (QC PIC)
               </p>
-              <div className="h-16 flex items-center justify-center border border-dashed border-slate-300 rounded bg-slate-50 overflow-hidden my-1">
+              <div className="h-10 flex items-center justify-center border border-dashed border-slate-300 rounded bg-slate-50 overflow-hidden my-0.5">
                 {checkup.technician_signature_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={checkup.technician_signature_url}
                     alt="TTD Teknisi"
-                    className="max-h-14 max-w-full object-contain block mx-auto"
+                    className="max-h-9 max-w-full object-contain block mx-auto"
                   />
                 ) : (
                   <span className="text-[9px] text-slate-400 italic">(Tanda Tangan)</span>
                 )}
               </div>
-              <p className="font-bold text-slate-950 text-[10.5px] border-t border-slate-300 pt-1">
+              <p className="font-bold text-slate-950 text-[10.5px] border-t border-slate-300 pt-0.5">
                 ({signerTeknisi || 'Teknisi Pemeriksa'})
               </p>
             </div>
