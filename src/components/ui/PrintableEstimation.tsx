@@ -135,16 +135,16 @@ export function PrintableEstimation({
 
       {/* DYNAMIC AUTO-HEIGHT DOCUMENT PREVIEW CONTAINER (MULTI-PAGE AWARE) */}
       <div className="doc-preview-wrapper rounded-2xl">
-        <div className="doc-sheet space-y-3">
-          {/* Header */}
-          <div className="avoid-break">
+        <div className="doc-sheet printable-estimation-sheet space-y-3">
+          {/* Header & Identitas Kendaraan */}
+          <div className="estimation-header-box avoid-break space-y-2">
             <OfficialDocumentHeader settings={settings} />
 
             {/* Title Header */}
             <div className="flex items-center justify-between pb-1.5 border-b-2 border-slate-900 mt-2">
               <div>
                 <span className="bg-amber-600 text-white px-3 py-1 rounded text-xs font-black uppercase tracking-wider">
-                  SURAT ESTIMASI BIAYA & PERSETUJUAN
+                  SURAT ESTIMASI BIAYA &amp; PERSETUJUAN
                 </span>
               </div>
               <div className="text-right">
@@ -206,9 +206,9 @@ export function PrintableEstimation({
             </div>
           </div>
 
-          {/* Items Table — supports price range (min–max) and Option 1/Option 2 */}
-          <div className="border border-slate-800 rounded-xl overflow-hidden text-xs my-2">
-            <table className="w-full text-left border-collapse text-[11px]">
+          {/* Items Table — multi-page flow with repeating thead and clean row breaks */}
+          <div className="border border-slate-800 rounded-xl overflow-hidden text-xs my-2 estimation-table-wrapper">
+            <table className="w-full text-left border-collapse text-[11px] estimation-items-table">
               <thead>
                 <tr className="bg-slate-100 border-b-2 border-slate-800 font-bold text-slate-900">
                   <th className="p-2 w-8 text-center border-r border-slate-300">No.</th>
@@ -230,7 +230,7 @@ export function PrintableEstimation({
                     const subMax = item.subtotal_max ?? item.qty * max;
                     const textMode = isTextItem(item);
                     return (
-                      <tr key={idx} className="hover:bg-slate-50">
+                      <tr key={idx} className="hover:bg-slate-50 estimation-item-row">
                         <td className="p-2 text-center font-bold border-r border-slate-300 align-top">{rowNum}</td>
                         <td className="p-2 border-r border-slate-300 align-top">
                           <div className="font-bold text-slate-900">{item.name}</div>
@@ -260,88 +260,88 @@ export function PrintableEstimation({
             </table>
           </div>
 
-          {/* Breakdown Total — with price range */}
-          <div className="avoid-break space-y-3">
-            <div className="flex justify-end">
-              <div className="w-full sm:w-96 space-y-1 text-xs bg-slate-50 p-3 rounded-xl border border-slate-300">
-                {(() => {
-                  const activeItems = estimation.items.filter(isActiveItem);
-                  const tMin = activeItems.reduce((s, it) => isTextItem(it) ? s : s + (it.subtotal_min ?? pMin(it) * it.qty), 0);
-                  const tMax = activeItems.reduce((s, it) => isTextItem(it) ? s : s + (it.subtotal_max ?? pMax(it) * it.qty), 0);
-                  const discMin = Math.max(0, tMin - (estimation.discount_amount || 0));
-                  const discMax = Math.max(0, tMax - (estimation.discount_amount || 0));
-                  return (
-                    <>
-                      {estimation.discount_amount > 0 && (
-                        <div className="flex justify-between text-emerald-800 font-bold text-[11px]">
-                          <span>Diskon Khusus:</span>
-                          <span className="font-mono">- {formatCurrency(estimation.discount_amount)}</span>
-                        </div>
-                      )}
-                      <div className="border-t-2 border-slate-800 pt-1 flex justify-between text-sm font-black text-[#8B0000]">
-                        <span>TOTAL ESTIMASI:</span>
-                        <span className="font-mono text-base">{fmtRange(discMin, discMax)}</span>
+          {/* 1. Breakdown Total — with price range */}
+          <div className="estimation-total-box avoid-break flex justify-end my-2">
+            <div className="w-full sm:w-96 space-y-1 text-xs bg-slate-50 p-3 rounded-xl border border-slate-300">
+              {(() => {
+                const activeItems = estimation.items.filter(isActiveItem);
+                const tMin = activeItems.reduce((s, it) => isTextItem(it) ? s : s + (it.subtotal_min ?? pMin(it) * it.qty), 0);
+                const tMax = activeItems.reduce((s, it) => isTextItem(it) ? s : s + (it.subtotal_max ?? pMax(it) * it.qty), 0);
+                const discMin = Math.max(0, tMin - (estimation.discount_amount || 0));
+                const discMax = Math.max(0, tMax - (estimation.discount_amount || 0));
+                return (
+                  <>
+                    {estimation.discount_amount > 0 && (
+                      <div className="flex justify-between text-emerald-800 font-bold text-[11px]">
+                        <span>Diskon Khusus:</span>
+                        <span className="font-mono">- {formatCurrency(estimation.discount_amount)}</span>
                       </div>
-                    </>
-                  );
-                })()}
-              </div>
+                    )}
+                    <div className="border-t-2 border-slate-800 pt-1 flex justify-between text-sm font-black text-[#8B0000]">
+                      <span>TOTAL ESTIMASI:</span>
+                      <span className="font-mono text-base">{fmtRange(discMin, discMax)}</span>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* 2. KETERANGAN KHUSUS & KETENTUAN ESTIMASI RESMI */}
+          <div className="estimation-terms-box avoid-break border-2 border-[#8B0000] rounded-xl p-3 bg-amber-50/40 text-slate-900 text-[10px] sm:text-[10.5px] space-y-2 leading-relaxed my-2">
+            {/* Highlight Keterangan */}
+            <div className="bg-[#8B0000] text-white p-2 rounded-lg font-black text-center text-[10px] sm:text-[11px] uppercase tracking-wide shadow-xs">
+              APABILA SELAMA PENGECEKAN TERDAPAT SPAREPART YANG PERLU DIGANTI, AKAN KAMI KONFIRMASIKAN TERLEBIH DAHULU. HARGA DI ATAS BERSIFAT ESTIMASI SEMENTARA.
             </div>
 
-            {/* KETERANGAN KHUSUS & KETENTUAN ESTIMASI RESMI */}
-            <div className="border-2 border-[#8B0000] rounded-xl p-3 bg-amber-50/40 text-slate-900 text-[10px] sm:text-[10.5px] space-y-2 leading-relaxed">
-              {/* Highlight Keterangan */}
-              <div className="bg-[#8B0000] text-white p-2 rounded-lg font-black text-center text-[10px] sm:text-[11px] uppercase tracking-wide shadow-xs">
-                APABILA SELAMA PENGECEKAN TERDAPAT SPAREPART YANG PERLU DIGANTI, AKAN KAMI KONFIRMASIKAN TERLEBIH DAHULU. HARGA DI ATAS BERSIFAT ESTIMASI SEMENTARA.
-              </div>
-
-              {/* Ketentuan Estimasi Berbutir */}
-              <div className="pt-1">
-                <h5 className="font-black text-[#8B0000] uppercase text-[11px] mb-1">
-                  KETENTUAN ESTIMASI:
-                </h5>
-                <ol className="space-y-1 pl-1 font-medium list-none">
-                  <li><strong>1.</strong> Customer tidak diperkenankan membawa sparepart sendiri pada pekerjaan Overhaul Mesin/Transmisi.</li>
-                  <li><strong>2.</strong> Segala risiko akibat part bawaan sendiri tidak menjadi tanggung jawab/garansi kami.</li>
-                  <li><strong>3.</strong> Apabila membawa part sendiri, batas maksimal pengadaan part adalah 2 hari. Selebihnya akan dikenakan biaya parkir <strong>Rp25.000/hari</strong>.</li>
-                  <li><strong>4.</strong> Jika membawa part sendiri, tidak ada garansi dalam bentuk apa pun.</li>
-                  <li><strong>5.</strong> Apabila sparepart sudah terpasang dan tidak berfungsi, kami berlakukan jasa double.</li>
-                  <li><strong>6.</strong> Harga estimasi yang muncul berlaku selama <strong>1 minggu</strong> dari tanggal estimasi dikeluarkan.</li>
-                  <li><strong>7.</strong> Apabila harga sparepart mengalami kenaikan, akan kami informasikan kembali dengan estimasi terbaru.</li>
-                </ol>
-              </div>
+            {/* Ketentuan Estimasi Berbutir */}
+            <div className="pt-1">
+              <h5 className="font-black text-[#8B0000] uppercase text-[11px] mb-1">
+                KETENTUAN ESTIMASI:
+              </h5>
+              <ol className="space-y-1 pl-1 font-medium list-none">
+                <li><strong>1.</strong> Customer tidak diperkenankan membawa sparepart sendiri pada pekerjaan Overhaul Mesin/Transmisi.</li>
+                <li><strong>2.</strong> Segala risiko akibat part bawaan sendiri tidak menjadi tanggung jawab/garansi kami.</li>
+                <li><strong>3.</strong> Apabila membawa part sendiri, batas maksimal pengadaan part adalah 2 hari. Selebihnya akan dikenakan biaya parkir <strong>Rp25.000/hari</strong>.</li>
+                <li><strong>4.</strong> Jika membawa part sendiri, tidak ada garansi dalam bentuk apa pun.</li>
+                <li><strong>5.</strong> Apabila sparepart sudah terpasang dan tidak berfungsi, kami berlakukan jasa double.</li>
+                <li><strong>6.</strong> Harga estimasi yang muncul berlaku selama <strong>1 minggu</strong> dari tanggal estimasi dikeluarkan.</li>
+                <li><strong>7.</strong> Apabila harga sparepart mengalami kenaikan, akan kami informasikan kembali dengan estimasi terbaru.</li>
+              </ol>
             </div>
+          </div>
 
-            {/* Symmetrical Dual Signatures */}
-            <div className="border border-slate-900 rounded-xl p-3 bg-white space-y-2">
-              <h4 className="text-center font-black text-xs uppercase tracking-wider text-slate-950 pb-1 border-b border-slate-200">
-                Persetujuan Estimasi Biaya
-              </h4>
+          {/* 3. Symmetrical Dual Signatures */}
+          <div className="estimation-signatures-box avoid-break border border-slate-900 rounded-xl p-3 bg-white space-y-2 my-2">
+            <h4 className="text-center font-black text-xs uppercase tracking-wider text-slate-950 pb-1 border-b border-slate-200">
+              Persetujuan Estimasi Biaya
+            </h4>
 
-              <div className="grid grid-cols-2 gap-4 text-center text-xs">
-                <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between h-[105px]">
-                  <p className="font-black text-[#001F7A] text-[10px] uppercase">Estimator</p>
-                  <div className="h-12 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white my-0.5">
-                    <span className="text-[9px] text-slate-400 italic">Tanda tangan Estimator</span>
-                  </div>
-                  <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate">
-                    {signerEstimator || 'Via Rizkiana'}
-                  </p>
+            <div className="grid grid-cols-2 gap-4 text-center text-xs">
+              <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between h-[105px]">
+                <p className="font-black text-[#001F7A] text-[10px] uppercase">Estimator</p>
+                <div className="h-12 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white my-0.5">
+                  <span className="text-[9px] text-slate-400 italic">Tanda tangan Estimator</span>
                 </div>
+                <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate">
+                  {signerEstimator || 'Via Rizkiana'}
+                </p>
+              </div>
 
-                <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between h-[105px]">
-                  <p className="font-black text-[#8B0000] text-[10px] uppercase">Persetujuan Pelanggan</p>
-                  <div className="h-12 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white my-0.5">
-                    <span className="text-[9px] text-slate-400 italic">Tanda tangan persetujuan</span>
-                  </div>
-                  <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate">
-                    {vehicle?.customer_name || 'Pelanggan'}
-                  </p>
+              <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between h-[105px]">
+                <p className="font-black text-[#8B0000] text-[10px] uppercase">Persetujuan Pelanggan</p>
+                <div className="h-12 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white my-0.5">
+                  <span className="text-[9px] text-slate-400 italic">Tanda tangan persetujuan</span>
                 </div>
+                <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate">
+                  {vehicle?.customer_name || 'Pelanggan'}
+                </p>
               </div>
             </div>
+          </div>
 
-            {/* Footer */}
+          {/* 4. Footer */}
+          <div className="estimation-footer-box avoid-break">
             <OfficialDocumentFooter
               documentCode={estimation.invoice_number}
               termsNote={`Estimasi Biaya Resmi ${settings.name} • Berlaku 1 Minggu`}

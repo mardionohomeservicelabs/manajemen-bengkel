@@ -288,7 +288,89 @@ body {
     break-after: avoid !important;
   }
 
-  /* Step 13: Prevent trailing pseudo-elements from generating blank pages */
+  /* Step 13: Multi-Page Form Estimasi A4 Print Engine */
+  .printable-estimation-sheet {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .printable-estimation-sheet .estimation-table-wrapper {
+    overflow: visible !important;
+    border-radius: 8px !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  .printable-estimation-sheet .estimation-items-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    table-layout: fixed !important;
+  }
+
+  .printable-estimation-sheet .estimation-items-table thead {
+    display: table-header-group !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .printable-estimation-sheet .estimation-items-table thead tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    background-color: #f1f5f9 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .printable-estimation-sheet .estimation-items-table tbody {
+    display: table-row-group !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  .printable-estimation-sheet .estimation-items-table tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .printable-estimation-sheet .estimation-items-table th,
+  .printable-estimation-sheet .estimation-items-table td {
+    padding: 4px 6px !important;
+    font-size: 8.5pt !important;
+    line-height: 1.25 !important;
+    border-color: #cbd5e1 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .printable-estimation-sheet .estimation-header-box,
+  .printable-estimation-sheet .estimation-total-box,
+  .printable-estimation-sheet .estimation-terms-box,
+  .printable-estimation-sheet .estimation-signatures-box,
+  .printable-estimation-sheet .estimation-footer-box {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Step 14: Prevent trailing pseudo-elements from generating blank pages */
   body::after,
   html::after,
   .doc-preview-wrapper::after {
