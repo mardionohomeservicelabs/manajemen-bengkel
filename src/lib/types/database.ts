@@ -258,9 +258,29 @@ export interface InvoiceItem {
   is_service: boolean;
   is_custom?: boolean;
   qty: number;
-  price: number | string; // Unit price (numeric or string text like 'Menyesuaikan')
+  /** Unit price — kept for backward compatibility with legacy single-price data */
+  price: number | string;
   buy_price?: number; // HPP for profit analytics
+  /** Subtotal — kept for backward compatibility */
   subtotal: number | string;
+
+  // --- Price Range (Min–Max) ---
+  /** Minimum unit price. If set, price range mode is active. */
+  price_min?: number;
+  /** Maximum unit price. Defaults to price_min if omitted (i.e., a fixed price). */
+  price_max?: number;
+  /** Qty × price_min */
+  subtotal_min?: number;
+  /** Qty × price_max */
+  subtotal_max?: number;
+
+  // --- Option 1 / Option 2 ---
+  /** Which option this row belongs to. Undefined = no option grouping. */
+  option_label?: 'opsi1' | 'opsi2';
+  /** Shared UUID grouping Opsi 1 & Opsi 2 rows together */
+  option_group?: string;
+  /** Whether this option row is the selected/active one for total calculation */
+  is_active_option?: boolean;
 }
 
 export interface Invoice {

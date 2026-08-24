@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Invoice, WorkshopSettings } from '@/lib/types/database';
+import { Invoice, InvoiceItem, WorkshopSettings } from '@/lib/types/database';
 import {
   formatCurrency,
   formatDate,
@@ -21,6 +21,23 @@ import {
   OfficialDocumentHeader,
   OfficialDocumentFooter,
 } from './OfficialDocumentLayout';
+
+// --- Price range helpers (backward-compatible) ---
+function pMin(item: InvoiceItem): number {
+  return item.price_min !== undefined ? item.price_min : parseNumericPrice(item.price);
+}
+function pMax(item: InvoiceItem): number {
+  return item.price_max !== undefined ? item.price_max : (item.price_min !== undefined ? item.price_min : parseNumericPrice(item.price));
+}
+function isTextItem(item: InvoiceItem): boolean {
+  return typeof item.price === 'string' && /[a-zA-Z]/.test(item.price) && item.price_min === undefined;
+}
+function fmtRange(min: number, max: number): string {
+  return min === max ? formatCurrency(min) : formatCurrency(min) + ' – ' + formatCurrency(max);
+}
+function isActiveItem(item: InvoiceItem): boolean {
+  return !item.option_group || item.is_active_option === true;
+}
 
 interface PrintableEstimationProps {
   estimation: Invoice;
@@ -189,87 +206,85 @@ export function PrintableEstimation({
             </div>
           </div>
 
-          {/* Items Table (Can stretch and break smoothly across pages) */}
+          {/* Items Table — supports price range (min–max) and Option 1/Option 2 */}
           <div className="border border-slate-800 rounded-xl overflow-hidden text-xs my-2">
             <table className="w-full text-left border-collapse text-[11px]">
               <thead>
                 <tr className="bg-slate-100 border-b-2 border-slate-800 font-bold text-slate-900">
                   <th className="p-2 w-8 text-center border-r border-slate-300">No.</th>
-                  <th className="p-2 border-r border-slate-300">Rincian Estimasi Jasa & Sparepart</th>
+                  <th className="p-2 border-r border-slate-300">Rincian Estimasi Jasa &amp; Sparepart</th>
                   <th className="p-2 w-16 text-center border-r border-slate-300">Tipe</th>
-                  <th className="p-2 w-12 text-center border-r border-slate-300">Qty</th>
-                  <th className="p-2 w-28 text-right border-r border-slate-300">Estimasi Biaya</th>
-                  <th className="p-2 w-28 text-right">Subtotal</th>
+                  <th className="p-2 w-10 text-center border-r border-slate-300">Qty</th>
+                  <th className="p-2 w-32 text-right border-r border-slate-300">Harga Satuan</th>
+                  <th className="p-2 w-32 text-right">Estimasi Harga</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {estimation.items.map((item, idx) => {
-                  const isTextPrice = typeof item.price === 'string' && /[a-zA-Z]/.test(item.price);
-                  return (
-                    <tr key={idx} className="hover:bg-slate-50">
-                      <td className="p-2 text-center font-bold border-r border-slate-300 align-top">{idx + 1}</td>
-                      <td className="p-2 border-r border-slate-300 align-top">
-                        <div className="font-bold text-slate-900">{item.name}</div>
-                        {item.code && <div className="text-[9.5px] text-slate-500 font-mono">{item.code}</div>}
-                      </td>
-                      <td className="p-2 text-center border-r border-slate-300 align-top">
-                        <span
-                          className={`inline-block text-[9.5px] px-2 py-0.5 rounded font-black ${
-                            item.is_service ? 'bg-blue-100 text-blue-900' : 'bg-amber-100 text-amber-900'
-                          }`}
-                        >
-                          {item.is_service ? 'JASA' : 'PART'}
-                        </span>
-                      </td>
-                      <td className="p-2 text-center font-mono font-bold border-r border-slate-300 align-top">{item.qty}</td>
-                      <td className="p-2 text-right border-r border-slate-300 align-top">
-                        {isTextPrice ? (
-                          <span className="font-bold text-amber-800 text-xs italic">{item.price}</span>
-                        ) : (
-                          <span className="font-mono font-bold text-slate-900">{formatCurrency(item.price)}</span>
-                        )}
-                      </td>
-                      <td className="p-2 text-right font-black text-slate-900 align-top">
-                        {isTextPrice ? (
-                          <span className="text-slate-400 font-normal">-</span>
-                        ) : (
-                          <span className="font-mono">{formatCurrency(item.subtotal)}</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {(() => {
+                  let rowNum = 0;
+                  return estimation.items.map((item, idx) => {
+                    if (!isActiveItem(item)) return null;
+                    rowNum++;
+                    const min = pMin(item); const max = pMax(item);
+                    const subMin = item.subtotal_min ?? item.qty * min;
+                    const subMax = item.subtotal_max ?? item.qty * max;
+                    const textMode = isTextItem(item);
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="p-2 text-center font-bold border-r border-slate-300 align-top">{rowNum}</td>
+                        <td className="p-2 border-r border-slate-300 align-top">
+                          <div className="font-bold text-slate-900">{item.name}</div>
+                          {item.code && <div className="text-[9.5px] text-slate-500 font-mono">{item.code}</div>}
+                        </td>
+                        <td className="p-2 text-center border-r border-slate-300 align-top">
+                          <span className={'inline-block text-[9.5px] px-2 py-0.5 rounded font-black ' + (item.is_service ? 'bg-blue-100 text-blue-900' : 'bg-amber-100 text-amber-900')}>
+                            {item.is_service ? 'JASA' : 'PART'}
+                          </span>
+                        </td>
+                        <td className="p-2 text-center font-mono font-bold border-r border-slate-300 align-top">{item.qty}</td>
+                        <td className="p-2 text-right border-r border-slate-300 align-top">
+                          {textMode
+                            ? <span className="font-bold text-amber-800 text-xs italic">{item.price}</span>
+                            : <span className="font-mono font-bold text-slate-900">{fmtRange(min, max)}</span>}
+                        </td>
+                        <td className="p-2 text-right font-black text-slate-900 align-top">
+                          {textMode
+                            ? <span className="text-slate-400 font-normal">-</span>
+                            : <span className="font-mono">{fmtRange(subMin, subMax)}</span>}
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </div>
 
-          {/* Breakdown Total */}
+          {/* Breakdown Total — with price range */}
           <div className="avoid-break space-y-3">
             <div className="flex justify-end">
-              <div className="w-full sm:w-80 space-y-1 text-xs bg-slate-50 p-3 rounded-xl border border-slate-300">
-                <div className="flex justify-between text-slate-700 font-semibold text-[11px]">
-                  <span>Subtotal Item (Nominal):</span>
-                  <span className="font-mono font-bold">{formatCurrency(estimation.subtotal)}</span>
-                </div>
-
-                {estimation.discount_amount > 0 && (
-                  <div className="flex justify-between text-emerald-800 font-bold text-[11px]">
-                    <span>Diskon Khusus:</span>
-                    <span className="font-mono">- {formatCurrency(estimation.discount_amount)}</span>
-                  </div>
-                )}
-
-                {estimation.tax_amount > 0 && (
-                  <div className="flex justify-between text-slate-700 font-semibold text-[11px]">
-                    <span>PPN ({estimation.tax_percent}%):</span>
-                    <span className="font-mono">{formatCurrency(estimation.tax_amount)}</span>
-                  </div>
-                )}
-
-                <div className="border-t-2 border-slate-800 pt-1 flex justify-between text-sm font-black text-[#8B0000]">
-                  <span>Total Estimasi Biaya:</span>
-                  <span className="font-mono text-base">{formatCurrency(estimation.total_amount)}</span>
-                </div>
+              <div className="w-full sm:w-96 space-y-1 text-xs bg-slate-50 p-3 rounded-xl border border-slate-300">
+                {(() => {
+                  const activeItems = estimation.items.filter(isActiveItem);
+                  const tMin = activeItems.reduce((s, it) => isTextItem(it) ? s : s + (it.subtotal_min ?? pMin(it) * it.qty), 0);
+                  const tMax = activeItems.reduce((s, it) => isTextItem(it) ? s : s + (it.subtotal_max ?? pMax(it) * it.qty), 0);
+                  const discMin = Math.max(0, tMin - (estimation.discount_amount || 0));
+                  const discMax = Math.max(0, tMax - (estimation.discount_amount || 0));
+                  return (
+                    <>
+                      {estimation.discount_amount > 0 && (
+                        <div className="flex justify-between text-emerald-800 font-bold text-[11px]">
+                          <span>Diskon Khusus:</span>
+                          <span className="font-mono">- {formatCurrency(estimation.discount_amount)}</span>
+                        </div>
+                      )}
+                      <div className="border-t-2 border-slate-800 pt-1 flex justify-between text-sm font-black text-[#8B0000]">
+                        <span>TOTAL ESTIMASI:</span>
+                        <span className="font-mono text-base">{fmtRange(discMin, discMax)}</span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
 
