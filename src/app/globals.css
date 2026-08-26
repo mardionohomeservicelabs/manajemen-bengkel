@@ -226,45 +226,42 @@ body {
   }
 
   .printable-qc-sheet .official-document-header-wrap {
-    margin-bottom: 2px !important;
+    margin-bottom: 6px !important;
   }
 
   .printable-qc-sheet .official-document-logo {
-    width: 210px !important;
-    min-width: 210px !important;
-    max-width: 210px !important;
-    height: 52px !important;
-    min-height: 52px !important;
-    max-height: 52px !important;
+    width: 200px !important;
+    max-width: 200px !important;
+    height: 48px !important;
   }
 
   .printable-qc-sheet .official-document-footer-wrap {
-    margin-top: 4px !important;
-    padding-top: 2px !important;
+    margin-top: 6px !important;
+    padding-top: 4px !important;
   }
 
   .printable-qc-sheet table th,
   .printable-qc-sheet table td {
-    padding: 1.5px 3.5px !important;
-    font-size: 7.5pt !important;
-    line-height: 1.15 !important;
+    padding: 3px 6px !important;
+    font-size: 8pt !important;
+    line-height: 1.25 !important;
   }
 
   .printable-qc-sheet h2 {
-    font-size: 9pt !important;
-    margin-bottom: 1px !important;
-    padding-bottom: 1px !important;
+    font-size: 11pt !important;
+    margin-bottom: 2px !important;
+    padding-bottom: 2px !important;
   }
 
   .printable-qc-sheet ol {
     margin: 0 !important;
-    padding-left: 12px !important;
+    padding-left: 14px !important;
   }
 
   .printable-qc-sheet ol li {
-    font-size: 7pt !important;
-    line-height: 1.2 !important;
-    margin-bottom: 0.5px !important;
+    font-size: 8pt !important;
+    line-height: 1.35 !important;
+    margin-bottom: 2px !important;
   }
 
   /* Step 12: Thermal receipt (80mm POS format) */

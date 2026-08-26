@@ -89,7 +89,7 @@ export function PrintableGeneralCheckup({
         <div className="flex items-center space-x-2.5">
           <button
             onClick={handlePrint}
-            className="inline-flex items-center space-x-1.5 bg-[#8B0000] hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-md"
+            className="inline-flex items-center space-x-1.5 bg-[#8B0000] hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-md cursor-pointer"
           >
             <Printer className="w-4 h-4" />
             <span>Cetak / Simpan PDF</span>
@@ -97,7 +97,7 @@ export function PrintableGeneralCheckup({
           {onClose && (
             <button
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition"
+              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition cursor-pointer"
               aria-label="Tutup"
             >
               <X className="w-5 h-5" />
@@ -108,18 +108,18 @@ export function PrintableGeneralCheckup({
 
       {/* DYNAMIC AUTO-HEIGHT DOCUMENT PREVIEW CONTAINER */}
       <div className="doc-preview-wrapper rounded-2xl">
-        <div className="doc-sheet printable-qc-sheet space-y-2">
+        <div className="doc-sheet printable-qc-sheet space-y-2.5">
           {/* Header */}
           <OfficialDocumentHeader settings={settings} />
 
           {/* Title Header: QUALITY CONTROL TUNE UP */}
           <div className="text-center pb-1">
-            <h2 className="text-sm font-black tracking-wider uppercase text-slate-900 border-b-2 border-slate-900 inline-block pb-0.5">
+            <h2 className="text-sm sm:text-base font-black tracking-wider uppercase text-slate-900 border-b-2 border-slate-900 inline-block pb-0.5">
               QUALITY CONTROL TUNE UP
             </h2>
           </div>
 
-          {/* Symmetrical Metadata Grid: Pelanggan & Kendaraan (Identical to AC Checkup) */}
+          {/* Symmetrical Metadata Grid: Pelanggan & Kendaraan */}
           <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50/70 p-2.5 rounded-xl border border-slate-800 font-medium">
             {/* Kolom Kiri */}
             <div className="space-y-1 border-r border-slate-300 pr-3">
@@ -152,81 +152,83 @@ export function PrintableGeneralCheckup({
                 <span className="col-span-8 font-bold text-slate-950">: {formatDate(checkup.check_date)}</span>
               </div>
               <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 text-slate-600 font-bold">KM</span>
-                <span className="col-span-8 font-mono font-bold text-slate-950">: {checkup.mileage ? checkup.mileage.toLocaleString('id-ID') : '-'}</span>
+                <span className="col-span-4 text-slate-600 font-bold">KM Odometer</span>
+                <span className="col-span-8 font-mono font-bold text-slate-950">: {checkup.mileage ? checkup.mileage.toLocaleString('id-ID') : '-'} KM</span>
               </div>
             </div>
           </div>
 
-          {/* 1. Cek Kondisi Aki (Symmetrical Box) */}
+          {/* 1. Cek Kondisi Aki & Bahan Bakar (BBM) */}
           <div className="border border-slate-800 rounded-xl overflow-hidden text-xs">
-            <div className="bg-[#8B0000] text-white px-3 py-1 font-black text-[11px] uppercase tracking-wide">
-              1. Cek Kondisi Aki Basa / Kering
+            <div className="bg-[#8B0000] text-white px-3 py-1 font-black text-[11px] uppercase tracking-wide flex justify-between items-center">
+              <span>1. Kondisi Aki &amp; Pengecekan Bahan Bakar (BBM)</span>
+              <span className="text-[10.5px] font-mono bg-white/10 px-2 py-0.5 rounded font-bold">
+                BBM: E [ {checkup.fuel_level_fraction || '3/4'} ] F ⛽
+              </span>
             </div>
-            <div className="p-2 grid grid-cols-3 gap-3 bg-white items-center">
+            <div className="p-2.5 grid grid-cols-3 gap-3 bg-white items-center">
               <div className="flex items-center space-x-2">
-                <span className="font-bold text-slate-700">Kondisi:</span>
+                <span className="font-bold text-slate-700">Kondisi Aki:</span>
                 <span
-                  className={`px-2.5 py-0.5 rounded font-black text-white ${
+                  className={`px-2.5 py-0.5 rounded font-black text-white text-[11px] ${
                     checkup.battery_condition === 'baik' ? 'bg-emerald-700' : 'bg-red-700'
                   }`}
                 >
                   {checkup.battery_condition?.toUpperCase() || 'BAIK'}
                 </span>
-                <span className="font-mono font-bold text-slate-800">
-                  ({checkup.battery_health_percent || 80}%)
+                <span className="font-mono font-bold text-slate-800 text-[11px]">
+                  ({checkup.battery_health_percent || 85}%)
                 </span>
               </div>
 
               <div className="flex items-center space-x-2">
                 <span className="font-bold text-slate-700">Saran Ganti:</span>
-                <span className="font-black text-red-700">
-                  {checkup.battery_suggest_replace ? '☑ YA (GANTI)' : '☐ TIDAK'}
+                <span className="font-black text-red-700 text-[11px]">
+                  {checkup.battery_suggest_replace ? '☑ YA (PERLU GANTI)' : '☐ TIDAK'}
                 </span>
               </div>
 
-              <div className="text-slate-800 text-[11px] truncate">
-                <strong className="text-slate-600">Catatan:</strong> {checkup.battery_notes || '-'}
+              <div className="text-slate-800 text-xs truncate">
+                <strong className="text-slate-600">Catatan:</strong> {checkup.battery_notes || 'Normal'}
               </div>
             </div>
           </div>
 
           {/* Symmetrical 2-Column Section: Sensor Cleaner (Left) & Physical Checklist (Right) */}
-          <div className="grid grid-cols-12 gap-3 items-start text-xs">
-            {/* Left Column (5 / 12): Pembersihan Sensor, BBM & Notice */}
-            <div className="col-span-5 space-y-2">
-              {/* Sensor Table: 2. Bersihkan sensor MAF, 3. ISC, 4. Airflow, 5. Throttle Body, 6. Busi, 7. Coil */}
+          <div className="grid grid-cols-2 gap-3.5 items-stretch text-xs">
+            {/* Left Column (50%): Pembersihan Sensor & Quality Note */}
+            <div className="flex flex-col justify-between space-y-2.5 h-full">
               <div className="border border-slate-800 rounded-xl overflow-hidden">
-                <div className="bg-[#8B0000] text-white px-2.5 py-1 font-black text-[10.5px] flex justify-between items-center uppercase">
-                  <span>2. Pembersihan Sensor</span>
-                  <span className="bg-amber-400 text-slate-950 px-1.5 py-0.5 rounded text-[8.5px] font-black">
+                <div className="bg-[#8B0000] text-white px-3 py-1.5 font-black text-[11px] flex justify-between items-center uppercase">
+                  <span>2. Pembersihan Sensor Mesin</span>
+                  <span className="bg-amber-400 text-slate-950 px-1.5 py-0.5 rounded text-[9px] font-black">
                     *CONTACT CLEANER
                   </span>
                 </div>
-                <table className="w-full text-left border-collapse text-[10px]">
+                <table className="w-full text-left border-collapse text-[10.5px]">
                   <thead>
                     <tr className="bg-slate-100 border-b border-slate-300 font-bold text-slate-900">
                       <th className="p-1.5 border-r border-slate-300">Sensor / Komponen</th>
-                      <th className="p-1.5 w-12 text-center border-r border-slate-300">Clean</th>
-                      <th className="p-1.5 w-12 text-center border-r border-slate-300">Rusak</th>
-                      <th className="p-1.5 w-12 text-center">Ganti</th>
+                      <th className="p-1.5 w-14 text-center border-r border-slate-300">Clean</th>
+                      <th className="p-1.5 w-14 text-center border-r border-slate-300">Rusak</th>
+                      <th className="p-1.5 w-14 text-center">Ganti</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     {[
-                      { label: '2. Bersihkan Sensor MAF', clean: checkup.sensor_maf_cleaned, damaged: checkup.sensor_maf_damaged, repl: checkup.sensor_maf_suggest_replace },
-                      { label: '3. Bersihkan Sensor ISC', clean: checkup.sensor_isc_cleaned, damaged: checkup.sensor_isc_damaged, repl: checkup.sensor_isc_suggest_replace },
-                      { label: '4. Bersihkan Sensor Airflow', clean: checkup.sensor_airflow_cleaned, damaged: checkup.sensor_airflow_damaged, repl: checkup.sensor_airflow_suggest_replace },
-                      { label: '5. Bersihkan Throttle Body', clean: checkup.throttle_body_cleaned, damaged: checkup.throttle_body_damaged, repl: checkup.throttle_body_suggest_replace },
-                      { label: '6. Bersihkan Busi Spark Plug', clean: checkup.spark_plug_checked, damaged: checkup.spark_plug_damaged, repl: checkup.spark_plug_suggest_replace },
-                      { label: '7. Bersihkan Coil Pengapian', clean: checkup.ignition_coil_checked, damaged: checkup.ignition_coil_damaged, repl: checkup.ignition_coil_suggest_replace },
+                      { label: '2. Sensor MAF (Mass Air Flow)', clean: checkup.sensor_maf_cleaned, damaged: checkup.sensor_maf_damaged, repl: checkup.sensor_maf_suggest_replace },
+                      { label: '3. Sensor ISC (Idle Speed Control)', clean: checkup.sensor_isc_cleaned, damaged: checkup.sensor_isc_damaged, repl: checkup.sensor_isc_suggest_replace },
+                      { label: '4. Sensor Airflow Engine', clean: checkup.sensor_airflow_cleaned, damaged: checkup.sensor_airflow_damaged, repl: checkup.sensor_airflow_suggest_replace },
+                      { label: '5. Throttle Body Valve', clean: checkup.throttle_body_cleaned, damaged: checkup.throttle_body_damaged, repl: checkup.throttle_body_suggest_replace },
+                      { label: '6. Busi / Spark Plug', clean: checkup.spark_plug_checked, damaged: checkup.spark_plug_damaged, repl: checkup.spark_plug_suggest_replace },
+                      { label: '7. Coil Pengapian Mesin', clean: checkup.ignition_coil_checked, damaged: checkup.ignition_coil_damaged, repl: checkup.ignition_coil_suggest_replace },
                     ].map((row, idx) => (
                       <tr key={idx} className="hover:bg-slate-50">
                         <td className="p-1.5 font-bold text-slate-900 border-r border-slate-300">{row.label}</td>
-                        <td className="p-1.5 text-center border-r border-slate-300 font-bold text-emerald-800">
+                        <td className="p-1.5 text-center border-r border-slate-300 font-black text-emerald-700">
                           {row.clean ? 'CLEAN' : '-'}
                         </td>
-                        <td className="p-1.5 text-center border-r border-slate-300 font-bold text-red-600">
+                        <td className="p-1.5 text-center border-r border-slate-300 font-black text-red-600">
                           {row.damaged ? 'RUSAK' : '-'}
                         </td>
                         <td className="p-1.5 text-center font-black text-amber-700">
@@ -238,36 +240,28 @@ export function PrintableGeneralCheckup({
                 </table>
               </div>
 
-              {/* Fuel Level */}
-              <div className="border border-slate-800 rounded-xl p-2 bg-slate-50 text-[10.5px] flex items-center justify-between">
-                <span className="font-black text-slate-900">PENGECEKAN BBM:</span>
-                <span className="font-mono font-black text-sm text-[#8B0000]">
-                  E [ {checkup.fuel_level_fraction || '3/4'} ] F ⛽
-                </span>
-              </div>
-
               {/* Quality Banner */}
-              <div className="border border-[#8B0000] p-2 text-center text-[9px] bg-red-50/60 rounded-xl space-y-0.5">
-                <p className="font-black text-[#8B0000] uppercase">MARDIONO QUALITY ASSURED</p>
-                <p className="text-slate-700 leading-tight">
-                  Seluruh pembersihan sensor wajib menggunakan contact cleaner resmi bertekanan tinggi.
+              <div className="border border-[#8B0000] p-2.5 text-center text-[10px] bg-red-50/60 rounded-xl space-y-0.5">
+                <p className="font-black text-[#8B0000] uppercase tracking-wider">MARDIONO QUALITY ASSURED</p>
+                <p className="text-slate-700 leading-normal font-medium">
+                  Seluruh pembersihan sensor wajib menggunakan contact cleaner resmi bertekanan tinggi untuk mengembalikan performa mesin maksimal.
                 </p>
               </div>
             </div>
 
-            {/* Right Column (7 / 12): Checklist Fisik 16 Titik (No 8-23) */}
-            <div className="col-span-7 border border-slate-800 rounded-xl overflow-hidden">
-              <div className="bg-[#8B0000] text-white px-3 py-1 font-black text-[10.5px] uppercase tracking-wide">
+            {/* Right Column (50%): Checklist Fisik 16 Titik (No 8-23) */}
+            <div className="border border-slate-800 rounded-xl overflow-hidden h-full">
+              <div className="bg-[#8B0000] text-white px-3 py-1.5 font-black text-[11px] uppercase tracking-wide">
                 3. Checklist Fisik 16 Titik (No 8–23)
               </div>
-              <table className="w-full text-left border-collapse text-[9.5px]">
+              <table className="w-full text-left border-collapse text-[10px]">
                 <thead>
                   <tr className="bg-slate-100 border-b border-slate-300 font-bold text-slate-900">
                     <th className="p-1 w-6 text-center border-r border-slate-300">No</th>
                     <th className="p-1 border-r border-slate-300">Item Pemeriksaan</th>
                     <th className="p-1 w-10 text-center border-r border-slate-300">Cek</th>
                     <th className="p-1 w-12 text-center border-r border-slate-300">Ganti</th>
-                    <th className="p-1 w-28">Keterangan</th>
+                    <th className="p-1 w-24">Keterangan</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
@@ -276,16 +270,16 @@ export function PrintableGeneralCheckup({
                       <td className="p-1 text-center font-bold text-slate-500 border-r border-slate-300">
                         {row.no}
                       </td>
-                      <td className="p-1 font-bold text-slate-900 border-r border-slate-300">
+                      <td className="p-1 font-bold text-slate-900 border-r border-slate-300 truncate">
                         {row.label}
                       </td>
-                      <td className="p-1 text-center font-bold text-emerald-800 border-r border-slate-300">
-                        {row.data?.checked ? '☑' : '☐'}
+                      <td className="p-1 text-center font-black text-emerald-700 border-r border-slate-300">
+                        {row.data?.checked ? '✓' : '-'}
                       </td>
                       <td className="p-1 text-center font-black text-red-700 border-r border-slate-300">
                         {row.data?.suggest_replace ? 'GANTI' : '-'}
                       </td>
-                      <td className="p-1 text-slate-700 truncate max-w-[110px]">
+                      <td className="p-1 text-slate-700 truncate max-w-[100px] font-medium">
                         {row.data?.notes || '-'}
                       </td>
                     </tr>
@@ -296,13 +290,13 @@ export function PrintableGeneralCheckup({
           </div>
 
           {/* 4. Saran Perbaikan 9 Poin & Tanda Tangan Simetris */}
-          <div className="grid grid-cols-12 gap-3 items-start text-xs pt-0.5">
-            {/* Saran 9 Baris (8 / 12) */}
-            <div className="col-span-8 border border-slate-800 rounded-xl p-2.5 bg-slate-50 space-y-1">
-              <h4 className="font-black text-slate-950 uppercase text-[10px]">
-                4. Saran & Rekomendasi Teknisi:
+          <div className="grid grid-cols-12 gap-3.5 items-stretch text-xs pt-0.5">
+            {/* Saran 9 Baris (7 / 12) */}
+            <div className="col-span-7 border border-slate-800 rounded-xl p-3 bg-slate-50 space-y-1">
+              <h4 className="font-black text-slate-950 uppercase text-[10.5px]">
+                4. Saran &amp; Rekomendasi Teknisi:
               </h4>
-              <ol className="list-decimal pl-4 text-[9px] text-slate-800 space-y-0.5 font-medium">
+              <ol className="list-decimal pl-4 text-[9.5px] text-slate-800 space-y-0.5 font-medium leading-relaxed">
                 <li>{checkup.improvement_suggestions?.[0] || 'Pergantian oli rutin setiap 5.000 KM / 3 bulan.'}</li>
                 <li>{checkup.improvement_suggestions?.[1] || 'Perawatan berkala ke bengkel setiap 10.000 KM / 6 bulan.'}</li>
                 <li>{checkup.improvement_suggestions?.[2] || 'Bersihkan filter udara dan filter kabin secara rutin.'}</li>
@@ -315,25 +309,25 @@ export function PrintableGeneralCheckup({
               </ol>
             </div>
 
-            {/* Tanda Tangan Teknisi Pemeriksa (4 / 12) */}
-            <div className="col-span-4 border border-slate-800 rounded-xl p-2 bg-white flex flex-col justify-between min-h-[110px] text-center">
-              <p className="font-black text-[#8B0000] text-[10px] uppercase">
+            {/* Tanda Tangan Teknisi Pemeriksa (5 / 12) */}
+            <div className="col-span-5 border border-slate-800 rounded-xl p-3 bg-white flex flex-col justify-between text-center">
+              <p className="font-black text-[#8B0000] text-[10.5px] uppercase">
                 Teknisi Pemeriksa (QC PIC)
               </p>
-              <div className="h-10 flex items-center justify-center border border-dashed border-slate-300 rounded bg-slate-50 overflow-hidden my-0.5">
+              <div className="h-14 flex items-center justify-center border border-dashed border-slate-300 rounded-lg bg-slate-50 my-1 overflow-hidden">
                 {checkup.technician_signature_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={checkup.technician_signature_url}
                     alt="TTD Teknisi"
-                    className="max-h-9 max-w-full object-contain block mx-auto"
+                    className="max-h-12 max-w-full object-contain block mx-auto"
                   />
                 ) : (
-                  <span className="text-[9px] text-slate-400 italic">(Tanda Tangan)</span>
+                  <span className="text-[10px] text-slate-400 italic">(Tanda Tangan)</span>
                 )}
               </div>
-              <p className="font-bold text-slate-950 text-[10.5px] border-t border-slate-300 pt-0.5">
-                ({signerTeknisi || 'Teknisi Pemeriksa'})
+              <p className="font-bold text-slate-950 text-[11px] border-t border-slate-300 pt-1">
+                ({signerTeknisi || checkup.technician_name || 'Teknisi Pemeriksa'})
               </p>
             </div>
           </div>
