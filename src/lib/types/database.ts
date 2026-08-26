@@ -294,10 +294,10 @@ export interface InvoiceItem {
   subtotal: number | string;
 
   // --- Multi-Option (Opsi 1 & Opsi 2 per row) ---
-  price_opsi1?: number;
-  total_opsi1?: number;
-  price_opsi2?: number;
-  total_opsi2?: number;
+  price_opsi1?: number | string;
+  total_opsi1?: number | string;
+  price_opsi2?: number | string;
+  total_opsi2?: number | string;
   discount_percent?: number;
   discount_nominal?: number;
 

@@ -30,17 +30,27 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { PrintableEstimation } from '@/components/ui/PrintableEstimation';
+import { formatNumberOrText } from '@/lib/utils';
 
-// Satuan item options
-const UNIT_OPTIONS = ['SET', 'PCS', 'LTR', 'UNIT', 'JASA', 'BOTOL', 'PAKET', 'METER', 'ROLL'];
+// Satuan item options (Sesuai permintaan: SET, PCS, JASA)
+const UNIT_OPTIONS = ['SET', 'PCS', 'JASA'] as const;
 
-// Sample default rows if creating a new estimate (matching standard workshop understeel & engine service)
+// Sample default rows if creating a new estimate (100% matching screenshot)
 const DEFAULT_ESTIMATION_ROWS: InvoiceItem[] = [
-  { name: 'SERVICE RACKSTEER', is_service: true, qty: 1, unit: 'SET', price_opsi1: 895000, total_opsi1: 895000, price_opsi2: 895000, total_opsi2: 895000, price: 895000, subtotal: 895000 },
-  { name: 'BALLJOINT L/R JPN', is_service: false, qty: 2, unit: 'PCS', price_opsi1: 495000, total_opsi1: 990000, price_opsi2: 495000, total_opsi2: 990000, price: 495000, subtotal: 990000 },
-  { name: 'LINK STABILIZER DPN L/R JPN', is_service: false, qty: 2, unit: 'PCS', price_opsi1: 475000, total_opsi1: 950000, price_opsi2: 475000, total_opsi2: 950000, price: 475000, subtotal: 950000 },
-  { name: 'KARET STABILIZER U DPN L/R ORI', is_service: false, qty: 2, unit: 'PCS', price_opsi1: 175000, total_opsi1: 350000, price_opsi2: 175000, total_opsi2: 350000, price: 175000, subtotal: 350000 },
-  { name: 'SUPPORT SHOCK LOWER DPN L/R ORI', is_service: false, qty: 2, unit: 'PCS', price_opsi1: 385000, total_opsi1: 770000, price_opsi2: 385000, total_opsi2: 770000, price: 385000, subtotal: 770000 },
+  { name: 'SHOCK BREAKER BLKNG L/R ORI SET', is_service: false, qty: 1, unit: 'SET', price_opsi1: 4225000, total_opsi1: 4225000, price_opsi2: 0, total_opsi2: 0, price: 4225000, subtotal: 4225000 },
+  { name: 'SHOCK BREAKER BLKNG L/R IMI', is_service: false, qty: 2, unit: 'PCS', price_opsi1: 0, total_opsi1: 0, price_opsi2: 675000, total_opsi2: 1350000, price: 0, subtotal: 0 },
+  { name: 'KARET STABILIZER U BLKNG L/R ORI', is_service: false, qty: 2, unit: 'PCS', price_opsi1: 165000, total_opsi1: 330000, price_opsi2: 165000, total_opsi2: 330000, price: 165000, subtotal: 330000 },
+  { name: 'BEARING RODA DPN KANAN ABS JPN', is_service: false, qty: 1, unit: 'PCS', price_opsi1: 665000, total_opsi1: 665000, price_opsi2: 665000, total_opsi2: 665000, price: 665000, subtotal: 665000 },
+  { name: 'REMATCHING DISK BREAK DPN L/R', is_service: false, qty: 2, unit: 'PCS', price_opsi1: 275000, total_opsi1: 550000, price_opsi2: 275000, total_opsi2: 550000, price: 275000, subtotal: 550000 },
+  { name: 'KARET SUPPORT SHOCK BLKNG L/R IMI', is_service: false, qty: 4, unit: 'PCS', price_opsi1: 75000, total_opsi1: 300000, price_opsi2: 75000, total_opsi2: 300000, price: 75000, subtotal: 300000 },
+  { name: 'LINK STABILIZER BLKNG L/R JPN', is_service: false, qty: 2, unit: 'PCS', price_opsi1: 398000, total_opsi1: 796000, price_opsi2: 398000, total_opsi2: 796000, price: 398000, subtotal: 796000 },
+  { name: 'KAMPAS REM DPN L/R SET ORI', is_service: false, qty: 1, unit: 'SET', price_opsi1: 2095000, total_opsi1: 2095000, price_opsi2: 0, total_opsi2: 0, price: 2095000, subtotal: 2095000 },
+  { name: 'KAMPAS REM DPN L/R SET IMI', is_service: false, qty: 1, unit: 'SET', price_opsi1: 0, total_opsi1: 0, price_opsi2: 785000, total_opsi2: 785000, price: 0, subtotal: 0 },
+  { name: 'JASA B/P KAMPAS REM DPN', is_service: true, qty: 1, unit: 'JASA', price_opsi1: 150000, total_opsi1: 150000, price_opsi2: 150000, total_opsi2: 150000, price: 150000, subtotal: 150000 },
+  { name: 'JASA B/P SPAREPART', is_service: true, qty: 1, unit: 'JASA', price_opsi1: 450000, total_opsi1: 450000, price_opsi2: 450000, total_opsi2: 450000, price: 450000, subtotal: 450000 },
+  { name: 'JASA B/P BEARING RODA DPN KANAN', is_service: true, qty: 1, unit: 'JASA', price_opsi1: 275000, total_opsi1: 275000, price_opsi2: 275000, total_opsi2: 275000, price: 275000, subtotal: 275000 },
+  { name: 'JASA B/P SHOCK BREAKER BLKNG L/R', is_service: true, qty: 1, unit: 'JASA', price_opsi1: 300000, total_opsi1: 300000, price_opsi2: 300000, total_opsi2: 300000, price: 300000, subtotal: 300000 },
+  { name: 'SHAKING MACHINE', is_service: true, qty: 1, unit: 'JASA', price_opsi1: 150000, total_opsi1: 150000, price_opsi2: 150000, total_opsi2: 150000, price: 150000, subtotal: 150000 },
 ];
 
 function EstimationBuilderContent() {
@@ -143,18 +153,20 @@ function EstimationBuilderContent() {
 
             if (existingEst.items && existingEst.items.length > 0) {
               const mappedItems = existingEst.items.map((it) => {
-                const p1 = it.price_opsi1 !== undefined ? it.price_opsi1 : (typeof it.price === 'number' ? it.price : 0);
+                const p1 = it.price_opsi1 !== undefined ? it.price_opsi1 : it.price;
                 const p2 = it.price_opsi2 !== undefined ? it.price_opsi2 : p1;
                 const qty = it.qty || 1;
+                const isP1Text = typeof p1 === 'string' && /[a-zA-Z]/.test(p1);
+                const isP2Text = typeof p2 === 'string' && /[a-zA-Z]/.test(p2);
                 return {
                   ...it,
                   unit: it.unit || (it.is_service ? 'JASA' : 'PCS'),
                   price_opsi1: p1,
-                  total_opsi1: qty * p1,
+                  total_opsi1: isP1Text ? p1 : qty * (Number(p1) || 0),
                   price_opsi2: p2,
-                  total_opsi2: qty * p2,
+                  total_opsi2: isP2Text ? p2 : qty * (Number(p2) || 0),
                   price: p1,
-                  subtotal: qty * p1,
+                  subtotal: isP1Text ? p1 : qty * (Number(p1) || 0),
                 };
               });
               setItems(mappedItems);
@@ -169,9 +181,22 @@ function EstimationBuilderContent() {
     }
   }, [selectedSpkId, workOrders, invoices]);
 
-  // Calculations
-  const subtotalOpsi1 = items.reduce((sum, it) => sum + (it.total_opsi1 || 0), 0);
-  const subtotalOpsi2 = items.reduce((sum, it) => sum + (it.total_opsi2 || 0), 0);
+  // Calculations (handles string/text prices like CEK cleanly)
+  const subtotalOpsi1 = items.reduce((sum, it) => {
+    const tot = typeof it.total_opsi1 === 'number'
+      ? it.total_opsi1
+      : (typeof it.price_opsi1 === 'number' ? (it.qty || 1) * it.price_opsi1 : 0);
+    return sum + (Number.isNaN(tot) ? 0 : tot);
+  }, 0);
+
+  const subtotalOpsi2 = items.reduce((sum, it) => {
+    const tot = typeof it.total_opsi2 === 'number'
+      ? it.total_opsi2
+      : (typeof it.price_opsi2 === 'number'
+        ? (it.qty || 1) * it.price_opsi2
+        : (typeof it.price_opsi1 === 'number' ? (it.qty || 1) * it.price_opsi1 : 0));
+    return sum + (Number.isNaN(tot) ? 0 : tot);
+  }, 0);
 
   const effectiveDiscount = showDiscount ? discountAmount : 0;
   const taxAmountOpsi1 = showTax ? ((subtotalOpsi1 - effectiveDiscount) * (taxPercent / 100)) : 0;
@@ -188,24 +213,46 @@ function EstimationBuilderContent() {
     if (field === 'qty') {
       const qty = Math.max(1, Number(value) || 1);
       row.qty = qty;
-      row.total_opsi1 = qty * (row.price_opsi1 || 0);
-      row.total_opsi2 = qty * (row.price_opsi2 || 0);
-      row.subtotal = row.total_opsi1;
+      if (typeof row.price_opsi1 === 'number') {
+        row.total_opsi1 = qty * row.price_opsi1;
+      }
+      if (typeof row.price_opsi2 === 'number') {
+        row.total_opsi2 = qty * row.price_opsi2;
+      }
+      if (typeof row.price === 'number') {
+        row.subtotal = qty * row.price;
+      }
     } else if (field === 'price_opsi1') {
-      const p1 = Number(value) || 0;
-      row.price_opsi1 = p1;
-      row.total_opsi1 = (row.qty || 1) * p1;
-      row.price = p1;
-      row.subtotal = row.total_opsi1;
-      // If price_opsi2 was not set or matches old, update together or keep
-      if (row.price_opsi2 === undefined) {
-        row.price_opsi2 = p1;
-        row.total_opsi2 = (row.qty || 1) * p1;
+      const valStr = String(value).trim();
+      if (/[a-zA-Z]/.test(valStr)) {
+        // User typed text like CEK, FREE, GRATIS, TERMASUK
+        const upper = valStr.toUpperCase();
+        row.price_opsi1 = upper;
+        row.total_opsi1 = upper;
+        row.price = upper;
+        row.subtotal = upper;
+      } else {
+        const num = valStr.length > 0 ? parseInt(valStr.replace(/\D/g, ''), 10) || 0 : 0;
+        row.price_opsi1 = num;
+        row.total_opsi1 = (row.qty || 1) * num;
+        row.price = num;
+        row.subtotal = row.total_opsi1;
+        if (row.price_opsi2 === undefined) {
+          row.price_opsi2 = num;
+          row.total_opsi2 = (row.qty || 1) * num;
+        }
       }
     } else if (field === 'price_opsi2') {
-      const p2 = Number(value) || 0;
-      row.price_opsi2 = p2;
-      row.total_opsi2 = (row.qty || 1) * p2;
+      const valStr = String(value).trim();
+      if (/[a-zA-Z]/.test(valStr)) {
+        const upper = valStr.toUpperCase();
+        row.price_opsi2 = upper;
+        row.total_opsi2 = upper;
+      } else {
+        const num = valStr.length > 0 ? parseInt(valStr.replace(/\D/g, ''), 10) || 0 : 0;
+        row.price_opsi2 = num;
+        row.total_opsi2 = (row.qty || 1) * num;
+      }
     } else if (field === 'name') {
       row.name = String(value);
     } else if (field === 'unit') {
@@ -669,47 +716,47 @@ function EstimationBuilderContent() {
 
         {/* 3. ITEMS ESTIMASI TABLE (Exact Match to Screenshot!) */}
         <div className="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-2xs">
-          <table className="w-full text-left text-xs border-collapse min-w-[760px]">
+          <table className="w-full text-left text-xs border-collapse min-w-[780px]">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200/80 text-slate-600 font-bold text-[10.5px]">
-                <th className="p-3 w-10 text-center">#</th>
-                <th className="p-3">NAMA BARANG/JASA</th>
-                <th className="p-3 w-16 text-center">QTY</th>
-                <th className="p-3 w-24 text-center">SATUAN</th>
-                <th className="p-3 w-28 text-center">HARGA OPSI 1</th>
-                <th className="p-3 w-32 text-right">TOTAL OPSI 1</th>
+              <tr className="bg-slate-50 border-b-2 border-slate-300 text-slate-800 font-black text-[10.5px] uppercase">
+                <th className="p-3 w-10 text-center border-r border-slate-200">No</th>
+                <th className="p-3 border-r border-slate-200">Saran/Perbaikan/Ganti Sparepart</th>
+                <th className="p-3 w-16 text-center border-r border-slate-200">QTY</th>
+                <th className="p-3 w-24 text-center border-r border-slate-200">Satuan</th>
+                <th className="p-3 w-32 text-center border-r border-slate-200">Hrg Sat</th>
+                <th className="p-3 w-36 text-right border-r border-slate-200">Total Opsi 1</th>
                 {showOpsi2 && (
                   <>
-                    <th className="p-3 w-28 text-center bg-blue-50/30">HARGA OPSI 2</th>
-                    <th className="p-3 w-32 text-right bg-blue-50/30">TOTAL OPSI 2</th>
+                    <th className="p-3 w-32 text-center border-r border-slate-200 bg-blue-50/40 text-blue-950">Hrg Opsi 2</th>
+                    <th className="p-3 w-36 text-right bg-blue-50/40 text-blue-950">Total Opsi 2</th>
                   </>
                 )}
                 <th className="p-3 w-10 text-center"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-200">
               {items.map((item, idx) => {
-                const tot1 = (item.qty || 1) * (item.price_opsi1 || 0);
-                const tot2 = (item.qty || 1) * (item.price_opsi2 || item.price_opsi1 || 0);
+                const tot1 = item.total_opsi1 !== undefined ? item.total_opsi1 : (typeof item.price_opsi1 === 'number' ? (item.qty || 1) * item.price_opsi1 : 0);
+                const tot2 = item.total_opsi2 !== undefined ? item.total_opsi2 : (typeof item.price_opsi2 === 'number' ? (item.qty || 1) * item.price_opsi2 : tot1);
 
                 return (
-                  <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                  <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
                     {/* Index */}
-                    <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
+                    <td className="p-3 text-center text-slate-500 font-bold border-r border-slate-200">{idx + 1}</td>
 
-                    {/* Nama Barang/Jasa */}
-                    <td className="p-2.5">
+                    {/* Saran/Perbaikan/Ganti Sparepart */}
+                    <td className="p-2 border-r border-slate-200">
                       <input
                         type="text"
                         value={item.name}
                         onChange={(e) => handleUpdateItemField(idx, 'name', e.target.value)}
-                        placeholder="Nama Jasa / Sparepart..."
+                        placeholder="Nama Saran / Sparepart / Jasa..."
                         className="w-full text-xs font-bold p-2.5 rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 placeholder:text-slate-300 uppercase"
                       />
                     </td>
 
-                    {/* Qty */}
-                    <td className="p-2.5 text-center">
+                    {/* QTY */}
+                    <td className="p-2 text-center border-r border-slate-200">
                       <input
                         type="number"
                         min="1"
@@ -719,51 +766,54 @@ function EstimationBuilderContent() {
                       />
                     </td>
 
-                    {/* Satuan */}
-                    <td className="p-2.5 text-center">
-                      <input
-                        type="text"
+                    {/* Satuan (3 Opsi: SET, PCS, JASA) */}
+                    <td className="p-2 text-center border-r border-slate-200">
+                      <select
                         value={item.unit || 'PCS'}
                         onChange={(e) => handleUpdateItemField(idx, 'unit', e.target.value)}
-                        placeholder="PCS"
-                        list="unit-suggestions"
-                        className="w-20 text-xs font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase text-slate-700"
-                      />
+                        className="w-20 text-xs font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase text-slate-800 cursor-pointer"
+                      >
+                        {UNIT_OPTIONS.map((u) => (
+                          <option key={u} value={u}>
+                            {u}
+                          </option>
+                        ))}
+                      </select>
                     </td>
 
-                    {/* Harga Opsi 1 */}
-                    <td className="p-2.5 text-center">
+                    {/* Hrg Sat (Harga Opsi 1) */}
+                    <td className="p-2 text-center border-r border-slate-200">
                       <input
-                        type="number"
-                        min="0"
+                        type="text"
                         value={item.price_opsi1 !== undefined ? item.price_opsi1 : ''}
                         onChange={(e) => handleUpdateItemField(idx, 'price_opsi1', e.target.value)}
-                        className="w-28 text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800"
+                        placeholder="0 / CEK"
+                        className="w-28 text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 uppercase"
                       />
                     </td>
 
                     {/* Total Opsi 1 */}
-                    <td className="p-3 text-right">
+                    <td className="p-3 text-right border-r border-slate-200">
                       <span className="font-mono font-black text-sm text-slate-900 whitespace-nowrap">
-                        {formatCurrency(tot1)}
+                        {formatNumberOrText(tot1)}
                       </span>
                     </td>
 
                     {/* Opsi 2 (if enabled) */}
                     {showOpsi2 && (
                       <>
-                        <td className="p-2.5 text-center bg-blue-50/20">
+                        <td className="p-2 text-center border-r border-slate-200 bg-blue-50/20">
                           <input
-                            type="number"
-                            min="0"
+                            type="text"
                             value={item.price_opsi2 !== undefined ? item.price_opsi2 : ''}
                             onChange={(e) => handleUpdateItemField(idx, 'price_opsi2', e.target.value)}
-                            className="w-28 text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800"
+                            placeholder="0 / CEK"
+                            className="w-28 text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 uppercase"
                           />
                         </td>
                         <td className="p-3 text-right bg-blue-50/20">
                           <span className="font-mono font-black text-sm text-slate-900 whitespace-nowrap">
-                            {formatCurrency(tot2)}
+                            {formatNumberOrText(tot2)}
                           </span>
                         </td>
                       </>
@@ -784,15 +834,28 @@ function EstimationBuilderContent() {
                 );
               })}
             </tbody>
+            {/* Table Summary Footer: JUMLAH KESELURUHAN (Exact layout from image) */}
+            <tfoot>
+              <tr className="bg-slate-100/90 font-black border-t-2 border-slate-300">
+                <td colSpan={5} className="p-3 text-center uppercase tracking-wider text-slate-800 text-xs">
+                  JUMLAH KESELURUHAN
+                </td>
+                <td className="p-3 text-right font-mono font-black text-sm text-slate-950 border-r border-slate-200">
+                  {formatNumberOrText(totalFinalOpsi1)}
+                </td>
+                {showOpsi2 && (
+                  <>
+                    <td className="p-3 bg-blue-50/30 border-r border-slate-200"></td>
+                    <td className="p-3 text-right font-mono font-black text-sm text-slate-950 bg-blue-50/30">
+                      {formatNumberOrText(totalFinalOpsi2)}
+                    </td>
+                  </>
+                )}
+                <td></td>
+              </tr>
+            </tfoot>
           </table>
         </div>
-
-        {/* Datalist for unit suggestions */}
-        <datalist id="unit-suggestions">
-          {UNIT_OPTIONS.map((u) => (
-            <option key={u} value={u} />
-          ))}
-        </datalist>
 
         {/* Row Addition Buttons */}
         <div className="flex flex-wrap items-center gap-3 pt-1">

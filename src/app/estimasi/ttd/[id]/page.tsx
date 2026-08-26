@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { DBService } from '@/lib/services/db-service';
 import { Invoice, WorkshopSettings } from '@/lib/types/database';
-import { formatCurrency, formatPlate, formatDateTime } from '@/lib/utils';
+import { formatCurrency, formatPlate, formatDateTime, formatNumberOrText } from '@/lib/utils';
 import { SignatureCanvas } from '@/components/ui/SignatureCanvas';
 import { CheckCircle2, ShieldCheck, Car, Calendar, Clock, ArrowRight, Printer, Sparkles, Building2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -113,18 +113,24 @@ export default function CustomerSignatureApprovalPage() {
 
   const vehicle = estimation.vehicle;
   const items = estimation.items || [];
-  const hasOpsi2 = estimation.has_opsi2 !== false && items.some((it) => (it.price_opsi2 ?? 0) > 0);
+  const hasOpsi2 = estimation.has_opsi2 !== false;
 
   // Total Opsi 1
   const totalOpsi1 = items.reduce((sum, it) => {
-    const p = it.price_opsi1 !== undefined ? it.price_opsi1 : (typeof it.price === 'number' ? it.price : 0);
-    return sum + (it.qty || 1) * p;
+    const tot = typeof it.total_opsi1 === 'number'
+      ? it.total_opsi1
+      : (typeof it.price_opsi1 === 'number' ? (it.qty || 1) * it.price_opsi1 : (typeof it.price === 'number' ? (it.qty || 1) * it.price : 0));
+    return sum + (Number.isNaN(tot) ? 0 : tot);
   }, 0) - (estimation.discount_amount || 0);
 
   // Total Opsi 2
   const totalOpsi2 = items.reduce((sum, it) => {
-    const p = it.price_opsi2 !== undefined ? it.price_opsi2 : (it.price_opsi1 !== undefined ? it.price_opsi1 : (typeof it.price === 'number' ? it.price : 0));
-    return sum + (it.qty || 1) * p;
+    const tot = typeof it.total_opsi2 === 'number'
+      ? it.total_opsi2
+      : (typeof it.price_opsi2 === 'number'
+        ? (it.qty || 1) * it.price_opsi2
+        : (typeof it.price_opsi1 === 'number' ? (it.qty || 1) * it.price_opsi1 : (typeof it.price === 'number' ? (it.qty || 1) * it.price : 0)));
+    return sum + (Number.isNaN(tot) ? 0 : tot);
   }, 0) - (estimation.discount_amount || 0);
 
   return (
@@ -242,49 +248,68 @@ export default function CustomerSignatureApprovalPage() {
           <div className="overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full text-left text-xs border-collapse min-w-[550px]">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold text-[11px]">
-                  <th className="p-3 w-8 text-center">#</th>
-                  <th className="p-3">Nama Barang / Jasa</th>
-                  <th className="p-3 w-16 text-center">Qty</th>
-                  <th className="p-3 w-16 text-center">Satuan</th>
-                  <th className="p-3 text-right">Harga Opsi 1</th>
-                  <th className="p-3 text-right">Total Opsi 1</th>
+                <tr className="bg-slate-50 border-b-2 border-slate-300 text-slate-800 font-black text-[11px] uppercase">
+                  <th className="p-3 w-8 text-center border-r border-slate-200">No</th>
+                  <th className="p-3 border-r border-slate-200">Saran/Perbaikan/Ganti Sparepart</th>
+                  <th className="p-3 w-16 text-center border-r border-slate-200">QTY</th>
+                  <th className="p-3 w-20 text-center border-r border-slate-200">Satuan</th>
+                  <th className="p-3 text-right border-r border-slate-200">Hrg Sat</th>
+                  <th className="p-3 text-right border-r border-slate-200">Total Opsi 1</th>
                   {hasOpsi2 && (
                     <>
-                      <th className="p-3 text-right text-purple-900 bg-purple-50/50">Harga Opsi 2</th>
-                      <th className="p-3 text-right text-purple-900 bg-purple-50/50">Total Opsi 2</th>
+                      <th className="p-3 text-right text-blue-950 bg-blue-50/50 border-r border-slate-200">Hrg Opsi 2</th>
+                      <th className="p-3 text-right text-blue-950 bg-blue-50/50">Total Opsi 2</th>
                     </>
                   )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
                 {items.map((item, idx) => {
-                  const p1 = item.price_opsi1 !== undefined ? item.price_opsi1 : (typeof item.price === 'number' ? item.price : 0);
-                  const tot1 = (item.qty || 1) * p1;
+                  const p1 = item.price_opsi1 !== undefined ? item.price_opsi1 : item.price;
+                  const tot1 = item.total_opsi1 !== undefined ? item.total_opsi1 : (typeof p1 === 'number' ? (item.qty || 1) * p1 : p1);
                   const p2 = item.price_opsi2 !== undefined ? item.price_opsi2 : p1;
-                  const tot2 = (item.qty || 1) * p2;
+                  const tot2 = item.total_opsi2 !== undefined ? item.total_opsi2 : (typeof p2 === 'number' ? (item.qty || 1) * p2 : p2);
 
                   return (
                     <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
-                      <td className="p-3">
-                        <div className="font-bold text-slate-900">{item.name}</div>
+                      <td className="p-3 text-center text-slate-500 font-bold border-r border-slate-200">{idx + 1}</td>
+                      <td className="p-3 border-r border-slate-200">
+                        <div className="font-bold text-slate-900 uppercase">{item.name}</div>
                         {item.code && <div className="text-[10px] text-slate-400 font-mono">{item.code}</div>}
                       </td>
-                      <td className="p-3 text-center font-bold font-mono">{item.qty || 1}</td>
-                      <td className="p-3 text-center text-[11px] uppercase text-slate-600 font-semibold">{item.unit || 'PCS'}</td>
-                      <td className="p-3 text-right font-mono text-slate-700">{formatCurrency(p1)}</td>
-                      <td className="p-3 text-right font-mono font-black text-slate-900">{formatCurrency(tot1)}</td>
+                      <td className="p-3 text-center font-bold font-mono border-r border-slate-200">{item.qty || 1}</td>
+                      <td className="p-3 text-center text-[11px] uppercase text-slate-700 font-bold border-r border-slate-200">{item.unit || 'PCS'}</td>
+                      <td className="p-3 text-right font-mono font-bold text-slate-800 border-r border-slate-200">{formatNumberOrText(p1)}</td>
+                      <td className="p-3 text-right font-mono font-black text-slate-950 border-r border-slate-200">{formatNumberOrText(tot1)}</td>
                       {hasOpsi2 && (
                         <>
-                          <td className="p-3 text-right font-mono text-purple-900 bg-purple-50/30">{formatCurrency(p2)}</td>
-                          <td className="p-3 text-right font-mono font-black text-purple-950 bg-purple-50/30">{formatCurrency(tot2)}</td>
+                          <td className="p-3 text-right font-mono font-bold text-blue-900 bg-blue-50/30 border-r border-slate-200">{formatNumberOrText(p2)}</td>
+                          <td className="p-3 text-right font-mono font-black text-blue-950 bg-blue-50/30">{formatNumberOrText(tot2)}</td>
                         </>
                       )}
                     </tr>
                   );
                 })}
               </tbody>
+              {/* Grand Total Footer Row */}
+              <tfoot>
+                <tr className="bg-slate-100 font-black border-t-2 border-slate-300 text-xs">
+                  <td colSpan={5} className="p-3 text-center uppercase tracking-wider text-slate-900 font-black">
+                    JUMLAH KESELURUHAN
+                  </td>
+                  <td className="p-3 text-right font-mono font-black text-sm text-slate-950 border-r border-slate-200">
+                    {formatNumberOrText(totalOpsi1)}
+                  </td>
+                  {hasOpsi2 && (
+                    <>
+                      <td className="p-3 bg-blue-50/30 border-r border-slate-200"></td>
+                      <td className="p-3 text-right font-mono font-black text-sm text-blue-950 bg-blue-50/30">
+                        {formatNumberOrText(totalOpsi2)}
+                      </td>
+                    </>
+                  )}
+                </tr>
+              </tfoot>
             </table>
           </div>
 

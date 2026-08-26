@@ -9,6 +9,7 @@ import {
   formatPlate,
   createWhatsAppLink,
   parseNumericPrice,
+  formatNumberOrText,
 } from '@/lib/utils';
 import {
   Printer,
@@ -21,23 +22,6 @@ import {
   OfficialDocumentHeader,
   OfficialDocumentFooter,
 } from './OfficialDocumentLayout';
-
-// --- Price range helpers (backward-compatible) ---
-function pMin(item: InvoiceItem): number {
-  return item.price_min !== undefined ? item.price_min : parseNumericPrice(item.price);
-}
-function pMax(item: InvoiceItem): number {
-  return item.price_max !== undefined ? item.price_max : (item.price_min !== undefined ? item.price_min : parseNumericPrice(item.price));
-}
-function isTextItem(item: InvoiceItem): boolean {
-  return typeof item.price === 'string' && /[a-zA-Z]/.test(item.price) && item.price_min === undefined;
-}
-function fmtRange(min: number, max: number): string {
-  return min === max ? formatCurrency(min) : formatCurrency(min) + ' – ' + formatCurrency(max);
-}
-function isActiveItem(item: InvoiceItem): boolean {
-  return !item.option_group || item.is_active_option === true;
-}
 
 interface PrintableEstimationProps {
   estimation: Invoice;
@@ -65,9 +49,10 @@ export function PrintableEstimation({
       `Berikut rincian Surat Estimasi Biaya Perbaikan dari ${settings.name}:\n\n` +
       `No. Estimasi: ${estimation.invoice_number}\n` +
       `Kendaraan: ${vehicle?.car_brand} ${vehicle?.car_model} (${vehicle?.license_plate})\n` +
-      `Total Estimasi: ${formatCurrency(estimation.total_amount)}\n` +
+      `Total Estimasi Opsi 1: ${formatCurrency(estimation.total_opsi1 || estimation.total_amount)}\n` +
+      (estimation.has_opsi2 ? `Total Estimasi Opsi 2: ${formatCurrency(estimation.total_opsi2 || estimation.total_amount)}\n` : '') +
       `Estimator: ${signerEstimator || 'Via Rizkiana'}\n\n` +
-      `Mohon konfirmasi persetujuan pengerjaan dengan membalas pesan ini "SETUJU" agar teknisi kami dapat segera memulai proses pengerjaan.\n` +
+      `Mohon konfirmasi persetujuan pengerjaan dengan membalas pesan ini "SETUJU" atau klik tautan digital approval.\n` +
       `Terima kasih.`
     );
   };
@@ -75,6 +60,30 @@ export function PrintableEstimation({
   const waLink = vehicle?.phone_number
     ? createWhatsAppLink(vehicle.phone_number, getWhatsAppMessage())
     : '#';
+
+  // Total Calculations
+  const tot1 = itemsTotal(estimation.items || [], 'opsi1') - (estimation.discount_amount || 0);
+  const tot2 = itemsTotal(estimation.items || [], 'opsi2') - (estimation.discount_amount || 0);
+
+  function itemsTotal(itemsList: InvoiceItem[], option: 'opsi1' | 'opsi2'): number {
+    return itemsList.reduce((sum, it) => {
+      if (option === 'opsi1') {
+        const val = typeof it.total_opsi1 === 'number'
+          ? it.total_opsi1
+          : (typeof it.price_opsi1 === 'number' ? (it.qty || 1) * it.price_opsi1 : (typeof it.price === 'number' ? (it.qty || 1) * it.price : 0));
+        return sum + (Number.isNaN(val) ? 0 : val);
+      } else {
+        const val = typeof it.total_opsi2 === 'number'
+          ? it.total_opsi2
+          : (typeof it.price_opsi2 === 'number'
+            ? (it.qty || 1) * it.price_opsi2
+            : (typeof it.price_opsi1 === 'number' ? (it.qty || 1) * it.price_opsi1 : 0));
+        return sum + (Number.isNaN(val) ? 0 : val);
+      }
+    }, 0);
+  }
+
+  const complaintsText = estimation.work_order?.complaints || 'Ketika kena lubang kerasa banget, suara bising sebelah kanan';
 
   return (
     <div className="w-full max-w-5xl mx-auto space-y-3">
@@ -86,7 +95,7 @@ export function PrintableEstimation({
           </div>
           <div>
             <h3 className="font-bold text-sm">Surat Estimasi Biaya &amp; Persetujuan Pelanggan</h3>
-            <p className="text-[11px] text-slate-400">Ukuran Otomatis Sesuai Struktur • Multi-Halaman • Mardiono Home Service</p>
+            <p className="text-[11px] text-slate-400">Tata Letak Standar Resmi • Multi-Opsi &amp; Satuan SET/PCS/JASA • Mardiono Home Service</p>
           </div>
         </div>
 
@@ -105,7 +114,7 @@ export function PrintableEstimation({
         <div className="flex items-center space-x-2.5">
           <button
             onClick={handlePrint}
-            className="inline-flex items-center space-x-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-md"
+            className="inline-flex items-center space-x-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-md cursor-pointer"
           >
             <Printer className="w-4 h-4" />
             <span>Cetak / Simpan PDF</span>
@@ -115,7 +124,7 @@ export function PrintableEstimation({
               href={waLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition shadow-md"
+              className="inline-flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition shadow-md cursor-pointer"
             >
               <Share2 className="w-4 h-4" />
               <span>Minta Persetujuan WA</span>
@@ -124,7 +133,7 @@ export function PrintableEstimation({
           {onClose && (
             <button
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition"
+              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition cursor-pointer"
               aria-label="Tutup"
             >
               <X className="w-5 h-5" />
@@ -133,15 +142,15 @@ export function PrintableEstimation({
         </div>
       </div>
 
-      {/* DYNAMIC AUTO-HEIGHT DOCUMENT PREVIEW CONTAINER (MULTI-PAGE AWARE) */}
+      {/* DYNAMIC AUTO-HEIGHT DOCUMENT PREVIEW CONTAINER */}
       <div className="doc-preview-wrapper rounded-2xl">
-        <div className="doc-sheet printable-estimation-sheet space-y-3">
+        <div className="doc-sheet printable-estimation-sheet space-y-2.5">
           {/* Header & Identitas Kendaraan */}
           <div className="estimation-header-box avoid-break space-y-2">
             <OfficialDocumentHeader settings={settings} />
 
             {/* Title Header */}
-            <div className="flex items-center justify-between pb-1.5 border-b-2 border-slate-900 mt-2">
+            <div className="flex items-center justify-between pb-1.5 border-b-2 border-slate-900 mt-1">
               <div>
                 <span className="bg-amber-600 text-white px-3 py-1 rounded text-xs font-black uppercase tracking-wider">
                   SURAT ESTIMASI BIAYA &amp; PERSETUJUAN
@@ -156,7 +165,7 @@ export function PrintableEstimation({
             </div>
 
             {/* Meta Info (Symmetrical 3-Column) */}
-            <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50 p-2 rounded-xl border border-slate-300 mt-2">
+            <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50 p-2 rounded-xl border border-slate-300">
               <div>
                 <span className="text-slate-500 text-[10px] block">Waktu Terbit:</span>
                 <strong className="text-slate-900">{formatDateTime(estimation.created_at)}</strong>
@@ -179,8 +188,8 @@ export function PrintableEstimation({
             </div>
 
             {/* Customer & Vehicle Info Box (Symmetrical 2-Column) */}
-            <div className="grid grid-cols-2 gap-3 text-xs mt-2">
-              <div className="border border-slate-800 rounded-xl p-3 bg-white space-y-1">
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="border border-slate-800 rounded-xl p-2.5 bg-white space-y-1">
                 <h4 className="font-black text-[#8B0000] uppercase text-[10.5px] pb-0.5 border-b border-slate-200">
                   Pelanggan / Pemilik:
                 </h4>
@@ -189,7 +198,7 @@ export function PrintableEstimation({
                 <div className="text-slate-700 leading-tight text-[11px]">{vehicle?.address || '-'}</div>
               </div>
 
-              <div className="border border-slate-800 rounded-xl p-3 bg-white space-y-1">
+              <div className="border border-slate-800 rounded-xl p-2.5 bg-white space-y-1">
                 <h4 className="font-black text-[#001F7A] uppercase text-[10.5px] pb-0.5 border-b border-slate-200">
                   Identitas Kendaraan:
                 </h4>
@@ -204,138 +213,125 @@ export function PrintableEstimation({
                 </div>
               </div>
             </div>
+
+            {/* Section: Keluhan Awal & Status Mobil / Pembayaran Bar (Exact to Reference Screenshot) */}
+            {complaintsText && (
+              <div className="border border-slate-800 rounded-xl p-2 bg-white text-xs text-slate-900 font-medium">
+                <span className="font-bold text-slate-500 block text-[10px] uppercase">Keluhan / Diagnosa Awal:</span>
+                <span>{complaintsText}</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3 text-xs border border-slate-800 rounded-xl p-2 bg-slate-50">
+              <div className="font-semibold text-slate-900">
+                Status Mobil: <strong className="font-bold text-slate-950">{estimation.vehicle_status || 'Ditinggal'}</strong>
+              </div>
+              <div className="font-semibold text-slate-900 text-right">
+                Rencana Pembayaran: <strong className="font-bold text-slate-950">{estimation.payment_plan || 'Transfer'}</strong>
+              </div>
+            </div>
           </div>
 
-          {/* Items Table — multi-page flow with repeating thead and clean row breaks */}
-          <div className="border border-slate-800 rounded-xl overflow-hidden text-xs my-2 estimation-table-wrapper">
-            <table className="w-full text-left border-collapse text-[11px] estimation-items-table">
+          {/* Items Table — Exact format from user reference screenshot */}
+          <div className="border-2 border-slate-900 rounded-xl overflow-hidden text-xs my-2 estimation-table-wrapper">
+            <table className="w-full text-left border-collapse text-[10.5px] estimation-items-table">
               <thead>
-                <tr className="bg-slate-100 border-b-2 border-slate-800 font-bold text-slate-900">
-                  <th className="p-2 w-8 text-center border-r border-slate-300">No.</th>
-                  <th className="p-2 border-r border-slate-300">Rincian Estimasi Jasa &amp; Sparepart</th>
-                  <th className="p-2 w-14 text-center border-r border-slate-300">Tipe</th>
-                  <th className="p-2 w-10 text-center border-r border-slate-300">Qty</th>
-                  <th className="p-2 w-14 text-center border-r border-slate-300">Satuan</th>
-                  <th className="p-2 w-28 text-right border-r border-slate-300">Harga Opsi 1</th>
+                <tr className="bg-slate-100 border-b-2 border-slate-900 font-black text-slate-900 uppercase">
+                  <th className="p-2 w-8 text-center border-r border-slate-300">No</th>
+                  <th className="p-2 border-r border-slate-300">Saran/Perbaikan/Ganti Sparepart</th>
+                  <th className="p-2 w-12 text-center border-r border-slate-300">QTY</th>
+                  <th className="p-2 w-16 text-center border-r border-slate-300">Satuan</th>
+                  <th className="p-2 w-28 text-right border-r border-slate-300">Hrg Sat</th>
                   <th className="p-2 w-28 text-right border-r border-slate-300">Total Opsi 1</th>
                   {estimation.has_opsi2 && (
                     <>
-                      <th className="p-2 w-28 text-right border-r border-slate-300 bg-purple-50/40">Harga Opsi 2</th>
-                      <th className="p-2 w-28 text-right bg-purple-50/40">Total Opsi 2</th>
+                      <th className="p-2 w-28 text-right border-r border-slate-300 bg-blue-50/40 text-blue-950">Hrg Opsi 2</th>
+                      <th className="p-2 w-28 text-right bg-blue-50/40 text-blue-950">Total Opsi 2</th>
                     </>
                   )}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
-                {(() => {
-                  let rowNum = 0;
-                  return estimation.items.map((item, idx) => {
-                    if (!isActiveItem(item)) return null;
-                    rowNum++;
-                    const p1 = item.price_opsi1 !== undefined ? item.price_opsi1 : pMin(item);
-                    const tot1 = item.total_opsi1 !== undefined ? item.total_opsi1 : (item.qty || 1) * p1;
-                    const p2 = item.price_opsi2 !== undefined ? item.price_opsi2 : pMax(item);
-                    const tot2 = item.total_opsi2 !== undefined ? item.total_opsi2 : (item.qty || 1) * p2;
-                    const textMode = isTextItem(item);
+              <tbody className="divide-y divide-slate-300">
+                {estimation.items.map((item, idx) => {
+                  const p1 = item.price_opsi1 !== undefined ? item.price_opsi1 : item.price;
+                  const tot1 = item.total_opsi1 !== undefined ? item.total_opsi1 : (typeof p1 === 'number' ? (item.qty || 1) * p1 : p1);
+                  const p2 = item.price_opsi2 !== undefined ? item.price_opsi2 : p1;
+                  const tot2 = item.total_opsi2 !== undefined ? item.total_opsi2 : (typeof p2 === 'number' ? (item.qty || 1) * p2 : p2);
 
-                    return (
-                      <tr key={idx} className="hover:bg-slate-50 estimation-item-row">
-                        <td className="p-2 text-center font-bold border-r border-slate-300 align-top">{rowNum}</td>
-                        <td className="p-2 border-r border-slate-300 align-top">
-                          <div className="font-bold text-slate-900">{item.name}</div>
-                          {item.code && <div className="text-[9.5px] text-slate-500 font-mono">{item.code}</div>}
-                        </td>
-                        <td className="p-2 text-center border-r border-slate-300 align-top">
-                          <span className={'inline-block text-[9px] px-1.5 py-0.5 rounded font-black ' + (item.is_service ? 'bg-blue-100 text-blue-900' : 'bg-amber-100 text-amber-900')}>
-                            {item.is_service ? 'JASA' : 'PART'}
-                          </span>
-                        </td>
-                        <td className="p-2 text-center font-mono font-bold border-r border-slate-300 align-top">{item.qty || 1}</td>
-                        <td className="p-2 text-center text-[10px] font-bold uppercase text-slate-600 border-r border-slate-300 align-top">{item.unit || 'PCS'}</td>
-                        <td className="p-2 text-right border-r border-slate-300 align-top font-mono">
-                          {textMode ? <span className="font-bold text-amber-800 italic">{item.price}</span> : formatCurrency(p1)}
-                        </td>
-                        <td className="p-2 text-right font-mono font-bold text-slate-900 border-r border-slate-300 align-top">
-                          {textMode ? '-' : formatCurrency(tot1)}
-                        </td>
-                        {estimation.has_opsi2 && (
-                          <>
-                            <td className="p-2 text-right border-r border-slate-300 align-top font-mono bg-purple-50/20 text-purple-900">
-                              {formatCurrency(p2)}
-                            </td>
-                            <td className="p-2 text-right font-mono font-bold text-purple-950 bg-purple-50/20 align-top">
-                              {formatCurrency(tot2)}
-                            </td>
-                          </>
-                        )}
-                      </tr>
-                    );
-                  });
-                })()}
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50 estimation-item-row">
+                      <td className="p-1.5 text-center font-bold border-r border-slate-300 align-middle">{idx + 1}</td>
+                      <td className="p-1.5 border-r border-slate-300 align-middle">
+                        <div className="font-bold text-slate-900 uppercase">{item.name}</div>
+                      </td>
+                      <td className="p-1.5 text-center font-mono font-bold border-r border-slate-300 align-middle">{item.qty || 1}</td>
+                      <td className="p-1.5 text-center text-[10px] font-black uppercase text-slate-700 border-r border-slate-300 align-middle">{item.unit || 'PCS'}</td>
+                      <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold">
+                        {formatNumberOrText(p1)}
+                      </td>
+                      <td className="p-1.5 text-right font-mono font-black text-slate-900 border-r border-slate-300 align-middle">
+                        {formatNumberOrText(tot1)}
+                      </td>
+                      {estimation.has_opsi2 && (
+                        <>
+                          <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold bg-blue-50/20 text-blue-900">
+                            {formatNumberOrText(p2)}
+                          </td>
+                          <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
+                            {formatNumberOrText(tot2)}
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
+              {/* Grand Total Row: JUMLAH KESELURUHAN (Exact layout from user screenshot) */}
+              <tfoot>
+                <tr className="bg-slate-100 font-black border-t-2 border-slate-900 text-xs">
+                  <td colSpan={5} className="p-2 text-center uppercase tracking-wider text-slate-900 font-black">
+                    JUMLAH KESELURUHAN
+                  </td>
+                  <td className="p-2 text-right font-mono font-black text-slate-950 border-r border-slate-300 text-sm">
+                    {formatNumberOrText(tot1)}
+                  </td>
+                  {estimation.has_opsi2 && (
+                    <>
+                      <td className="p-2 bg-blue-50/40 border-r border-slate-300"></td>
+                      <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/40 text-sm">
+                        {formatNumberOrText(tot2)}
+                      </td>
+                    </>
+                  )}
+                </tr>
+              </tfoot>
             </table>
           </div>
 
-          {/* 1. Breakdown Total — with price range & multi options */}
-          <div className="estimation-total-box avoid-break flex justify-end my-2">
-            <div className="w-full sm:w-96 space-y-1 text-xs bg-slate-50 p-3 rounded-xl border border-slate-300">
-              {(() => {
-                const tot1 = (estimation.total_opsi1 !== undefined ? estimation.total_opsi1 : estimation.total_amount) || 0;
-                const tot2 = estimation.total_opsi2 || tot1;
-                return (
-                  <>
-                    {estimation.discount_amount > 0 && (
-                      <div className="flex justify-between text-emerald-800 font-bold text-[11px]">
-                        <span>Diskon Khusus:</span>
-                        <span className="font-mono">- {formatCurrency(estimation.discount_amount)}</span>
-                      </div>
-                    )}
-                    <div className="border-t-2 border-slate-800 pt-1 flex justify-between text-sm font-black text-[#8B0000]">
-                      <span>TOTAL ESTIMASI OPSI 1:</span>
-                      <span className="font-mono text-base">{formatCurrency(tot1)}</span>
-                    </div>
-                    {estimation.has_opsi2 && (
-                      <div className="flex justify-between text-sm font-black text-purple-900 pt-0.5">
-                        <span>TOTAL ESTIMASI OPSI 2:</span>
-                        <span className="font-mono text-base">{formatCurrency(tot2)}</span>
-                      </div>
-                    )}
-                    {estimation.customer_approved_option && (
-                      <div className="text-[10px] text-emerald-800 font-bold text-right pt-1">
-                        ✓ Disetujui Customer: {estimation.customer_approved_option === 'opsi2' ? 'OPSI 2' : 'OPSI 1'}
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
+          {/* KETERANGAN BOX (Matching screenshot) */}
+          <div className="border-2 border-slate-900 rounded-xl p-3 bg-white text-xs space-y-1">
+            <h5 className="font-black text-slate-950 uppercase text-[11px]">
+              KETERANGAN:
+            </h5>
+            <p className="text-slate-700 leading-relaxed font-medium text-[10.5px]">
+              {estimation.admin_notes || 'Harga di atas merupakan estimasi perkiraan awal. Apabila ditemukan komponen lain yang perlu diganti selama proses pembongkaran, teknisi kami akan segera mengonfirmasi terlebih dahulu kepada customer.'}
+            </p>
           </div>
 
-          {/* 2. KETERANGAN KHUSUS & KETENTUAN ESTIMASI RESMI */}
-          <div className="estimation-terms-box avoid-break border-2 border-[#8B0000] rounded-xl p-3 bg-amber-50/40 text-slate-900 text-[10px] sm:text-[10.5px] space-y-2 leading-relaxed my-2">
-            {/* Highlight Keterangan */}
-            <div className="bg-[#8B0000] text-white p-2 rounded-lg font-black text-center text-[10px] sm:text-[11px] uppercase tracking-wide shadow-xs">
-              APABILA SELAMA PENGECEKAN TERDAPAT SPAREPART YANG PERLU DIGANTI, AKAN KAMI KONFIRMASIKAN TERLEBIH DAHULU. HARGA DI ATAS BERSIFAT ESTIMASI SEMENTARA.
-            </div>
-
-            {/* Ketentuan Estimasi Berbutir */}
-            <div className="pt-1">
-              <h5 className="font-black text-[#8B0000] uppercase text-[11px] mb-1">
-                KETENTUAN ESTIMASI:
-              </h5>
-              <ol className="space-y-1 pl-1 font-medium list-none">
-                <li><strong>1.</strong> Customer tidak diperkenankan membawa sparepart sendiri pada pekerjaan Overhaul Mesin/Transmisi.</li>
-                <li><strong>2.</strong> Segala risiko akibat part bawaan sendiri tidak menjadi tanggung jawab/garansi kami.</li>
-                <li><strong>3.</strong> Apabila membawa part sendiri, batas maksimal pengadaan part adalah 2 hari. Selebihnya akan dikenakan biaya parkir <strong>Rp25.000/hari</strong>.</li>
-                <li><strong>4.</strong> Jika membawa part sendiri, tidak ada garansi dalam bentuk apa pun.</li>
-                <li><strong>5.</strong> Apabila sparepart sudah terpasang dan tidak berfungsi, kami berlakukan jasa double.</li>
-                <li><strong>6.</strong> Harga estimasi yang muncul berlaku selama <strong>1 minggu</strong> dari tanggal estimasi dikeluarkan.</li>
-                <li><strong>7.</strong> Apabila harga sparepart mengalami kenaikan, akan kami informasikan kembali dengan estimasi terbaru.</li>
-              </ol>
-            </div>
+          {/* Ketentuan Estimasi Berbutir */}
+          <div className="estimation-terms-box avoid-break border border-slate-800 rounded-xl p-3 bg-amber-50/30 text-slate-900 text-[10px] space-y-1 leading-relaxed">
+            <h5 className="font-black text-[#8B0000] uppercase text-[10.5px]">
+              KETENTUAN ESTIMASI:
+            </h5>
+            <ol className="space-y-0.5 pl-1 font-medium list-none">
+              <li><strong>1.</strong> Customer tidak diperkenankan membawa sparepart sendiri pada pekerjaan Overhaul Mesin/Transmisi.</li>
+              <li><strong>2.</strong> Segala risiko akibat part bawaan sendiri tidak menjadi tanggung jawab/garansi kami.</li>
+              <li><strong>3.</strong> Apabila membawa part sendiri, batas maksimal pengadaan part adalah 2 hari. Selebihnya dikenakan biaya parkir <strong>Rp25.000/hari</strong>.</li>
+              <li><strong>4.</strong> Harga estimasi yang muncul berlaku selama <strong>1 minggu</strong> dari tanggal estimasi dikeluarkan.</li>
+            </ol>
           </div>
 
-          {/* 3. Symmetrical Dual Signatures */}
+          {/* Symmetrical Dual Signatures */}
           <div className="estimation-signatures-box avoid-break border border-slate-900 rounded-xl p-3 bg-white space-y-2 my-2">
             <h4 className="text-center font-black text-xs uppercase tracking-wider text-slate-950 pb-1 border-b border-slate-200">
               Persetujuan Estimasi Biaya
@@ -373,7 +369,7 @@ export function PrintableEstimation({
             </div>
           </div>
 
-          {/* 4. Footer */}
+          {/* Footer */}
           <div className="estimation-footer-box avoid-break">
             <OfficialDocumentFooter
               documentCode={estimation.invoice_number}

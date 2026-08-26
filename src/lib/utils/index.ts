@@ -24,6 +24,18 @@ export function formatCurrency(amount: number | string | undefined): string {
   }).format(amount);
 }
 
+export function formatNumberOrText(val: number | string | undefined): string {
+  if (val === undefined || val === null || val === '') return '0';
+  if (typeof val === 'string') {
+    if (/[a-zA-Z]/.test(val)) return val.toUpperCase();
+    const num = Number(val.replace(/[^0-9.-]/g, ''));
+    if (isNaN(num)) return val;
+    return new Intl.NumberFormat('id-ID').format(num);
+  }
+  if (isNaN(val)) return '0';
+  return new Intl.NumberFormat('id-ID').format(val);
+}
+
 export function parseNumericPrice(val: number | string | undefined): number {
   if (val === undefined || val === null || val === '') return 0;
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
