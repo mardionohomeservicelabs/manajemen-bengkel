@@ -379,10 +379,10 @@ function NewCheckupPageContent() {
           </div>
           <div>
             <div className="font-black text-sm text-slate-900">
-              1. Quality Control General Checkup (23 Titik)
+              1. Quality Control Tune Up (23 Titik)
             </div>
             <p className="text-[11px] text-slate-500">
-              Pemeriksaan aki, pembersihan sensor contact cleaner & checklist fisik 16 titik
+              Pemeriksaan aki, pembersihan sensor contact cleaner &amp; checklist fisik 16 titik
             </p>
           </div>
         </button>
@@ -401,10 +401,10 @@ function NewCheckupPageContent() {
           </div>
           <div>
             <div className="font-black text-sm text-slate-900">
-              2. Formulir Pemeriksaan AC & Pendingin
+              2. Quality Control AC
             </div>
             <p className="text-[11px] text-slate-500">
-              Pemeriksaan mesin mati/nyala, suhu hembusan & tekanan freon psi
+              Pemeriksaan mesin mati/nyala, suhu hembusan &amp; tekanan freon psi
             </p>
           </div>
         </button>

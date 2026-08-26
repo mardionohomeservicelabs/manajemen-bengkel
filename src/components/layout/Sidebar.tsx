@@ -71,7 +71,7 @@ export function Sidebar() {
       roles: ['sa', 'admin', 'owner'],
     },
     {
-      name: 'Checklist General Checkup Tune Up & AC Mobil',
+      name: 'Checklist Quality Control (Tune Up & AC)',
       href: '/checkup',
       icon: <ShieldCheck className="w-4 h-4 text-amber-400" />,
       roles: ['sa', 'admin', 'owner', 'mekanik'],

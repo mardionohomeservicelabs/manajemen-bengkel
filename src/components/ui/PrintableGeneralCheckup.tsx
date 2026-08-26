@@ -32,7 +32,7 @@ export function PrintableGeneralCheckup({
   const getWhatsAppMessage = () => {
     return (
       `Halo Bpk/Ibu ${checkup.customer_name || 'Pelanggan'},\n` +
-      `Berikut hasil Lembar Quality Control General Checkup kendaraan Anda (${checkup.license_plate}) dari ${settings.name}:\n\n` +
+      `Berikut hasil Lembar Quality Control Tune Up kendaraan Anda (${checkup.license_plate}) dari ${settings.name}:\n\n` +
       `No. Dokumen: ${checkup.document_number}\n` +
       `KM: ${checkup.mileage?.toLocaleString('id-ID')} KM\n` +
       `Teknisi: ${checkup.technician_name}\n` +
@@ -69,7 +69,7 @@ export function PrintableGeneralCheckup({
             <Wrench className="w-4 h-4 text-amber-300" />
           </div>
           <div>
-            <h3 className="font-bold text-sm">Checklist General Checkup Tune Up & AC Mobil</h3>
+            <h3 className="font-bold text-sm">Quality Control Tune Up</h3>
             <p className="text-[11px] text-slate-400">Ukuran Otomatis Sesuai Struktur • Mardiono Home Service</p>
           </div>
         </div>
@@ -112,10 +112,10 @@ export function PrintableGeneralCheckup({
           {/* Header */}
           <OfficialDocumentHeader settings={settings} />
 
-          {/* Title Header: CHECKLIST GENERAL CHECKUP TUNE UP & AC MOBIL */}
+          {/* Title Header: QUALITY CONTROL TUNE UP */}
           <div className="text-center pb-1">
             <h2 className="text-sm font-black tracking-wider uppercase text-slate-900 border-b-2 border-slate-900 inline-block pb-0.5">
-              CHECKLIST GENERAL CHECKUP TUNE UP &amp; AC MOBIL
+              QUALITY CONTROL TUNE UP
             </h2>
           </div>
 
@@ -341,7 +341,7 @@ export function PrintableGeneralCheckup({
           {/* Footer */}
           <OfficialDocumentFooter
             documentCode={checkup.document_number}
-            termsNote="Lembar Quality Control General Checkup Sah • Mardiono Home Service"
+            termsNote="Lembar Quality Control Tune Up Sah • Mardiono Home Service"
           />
         </div>
       </div>

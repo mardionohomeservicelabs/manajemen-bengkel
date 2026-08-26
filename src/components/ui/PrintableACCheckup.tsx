@@ -32,7 +32,7 @@ export function PrintableACCheckup({
   const getWhatsAppMessage = () => {
     return (
       `Halo Bpk/Ibu ${checkup.customer_name || 'Pelanggan'},\n` +
-      `Berikut hasil Formulir Pemeriksaan AC & Pendingin dari ${settings.name}:\n\n` +
+      `Berikut hasil Lembar Quality Control AC dari ${settings.name}:\n\n` +
       `No. Dokumen: ${checkup.document_number}\n` +
       `No. Pol: ${checkup.license_plate}\n` +
       `KM: ${checkup.mileage?.toLocaleString('id-ID')} KM\n` +
@@ -67,7 +67,7 @@ export function PrintableACCheckup({
             <ThermometerSnowflake className="w-4 h-4 text-amber-300" />
           </div>
           <div>
-            <h3 className="font-bold text-sm">Formulir Pemeriksaan AC & Pendingin</h3>
+            <h3 className="font-bold text-sm">Quality Control AC</h3>
             <p className="text-[11px] text-slate-400">Ukuran Otomatis Sesuai Struktur • Mardiono Home Service</p>
           </div>
         </div>
@@ -119,10 +119,10 @@ export function PrintableACCheckup({
           {/* Header */}
           <OfficialDocumentHeader settings={settings} />
 
-          {/* Title Header: FORMULIR PEMERIKSAAN AC & PENDINGIN */}
+          {/* Title Header: QUALITY CONTROL AC */}
           <div className="text-center pb-1">
             <h2 className="text-sm font-black tracking-wider uppercase text-slate-900 border-b-2 border-slate-900 inline-block pb-0.5">
-              FORMULIR PEMERIKSAAN AC & PENDINGIN
+              QUALITY CONTROL AC
             </h2>
           </div>
 
@@ -318,7 +318,7 @@ export function PrintableACCheckup({
           {/* Footer */}
           <OfficialDocumentFooter
             documentCode={checkup.document_number}
-            termsNote="Formulir Pemeriksaan AC & Pendingin Sah • Mardiono Home Service"
+            termsNote="Lembar Quality Control AC Sah • Mardiono Home Service"
           />
         </div>
       </div>

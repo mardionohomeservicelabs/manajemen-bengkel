@@ -93,7 +93,7 @@ export default function CheckupPage() {
           }`}
         >
           <Wrench className="w-3.5 h-3.5 text-red-600" />
-          <span>QC General Checkup (23 Titik)</span>
+          <span>Quality Control Tune Up</span>
         </button>
         <button
           onClick={() => setActiveTab('ac_specialist')}
@@ -104,7 +104,7 @@ export default function CheckupPage() {
           }`}
         >
           <ThermometerSnowflake className="w-3.5 h-3.5 text-blue-600" />
-          <span>Pemeriksaan AC & Pendingin</span>
+          <span>Quality Control AC</span>
         </button>
       </div>
 
@@ -158,7 +158,7 @@ export default function CheckupPage() {
                             : 'bg-blue-50 text-blue-700 border-blue-200'
                         }`}
                       >
-                        {rec.type === 'qc_general' ? 'QC General Checkup (23 Titik)' : 'Form AC & Pendingin'}
+                        {rec.type === 'qc_general' ? 'Quality Control Tune Up' : 'Quality Control AC'}
                       </span>
                     </td>
 
