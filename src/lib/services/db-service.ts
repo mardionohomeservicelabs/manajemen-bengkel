@@ -822,6 +822,135 @@ export class DBService {
     return this.getInvoiceById(saved.id, branch) || saved;
   }
 
+  static async saveInvoiceAsync(invoice: Omit<Invoice, 'id'> & { id?: string }, branch?: BranchId): Promise<Invoice> {
+    const localSaved = this.saveInvoice(invoice, branch);
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const payload: Record<string, any> = {
+          id: localSaved.id.startsWith('inv-') ? undefined : localSaved.id,
+          invoice_number: localSaved.invoice_number,
+          type: localSaved.type,
+          work_order_id: localSaved.work_order_id || null,
+          vehicle_id: localSaved.vehicle_id,
+          items: localSaved.items,
+          subtotal: localSaved.subtotal,
+          discount_amount: localSaved.discount_amount || 0,
+          tax_percent: localSaved.tax_percent || 0,
+          tax_amount: localSaved.tax_amount || 0,
+          total_amount: localSaved.total_amount,
+          down_payment: localSaved.down_payment || 0,
+          balance_due: localSaved.balance_due || 0,
+          payment_status: localSaved.payment_status,
+          payment_method: localSaved.payment_method || null,
+          admin_notes: localSaved.admin_notes || null,
+          signature_customer_url: localSaved.signature_customer_url || localSaved.customer_signature || null,
+          signature_admin_url: localSaved.signature_admin_url || null,
+        };
+
+        const { data, error } = await supabase
+          .from('invoices')
+          .upsert(payload, { onConflict: 'invoice_number' })
+          .select('*, vehicle:vehicles_customers(*), work_order:work_orders(*)');
+
+        if (!error && data && data[0]) {
+          return {
+            ...localSaved,
+            ...data[0],
+            vehicle: data[0].vehicle || localSaved.vehicle,
+            work_order: data[0].work_order || localSaved.work_order,
+          };
+        }
+      } catch (err) {
+        console.warn('Supabase saveInvoice exception:', err);
+      }
+    }
+
+    return localSaved;
+  }
+
+  /**
+   * Menemukan estimasi berdasarkan ID atau Token publik lintas semua cabang
+   */
+  static findEstimationByIdOrToken(idOrToken: string): { estimation: Invoice; branch: BranchId } | null {
+    const branches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+    for (const b of branches) {
+      const invs = this.getInvoices(b);
+      const found = invs.find((i) => i.id === idOrToken || i.invoice_number === idOrToken || i.ttd_token === idOrToken);
+      if (found) {
+        return { estimation: found, branch: b };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Menyimpan tanda tangan digital pelanggan dan status persetujuan opsi estimasi
+   */
+  static async approveEstimationSignature(
+    idOrToken: string,
+    signatureDataUrl: string,
+    customerName: string,
+    approvedOption: 'opsi1' | 'opsi2',
+    branch?: BranchId
+  ): Promise<Invoice | null> {
+    const target = this.findEstimationByIdOrToken(idOrToken);
+    const activeBranch = branch || (target ? target.branch : this.getActiveBranch());
+    const key = getBranchKey(BASE_STORAGE_KEYS.INVOICES, activeBranch);
+    const invoices = getLocal<Invoice[]>(key, []);
+    const idx = invoices.findIndex((i) => i.id === idOrToken || i.invoice_number === idOrToken || i.ttd_token === idOrToken);
+
+    if (idx === -1) {
+      if (target) {
+        const targetKey = getBranchKey(BASE_STORAGE_KEYS.INVOICES, target.branch);
+        const targetList = getLocal<Invoice[]>(targetKey, []);
+        const tIdx = targetList.findIndex((i) => i.id === target.estimation.id);
+        if (tIdx !== -1) {
+          targetList[tIdx].customer_signature = signatureDataUrl;
+          targetList[tIdx].signature_customer_url = signatureDataUrl;
+          targetList[tIdx].customer_signed_name = customerName;
+          targetList[tIdx].customer_signed_at = new Date().toISOString();
+          targetList[tIdx].customer_approved_option = approvedOption;
+          targetList[tIdx].ttd_status = 'signed';
+          targetList[tIdx].updated_at = new Date().toISOString();
+          setLocal(targetKey, targetList);
+
+          if (targetList[tIdx].work_order_id) {
+            this.updateWorkOrderStatus(targetList[tIdx].work_order_id!, 'approved', 'sa', target.branch);
+          }
+          return this.getInvoiceById(targetList[tIdx].id, target.branch) || targetList[tIdx];
+        }
+      }
+      return null;
+    }
+
+    invoices[idx].customer_signature = signatureDataUrl;
+    invoices[idx].signature_customer_url = signatureDataUrl;
+    invoices[idx].customer_signed_name = customerName;
+    invoices[idx].customer_signed_at = new Date().toISOString();
+    invoices[idx].customer_approved_option = approvedOption;
+    invoices[idx].ttd_status = 'signed';
+    invoices[idx].updated_at = new Date().toISOString();
+    setLocal(key, invoices);
+
+    if (invoices[idx].work_order_id) {
+      this.updateWorkOrderStatus(invoices[idx].work_order_id!, 'approved', 'sa', activeBranch);
+    }
+
+    // Log audit
+    this.logAudit(
+      customerName || 'Customer via Link TTD',
+      'sa',
+      'CUSTOMER_SIGN_ESTIMATION',
+      'invoices',
+      invoices[idx].invoice_number,
+      { approvedOption, invoice_number: invoices[idx].invoice_number },
+      activeBranch
+    );
+
+    return this.getInvoiceById(invoices[idx].id, activeBranch) || invoices[idx];
+  }
+
   // --- CRM & SERVICE REMINDERS (PER CABANG) ---
   static getCRMLogs(branch?: BranchId): CRMLog[] {
     const key = getBranchKey(BASE_STORAGE_KEYS.CRM_LOGS, branch);

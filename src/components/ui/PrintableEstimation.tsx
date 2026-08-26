@@ -213,10 +213,17 @@ export function PrintableEstimation({
                 <tr className="bg-slate-100 border-b-2 border-slate-800 font-bold text-slate-900">
                   <th className="p-2 w-8 text-center border-r border-slate-300">No.</th>
                   <th className="p-2 border-r border-slate-300">Rincian Estimasi Jasa &amp; Sparepart</th>
-                  <th className="p-2 w-16 text-center border-r border-slate-300">Tipe</th>
+                  <th className="p-2 w-14 text-center border-r border-slate-300">Tipe</th>
                   <th className="p-2 w-10 text-center border-r border-slate-300">Qty</th>
-                  <th className="p-2 w-32 text-right border-r border-slate-300">Harga Satuan</th>
-                  <th className="p-2 w-32 text-right">Estimasi Harga</th>
+                  <th className="p-2 w-14 text-center border-r border-slate-300">Satuan</th>
+                  <th className="p-2 w-28 text-right border-r border-slate-300">Harga Opsi 1</th>
+                  <th className="p-2 w-28 text-right border-r border-slate-300">Total Opsi 1</th>
+                  {estimation.has_opsi2 && (
+                    <>
+                      <th className="p-2 w-28 text-right border-r border-slate-300 bg-purple-50/40">Harga Opsi 2</th>
+                      <th className="p-2 w-28 text-right bg-purple-50/40">Total Opsi 2</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -225,10 +232,12 @@ export function PrintableEstimation({
                   return estimation.items.map((item, idx) => {
                     if (!isActiveItem(item)) return null;
                     rowNum++;
-                    const min = pMin(item); const max = pMax(item);
-                    const subMin = item.subtotal_min ?? item.qty * min;
-                    const subMax = item.subtotal_max ?? item.qty * max;
+                    const p1 = item.price_opsi1 !== undefined ? item.price_opsi1 : pMin(item);
+                    const tot1 = item.total_opsi1 !== undefined ? item.total_opsi1 : (item.qty || 1) * p1;
+                    const p2 = item.price_opsi2 !== undefined ? item.price_opsi2 : pMax(item);
+                    const tot2 = item.total_opsi2 !== undefined ? item.total_opsi2 : (item.qty || 1) * p2;
                     const textMode = isTextItem(item);
+
                     return (
                       <tr key={idx} className="hover:bg-slate-50 estimation-item-row">
                         <td className="p-2 text-center font-bold border-r border-slate-300 align-top">{rowNum}</td>
@@ -237,21 +246,28 @@ export function PrintableEstimation({
                           {item.code && <div className="text-[9.5px] text-slate-500 font-mono">{item.code}</div>}
                         </td>
                         <td className="p-2 text-center border-r border-slate-300 align-top">
-                          <span className={'inline-block text-[9.5px] px-2 py-0.5 rounded font-black ' + (item.is_service ? 'bg-blue-100 text-blue-900' : 'bg-amber-100 text-amber-900')}>
+                          <span className={'inline-block text-[9px] px-1.5 py-0.5 rounded font-black ' + (item.is_service ? 'bg-blue-100 text-blue-900' : 'bg-amber-100 text-amber-900')}>
                             {item.is_service ? 'JASA' : 'PART'}
                           </span>
                         </td>
-                        <td className="p-2 text-center font-mono font-bold border-r border-slate-300 align-top">{item.qty}</td>
-                        <td className="p-2 text-right border-r border-slate-300 align-top">
-                          {textMode
-                            ? <span className="font-bold text-amber-800 text-xs italic">{item.price}</span>
-                            : <span className="font-mono font-bold text-slate-900">{fmtRange(min, max)}</span>}
+                        <td className="p-2 text-center font-mono font-bold border-r border-slate-300 align-top">{item.qty || 1}</td>
+                        <td className="p-2 text-center text-[10px] font-bold uppercase text-slate-600 border-r border-slate-300 align-top">{item.unit || 'PCS'}</td>
+                        <td className="p-2 text-right border-r border-slate-300 align-top font-mono">
+                          {textMode ? <span className="font-bold text-amber-800 italic">{item.price}</span> : formatCurrency(p1)}
                         </td>
-                        <td className="p-2 text-right font-black text-slate-900 align-top">
-                          {textMode
-                            ? <span className="text-slate-400 font-normal">-</span>
-                            : <span className="font-mono">{fmtRange(subMin, subMax)}</span>}
+                        <td className="p-2 text-right font-mono font-bold text-slate-900 border-r border-slate-300 align-top">
+                          {textMode ? '-' : formatCurrency(tot1)}
                         </td>
+                        {estimation.has_opsi2 && (
+                          <>
+                            <td className="p-2 text-right border-r border-slate-300 align-top font-mono bg-purple-50/20 text-purple-900">
+                              {formatCurrency(p2)}
+                            </td>
+                            <td className="p-2 text-right font-mono font-bold text-purple-950 bg-purple-50/20 align-top">
+                              {formatCurrency(tot2)}
+                            </td>
+                          </>
+                        )}
                       </tr>
                     );
                   });
@@ -260,15 +276,12 @@ export function PrintableEstimation({
             </table>
           </div>
 
-          {/* 1. Breakdown Total — with price range */}
+          {/* 1. Breakdown Total — with price range & multi options */}
           <div className="estimation-total-box avoid-break flex justify-end my-2">
             <div className="w-full sm:w-96 space-y-1 text-xs bg-slate-50 p-3 rounded-xl border border-slate-300">
               {(() => {
-                const activeItems = estimation.items.filter(isActiveItem);
-                const tMin = activeItems.reduce((s, it) => isTextItem(it) ? s : s + (it.subtotal_min ?? pMin(it) * it.qty), 0);
-                const tMax = activeItems.reduce((s, it) => isTextItem(it) ? s : s + (it.subtotal_max ?? pMax(it) * it.qty), 0);
-                const discMin = Math.max(0, tMin - (estimation.discount_amount || 0));
-                const discMax = Math.max(0, tMax - (estimation.discount_amount || 0));
+                const tot1 = (estimation.total_opsi1 !== undefined ? estimation.total_opsi1 : estimation.total_amount) || 0;
+                const tot2 = estimation.total_opsi2 || tot1;
                 return (
                   <>
                     {estimation.discount_amount > 0 && (
@@ -278,9 +291,20 @@ export function PrintableEstimation({
                       </div>
                     )}
                     <div className="border-t-2 border-slate-800 pt-1 flex justify-between text-sm font-black text-[#8B0000]">
-                      <span>TOTAL ESTIMASI:</span>
-                      <span className="font-mono text-base">{fmtRange(discMin, discMax)}</span>
+                      <span>TOTAL ESTIMASI OPSI 1:</span>
+                      <span className="font-mono text-base">{formatCurrency(tot1)}</span>
                     </div>
+                    {estimation.has_opsi2 && (
+                      <div className="flex justify-between text-sm font-black text-purple-900 pt-0.5">
+                        <span>TOTAL ESTIMASI OPSI 2:</span>
+                        <span className="font-mono text-base">{formatCurrency(tot2)}</span>
+                      </div>
+                    )}
+                    {estimation.customer_approved_option && (
+                      <div className="text-[10px] text-emerald-800 font-bold text-right pt-1">
+                        ✓ Disetujui Customer: {estimation.customer_approved_option === 'opsi2' ? 'OPSI 2' : 'OPSI 1'}
+                      </div>
+                    )}
                   </>
                 );
               })()}
@@ -318,9 +342,9 @@ export function PrintableEstimation({
             </h4>
 
             <div className="grid grid-cols-2 gap-4 text-center text-xs">
-              <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between h-[105px]">
+              <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between h-[115px]">
                 <p className="font-black text-[#001F7A] text-[10px] uppercase">Estimator</p>
-                <div className="h-12 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white my-0.5">
+                <div className="h-14 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white my-0.5">
                   <span className="text-[9px] text-slate-400 italic">Tanda tangan Estimator</span>
                 </div>
                 <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate">
@@ -328,13 +352,22 @@ export function PrintableEstimation({
                 </p>
               </div>
 
-              <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between h-[105px]">
+              <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between h-[115px]">
                 <p className="font-black text-[#8B0000] text-[10px] uppercase">Persetujuan Pelanggan</p>
-                <div className="h-12 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white my-0.5">
-                  <span className="text-[9px] text-slate-400 italic">Tanda tangan persetujuan</span>
+                <div className="h-14 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white my-0.5 overflow-hidden">
+                  {estimation.customer_signature || estimation.signature_customer_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={estimation.customer_signature || estimation.signature_customer_url}
+                      alt="TTD Customer"
+                      className="max-h-12 object-contain"
+                    />
+                  ) : (
+                    <span className="text-[9px] text-slate-400 italic">Tanda tangan persetujuan</span>
+                  )}
                 </div>
                 <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate">
-                  {vehicle?.customer_name || 'Pelanggan'}
+                  {estimation.customer_signed_name || vehicle?.customer_name || 'Pelanggan'}
                 </p>
               </div>
             </div>

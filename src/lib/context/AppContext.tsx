@@ -39,6 +39,13 @@ interface AppContextType {
   saveWorkOrderAsync: (workOrder: Omit<WorkOrder, 'id' | 'spk_number'> & { id?: string; spk_number?: string }) => Promise<WorkOrder>;
   saveCheckupAsync: (checkup: Omit<CheckupRecord, 'id'> & { id?: string }) => Promise<CheckupRecord>;
   deleteCheckupAsync: (id: string) => Promise<boolean>;
+  saveInvoiceAsync: (invoice: Omit<Invoice, 'id'> & { id?: string }) => Promise<Invoice>;
+  approveEstimationSignatureAsync: (
+    idOrToken: string,
+    signatureDataUrl: string,
+    customerName: string,
+    approvedOption: 'opsi1' | 'opsi2'
+  ) => Promise<Invoice | null>;
   updateWorkOrderStatusAsync: (id: string, status: WorkOrderStatus) => Promise<boolean>;
   toasts: ToastMessage[];
   showToast: (message: string, type?: ToastMessage['type'], title?: string) => void;
@@ -130,6 +137,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return ok;
   };
 
+  const saveInvoiceAsync = async (invoice: Omit<Invoice, 'id'> & { id?: string }): Promise<Invoice> => {
+    const saved = await DBService.saveInvoiceAsync(invoice, activeBranch);
+    refreshData();
+    return saved;
+  };
+
+  const approveEstimationSignatureAsync = async (
+    idOrToken: string,
+    signatureDataUrl: string,
+    customerName: string,
+    approvedOption: 'opsi1' | 'opsi2'
+  ): Promise<Invoice | null> => {
+    const updated = await DBService.approveEstimationSignature(
+      idOrToken,
+      signatureDataUrl,
+      customerName,
+      approvedOption,
+      activeBranch
+    );
+    refreshData();
+    return updated;
+  };
+
   const updateWorkOrderStatusAsync = async (id: string, status: WorkOrderStatus): Promise<boolean> => {
     const ok = await DBService.updateWorkOrderStatusAsync(id, status, currentRole, activeBranch);
     refreshData();
@@ -168,6 +198,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         saveWorkOrderAsync,
         saveCheckupAsync,
         deleteCheckupAsync,
+        saveInvoiceAsync,
+        approveEstimationSignatureAsync,
         updateWorkOrderStatusAsync,
         toasts,
         showToast,

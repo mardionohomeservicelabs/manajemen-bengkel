@@ -258,11 +258,20 @@ export interface InvoiceItem {
   is_service: boolean;
   is_custom?: boolean;
   qty: number;
+  unit?: string; // 'SET', 'PCS', 'LTR', 'UNIT', 'JASA', 'BOTOL', 'PAKET', etc.
   /** Unit price — kept for backward compatibility with legacy single-price data */
   price: number | string;
   buy_price?: number; // HPP for profit analytics
   /** Subtotal — kept for backward compatibility */
   subtotal: number | string;
+
+  // --- Multi-Option (Opsi 1 & Opsi 2 per row) ---
+  price_opsi1?: number;
+  total_opsi1?: number;
+  price_opsi2?: number;
+  total_opsi2?: number;
+  discount_percent?: number;
+  discount_nominal?: number;
 
   // --- Price Range (Min–Max) ---
   /** Minimum unit price. If set, price range mode is active. */
@@ -274,7 +283,7 @@ export interface InvoiceItem {
   /** Qty × price_max */
   subtotal_max?: number;
 
-  // --- Option 1 / Option 2 ---
+  // --- Option 1 / Option 2 legacy grouping ---
   /** Which option this row belongs to. Undefined = no option grouping. */
   option_label?: 'opsi1' | 'opsi2';
   /** Shared UUID grouping Opsi 1 & Opsi 2 rows together */
@@ -306,6 +315,27 @@ export interface Invoice {
   created_by?: string;
   created_at: string;
   updated_at?: string;
+
+  // --- Estimasi Biaya Spesifik Sesuai UI ---
+  estimation_type?: string; // 'Umum', 'Estimasi Awal', 'Estimasi Tambahan', dll.
+  estimation_tab?: string; // Identifier tab ('Umum', 'Tab 2', dll.)
+  estimation_date?: string; // Tanggal format 'YYYY-MM-DD' atau 'DD/MM/YYYY'
+  estimation_time?: string; // Jam format 'HH:mm'
+  vehicle_status?: string; // 'Ditinggal' | 'Ditunggu' | 'Derek / Towing' | 'Home Service'
+  payment_plan?: string; // 'Transfer' | 'Cash' | 'QRIS' | 'Debit' | 'Tempo'
+  has_discount?: boolean;
+  has_opsi2?: boolean;
+  has_tax?: boolean;
+  total_opsi1?: number;
+  total_opsi2?: number;
+
+  // --- Digital Signature & Customer Approval ---
+  customer_signature?: string; // Base64 data URL
+  customer_signed_at?: string; // ISO Timestamp
+  customer_signed_name?: string;
+  customer_approved_option?: 'opsi1' | 'opsi2';
+  ttd_status?: 'pending' | 'signed' | 'declined';
+  ttd_token?: string;
 
   // Joined fields
   vehicle?: VehicleCustomer;
