@@ -662,6 +662,7 @@ export class DBService {
             checkup_type: checkup.type,
             qc_data: checkup.qc_data || null,
             ac_data: checkup.ac_data || null,
+            understeel_data: checkup.understeel_data || null,
           };
 
           await supabase
@@ -675,6 +676,7 @@ export class DBService {
             checkup_type: checkup.type,
             qc_data: checkup.qc_data || null,
             ac_data: checkup.ac_data || null,
+            understeel_data: checkup.understeel_data || null,
             received_at_branch: branch || DBService.getActiveBranch(),
           };
 
@@ -686,10 +688,10 @@ export class DBService {
               mechanic_name: checkup.technician_name || 'Agus Susanto',
               entry_date: checkup.check_date ? new Date(checkup.check_date).toISOString() : new Date().toISOString(),
               finish_date: new Date().toISOString(),
-              complaints: checkup.type === 'qc_general' ? 'QC General Checkup & Tune Up' : 'Pemeriksaan Spesialis AC',
+              complaints: checkup.type === 'qc_general' ? 'QC General Checkup & Tune Up' : (checkup.type === 'understeel' ? 'Form Keluhan Understeel (Kaki-Kaki)' : 'Pemeriksaan Spesialis AC'),
               fuel_level: 50,
               status: 'completed',
-              notes: 'Lembar QC/AC Checkup Resmi',
+              notes: 'Lembar QC/AC/Understeel Checkup Resmi',
               checklist_data: checklistPayload,
             }, { onConflict: 'spk_number' });
         }

@@ -8,6 +8,8 @@ import {
   CheckupType,
   QCGeneralCheckupData,
   ACCheckupData,
+  UndersteelCheckupData,
+  UndersteelPointItem,
   CheckConditionStatus,
   CheckupRecord,
   WorkOrder,
@@ -32,6 +34,7 @@ import { Suspense } from 'react';
 import { SignatureCanvas } from '@/components/ui/SignatureCanvas';
 import { PrintableGeneralCheckup } from '@/components/ui/PrintableGeneralCheckup';
 import { PrintableACCheckup } from '@/components/ui/PrintableACCheckup';
+import { PrintableUndersteelCheckup } from '@/components/ui/PrintableUndersteelCheckup';
 
 function NewCheckupPageContent() {
   const router = useRouter();
@@ -50,6 +53,9 @@ function NewCheckupPageContent() {
   const [customerName, setCustomerName] = useState('Ahmad Fadillah');
   const [licensePlate, setLicensePlate] = useState('W 1984 RFS');
   const [carModel, setCarModel] = useState('Toyota Avanza 1.3 G');
+  const [carBrand, setCarBrand] = useState('Toyota');
+  const [carYear, setCarYear] = useState<number | string>(2021);
+  const [carColor, setCarColor] = useState('Putih');
   const [mileage, setMileage] = useState<number>(45200);
   const [technicianName, setTechnicianName] = useState('Agus Susanto');
   const [checkDate, setCheckDate] = useState<string>(new Date().toISOString().slice(0, 10));
@@ -63,10 +69,14 @@ function NewCheckupPageContent() {
           setCustomerName(spk.vehicle.customer_name);
           setLicensePlate(spk.vehicle.license_plate);
           setCarModel(`${spk.vehicle.car_brand} ${spk.vehicle.car_model}`);
+          setCarBrand(spk.vehicle.car_brand || 'Toyota');
+          setCarYear(spk.vehicle.car_year || 2021);
+          setCarColor((spk.vehicle as any).color || (spk.vehicle as any).car_color || 'Putih');
           setMileage(spk.vehicle.current_mileage || 40000);
         }
         if (spk.mechanic_name) {
           setTechnicianName(spk.mechanic_name);
+          setMech1(spk.mechanic_name);
         }
         showToast(`Data SPK ${spk.spk_number} berhasil dimuat ke formulir checkup!`, 'info');
       }
@@ -143,6 +153,48 @@ function NewCheckupPageContent() {
     'Kondisi kompresor dan tekanan freon optimal. Lakukan servis ringan dan penggantian filter kabin berkala.'
   );
 
+  // --- FORM 3: UNDERSTEEL CHECKUP STATES ---
+  const [understeelItems, setUndersteelItems] = useState<UndersteelPointItem[]>([
+    { no: 1, label: 'SHOCKBREAKER DEPAN', replace: false, service: false, notes: '' },
+    { no: 2, label: 'SHOCKBREAKER BELAKANG', replace: false, service: false, notes: '' },
+    { no: 3, label: 'SHOCK SUPPORT DEPAN', replace: false, service: false, notes: '' },
+    { no: 4, label: 'SHOCK SUPPORT BELAKANG', replace: false, service: false, notes: '' },
+    { no: 5, label: 'ENGINE MOUNTING', sub_label: 'Depan / Kanan', replace: false, service: false, notes: '' },
+    { no: 6, label: 'ENGINE MOUNTING', sub_label: 'Kiri', replace: false, service: false, notes: '' },
+    { no: 7, label: 'ENGINE MOUNTING', sub_label: 'Belakang', replace: false, service: false, notes: '' },
+    { no: 8, label: 'ENGINE MOUNTING', replace: false, service: false, notes: '' },
+    { no: 9, label: 'ENGINE MOUNTING', replace: false, service: false, notes: '' },
+    { no: 10, label: 'ENGINE MOUNTING', replace: false, service: false, notes: '' },
+    { no: 11, label: 'TRANSMISSION MOUNTING', replace: false, service: false, notes: '' },
+    { no: 12, label: 'RACK STEERING', replace: false, service: false, notes: '' },
+    { no: 13, label: 'DINAMO EPS', replace: false, service: false, notes: '' },
+    { no: 14, label: 'RACK POWER STEERING', replace: false, service: false, notes: '' },
+    { no: 15, label: 'POMPA POWER STEERING', replace: false, service: false, notes: '' },
+    { no: 16, label: 'BALL JOINT ATAS', replace: false, service: false, notes: '' },
+    { no: 17, label: 'BALL JOINT BAWAH', replace: false, service: false, notes: '' },
+    { no: 18, label: 'TIE ROD', replace: false, service: false, notes: '' },
+    { no: 19, label: 'LONG TIE ROD', replace: false, service: false, notes: '' },
+    { no: 20, label: 'LINK STABILIZER', replace: false, service: false, notes: '' },
+    { no: 21, label: 'BUSHING LOWER ARM', replace: false, service: false, notes: '' },
+    { no: 22, label: 'BUSHING UPPER ARM', replace: false, service: false, notes: '' },
+    { no: 23, label: 'BUSHING SAYAP LOWER ARM', replace: false, service: false, notes: '' },
+    { no: 24, label: 'KARET STABILIZER', replace: false, service: false, notes: '' },
+    { no: 25, label: 'KARET U STABILIZER', replace: false, service: false, notes: '' },
+    { no: 26, label: 'KARET STOPPER SHOCK', replace: false, service: false, notes: '' },
+  ]);
+
+  const [understeelCustomItems, setUndersteelCustomItems] = useState([
+    { label: '', replace: false, service: false, notes: '' },
+    { label: '', replace: false, service: false, notes: '' },
+    { label: '', replace: false, service: false, notes: '' },
+    { label: '', replace: false, service: false, notes: '' },
+    { label: '', replace: false, service: false, notes: '' },
+  ]);
+
+  const [mech1, setMech1] = useState('Agus Susanto');
+  const [mech2, setMech2] = useState('');
+  const [mech3, setMech3] = useState('');
+
   // Signatures
   const [signatureTech, setSignatureTech] = useState<string>('');
   const [signatureCustomer, setSignatureCustomer] = useState<string>('');
@@ -157,6 +209,9 @@ function NewCheckupPageContent() {
     if (found) {
       setCustomerName(found.customer_name);
       setCarModel(`${found.car_brand} ${found.car_model}`);
+      setCarBrand(found.car_brand || 'Toyota');
+      setCarYear(found.car_year || 2021);
+      setCarColor((found as any).color || (found as any).car_color || 'Putih');
       setMileage(found.current_mileage || 40000);
       showToast(`Data mobil ${found.license_plate} dimuat!`, 'info');
     }
@@ -252,7 +307,7 @@ function NewCheckupPageContent() {
 
         showToast('Formulir QC General Checkup berhasil disimpan permanen ke Supabase!', 'success');
         setSavedRecord(record);
-      } else {
+      } else if (checkupType === 'ac_specialist') {
         const docNo = `AC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(
           100 + Math.random() * 900
         )}`;
@@ -300,6 +355,44 @@ function NewCheckupPageContent() {
         });
 
         showToast('Formulir Pemeriksaan AC & Pendingin berhasil disimpan permanen ke Supabase!', 'success');
+        setSavedRecord(record);
+      } else if (checkupType === 'understeel') {
+        const docNo = `UND-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(
+          100 + Math.random() * 900
+        )}`;
+
+        const understeelData: UndersteelCheckupData = {
+          document_number: docNo,
+          customer_name: customerName,
+          license_plate: formatPlate(licensePlate),
+          car_brand: carBrand,
+          car_model: carModel,
+          car_year: Number(carYear) || undefined,
+          car_color: carColor,
+          mileage: Number(mileage) || undefined,
+          check_date: checkDate,
+          technician_name: mech1 || technicianName,
+          items: understeelItems,
+          custom_items: understeelCustomItems,
+          technicians_assigned: [mech1, mech2, mech3].filter((m) => m && m.trim().length > 0),
+          mechanic_signature_url: signatureTech,
+        };
+
+        const record = await saveCheckupAsync({
+          type: 'understeel',
+          document_number: docNo,
+          work_order_id: selectedSpkId || undefined,
+          vehicle_id: selectedSpk?.vehicle_id || undefined,
+          customer_name: customerName,
+          license_plate: formatPlate(licensePlate),
+          car_model: `${carBrand} ${carModel}`,
+          technician_name: mech1 || technicianName,
+          check_date: checkDate,
+          understeel_data: understeelData,
+          created_at: new Date().toISOString(),
+        });
+
+        showToast('Form Keluhan Understeel berhasil disimpan permanen!', 'success');
         setSavedRecord(record);
       }
     } catch (err: any) {
@@ -364,7 +457,7 @@ function NewCheckupPageContent() {
       </div>
 
       {/* Form Type Selector */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <button
           type="button"
           onClick={() => setCheckupType('qc_general')}
@@ -379,10 +472,10 @@ function NewCheckupPageContent() {
           </div>
           <div>
             <div className="font-black text-sm text-slate-900">
-              1. Quality Control Tune Up (23 Titik)
+              1. Quality Control Tune Up
             </div>
             <p className="text-[11px] text-slate-500">
-              Pemeriksaan aki, pembersihan sensor contact cleaner &amp; checklist fisik 16 titik
+              Pemeriksaan aki, pembersihan sensor &amp; checklist fisik 16 titik
             </p>
           </div>
         </button>
@@ -404,7 +497,29 @@ function NewCheckupPageContent() {
               2. Quality Control AC
             </div>
             <p className="text-[11px] text-slate-500">
-              Pemeriksaan mesin mati/nyala, suhu hembusan &amp; tekanan freon psi
+              Pemeriksaan kompresor, suhu hembusan &amp; tekanan freon psi
+            </p>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setCheckupType('understeel')}
+          className={`p-4 rounded-2xl border text-left transition flex items-center space-x-3 ${
+            checkupType === 'understeel'
+              ? 'bg-amber-50 border-amber-600 shadow-md ring-2 ring-amber-600/20'
+              : 'bg-white border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <div className="w-10 h-10 rounded-xl bg-amber-700 text-white flex items-center justify-center font-bold">
+            <Car className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="font-black text-sm text-slate-900">
+              3. Form Keluhan Understeel
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Pemeriksaan shock, mounting, rack steer, ball joint &amp; bushing (26 Titik)
             </p>
           </div>
         </button>
@@ -414,10 +529,10 @@ function NewCheckupPageContent() {
         {/* Common Info Header */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-4">
           <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800 pb-2 border-b border-slate-100">
-            Identitas Kendaraan & Pelanggan
+            Identitas Kendaraan &amp; Pelanggan
           </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 gap-3 text-xs">
             <div>
               <label className="block font-bold text-slate-700 mb-1">Nomor Polisi (Plat Mobil)</label>
               <input
@@ -439,12 +554,42 @@ function NewCheckupPageContent() {
               />
             </div>
             <div>
+              <label className="block font-bold text-slate-700 mb-1">Merk Mobil</label>
+              <input
+                type="text"
+                value={carBrand}
+                onChange={(e) => setCarBrand(e.target.value)}
+                placeholder="Toyota, Honda, dll"
+                className="w-full p-2 rounded-xl border border-slate-200 font-medium"
+              />
+            </div>
+            <div>
               <label className="block font-bold text-slate-700 mb-1">Tipe / Model Mobil</label>
               <input
                 type="text"
                 required
                 value={carModel}
                 onChange={(e) => setCarModel(e.target.value)}
+                className="w-full p-2 rounded-xl border border-slate-200 font-medium"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Tahun Kendaraan</label>
+              <input
+                type="number"
+                value={carYear}
+                onChange={(e) => setCarYear(e.target.value)}
+                placeholder="2021"
+                className="w-full p-2 rounded-xl border border-slate-200 font-medium"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Warna Kendaraan</label>
+              <input
+                type="text"
+                value={carColor}
+                onChange={(e) => setCarColor(e.target.value)}
+                placeholder="Putih, Hitam, dll"
                 className="w-full p-2 rounded-xl border border-slate-200 font-medium"
               />
             </div>
@@ -456,16 +601,6 @@ function NewCheckupPageContent() {
                 value={mileage}
                 onChange={(e) => setMileage(Number(e.target.value))}
                 className="w-full p-2 rounded-xl border border-slate-200 font-mono font-bold"
-              />
-            </div>
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">Nama Teknisi Pemeriksa</label>
-              <input
-                type="text"
-                required
-                value={technicianName}
-                onChange={(e) => setTechnicianName(e.target.value)}
-                className="w-full p-2 rounded-xl border border-slate-200 font-medium"
               />
             </div>
             <div>
@@ -879,6 +1014,217 @@ function NewCheckupPageContent() {
           </div>
         )}
 
+        {/* --- RENDER FORM 3: FORM KELUHAN UNDERSTEEL --- */}
+        {checkupType === 'understeel' && (
+          <div className="space-y-6">
+            {/* Table of 26 Points + 5 Custom Rows */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="font-black text-sm uppercase tracking-wider text-slate-900 flex items-center space-x-2">
+                    <Car className="w-4 h-4 text-amber-600" />
+                    <span>Daftar Order Pemeriksaan Kaki-Kaki (26 Titik Standar)</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Centang "DIGANTI" jika part harus diganti baru, atau "SERVICE" jika part bisa diservis/rekondisi.
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold uppercase text-[11px]">
+                      <th className="p-2.5 w-12 text-center">#</th>
+                      <th className="p-2.5">Order / Nama Komponen</th>
+                      <th className="p-2.5 w-24 text-center">DIGANTI</th>
+                      <th className="p-2.5 w-24 text-center">SERVICE</th>
+                      <th className="p-2.5">Keterangan / Posisi (Kiri/Kanan/Depan/Belakang)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {understeelItems.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50">
+                        <td className="p-2.5 text-center font-bold text-slate-500">{item.no}</td>
+                        <td className="p-2.5 font-bold text-slate-900">
+                          {item.label}
+                          {item.sub_label && (
+                            <span className="text-slate-400 font-normal ml-1">({item.sub_label})</span>
+                          )}
+                        </td>
+                        <td className="p-2.5 text-center">
+                          <label className="inline-flex items-center justify-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={item.replace}
+                              onChange={(e) => {
+                                const copy = [...understeelItems];
+                                copy[idx].replace = e.target.checked;
+                                setUndersteelItems(copy);
+                              }}
+                              className="w-4 h-4 text-red-600 rounded border-slate-300 focus:ring-red-500"
+                            />
+                          </label>
+                        </td>
+                        <td className="p-2.5 text-center">
+                          <label className="inline-flex items-center justify-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={item.service}
+                              onChange={(e) => {
+                                const copy = [...understeelItems];
+                                copy[idx].service = e.target.checked;
+                                setUndersteelItems(copy);
+                              }}
+                              className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                            />
+                          </label>
+                        </td>
+                        <td className="p-2.5">
+                          <input
+                            type="text"
+                            placeholder="Contoh: Bunyi jeduk, bocor oli, robek, dll..."
+                            value={item.notes}
+                            onChange={(e) => {
+                              const copy = [...understeelItems];
+                              copy[idx].notes = e.target.value;
+                              setUndersteelItems(copy);
+                            }}
+                            className="w-full p-1.5 rounded-lg border border-slate-200 text-xs font-medium focus:ring-1 focus:ring-amber-500 outline-none"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+
+                    {/* Section Keterangan Lain-Lain */}
+                    <tr className="bg-slate-100/70 font-black text-slate-800 text-[11px]">
+                      <td colSpan={5} className="p-2.5 uppercase">
+                        KETERANGAN LAIN LAIN (Baris Tambahan)
+                      </td>
+                    </tr>
+
+                    {understeelCustomItems.map((c, cIdx) => (
+                      <tr key={`custom-input-${cIdx}`} className="hover:bg-slate-50/50">
+                        <td className="p-2.5 text-center font-bold text-slate-400">+{cIdx + 1}</td>
+                        <td className="p-2.5">
+                          <input
+                            type="text"
+                            placeholder="Nama item / keluhan tambahan..."
+                            value={c.label}
+                            onChange={(e) => {
+                              const copy = [...understeelCustomItems];
+                              copy[cIdx].label = e.target.value;
+                              setUndersteelCustomItems(copy);
+                            }}
+                            className="w-full p-1.5 rounded-lg border border-slate-200 text-xs font-bold focus:ring-1 focus:ring-amber-500 outline-none"
+                          />
+                        </td>
+                        <td className="p-2.5 text-center">
+                          <label className="inline-flex items-center justify-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={c.replace}
+                              onChange={(e) => {
+                                const copy = [...understeelCustomItems];
+                                copy[cIdx].replace = e.target.checked;
+                                setUndersteelCustomItems(copy);
+                              }}
+                              className="w-4 h-4 text-red-600 rounded border-slate-300 focus:ring-red-500"
+                            />
+                          </label>
+                        </td>
+                        <td className="p-2.5 text-center">
+                          <label className="inline-flex items-center justify-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={c.service}
+                              onChange={(e) => {
+                                const copy = [...understeelCustomItems];
+                                copy[cIdx].service = e.target.checked;
+                                setUndersteelCustomItems(copy);
+                              }}
+                              className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                            />
+                          </label>
+                        </td>
+                        <td className="p-2.5">
+                          <input
+                            type="text"
+                            placeholder="Keterangan kondisi..."
+                            value={c.notes}
+                            onChange={(e) => {
+                              const copy = [...understeelCustomItems];
+                              copy[cIdx].notes = e.target.value;
+                              setUndersteelCustomItems(copy);
+                            }}
+                            className="w-full p-1.5 rounded-lg border border-slate-200 text-xs font-medium focus:ring-1 focus:ring-amber-500 outline-none"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Keterangan Yang Mengerjakan (3 Mekanik) & TTD */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-3">
+                <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800 pb-2 border-b border-slate-100">
+                  Keterangan Yang Mengerjakan
+                </h3>
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <label className="block font-medium text-slate-600 mb-1">Mekanik 1 (Utama)</label>
+                    <input
+                      type="text"
+                      value={mech1}
+                      onChange={(e) => {
+                        setMech1(e.target.value);
+                        setTechnicianName(e.target.value);
+                      }}
+                      placeholder="Nama Mekanik 1..."
+                      className="w-full p-2 rounded-xl border border-slate-200 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-medium text-slate-600 mb-1">Mekanik 2 (Asisten / Helper)</label>
+                    <input
+                      type="text"
+                      value={mech2}
+                      onChange={(e) => setMech2(e.target.value)}
+                      placeholder="Nama Mekanik 2 (opsional)..."
+                      className="w-full p-2 rounded-xl border border-slate-200 font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-medium text-slate-600 mb-1">Mekanik 3 (Asisten / Helper)</label>
+                    <input
+                      type="text"
+                      value={mech3}
+                      onChange={(e) => setMech3(e.target.value)}
+                      placeholder="Nama Mekanik 3 (opsional)..."
+                      className="w-full p-2 rounded-xl border border-slate-200 font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-2 flex flex-col justify-between">
+                <div>
+                  <span className="block font-bold text-xs text-slate-900 uppercase">
+                    Tanda Tangan Digital Mekanik
+                  </span>
+                  <p className="text-[11px] text-slate-500">
+                    Bubuhkan tanda tangan untuk lembar cetak sah.
+                  </p>
+                </div>
+                <SignatureCanvas onSave={(url) => setSignatureTech(url)} />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Submit Bar */}
         <div className="flex items-center justify-end space-x-3 pt-4">
           <Link
@@ -925,6 +1271,13 @@ function NewCheckupPageContent() {
             {savedRecord.type === 'ac_specialist' && savedRecord.ac_data && (
               <PrintableACCheckup
                 checkup={savedRecord.ac_data}
+                settings={settings}
+                onClose={() => router.push('/checkup')}
+              />
+            )}
+            {savedRecord.type === 'understeel' && savedRecord.understeel_data && (
+              <PrintableUndersteelCheckup
+                checkup={savedRecord.understeel_data}
                 settings={settings}
                 onClose={() => router.push('/checkup')}
               />

@@ -157,7 +157,34 @@ export interface ACCheckupData {
   technician_signature_url?: string;
 }
 
-export type CheckupType = 'qc_general' | 'ac_specialist';
+// 3. FORM KELUHAN UNDERSTEEL (Kaki-Kaki & Suspensi)
+export interface UndersteelPointItem {
+  no: number;
+  label: string;
+  sub_label?: string;
+  replace: boolean; // DIGANTI
+  service: boolean; // SERVICE
+  notes: string;    // KETERANGAN
+}
+
+export interface UndersteelCheckupData {
+  document_number: string;
+  check_date: string;
+  technician_name: string;
+  customer_name?: string;
+  license_plate: string;
+  car_brand?: string;
+  car_model?: string;
+  car_year?: number;
+  car_color?: string;
+  mileage?: number;
+  items: UndersteelPointItem[];
+  custom_items?: { label: string; replace: boolean; service: boolean; notes: string }[];
+  technicians_assigned?: string[]; // Mekanik 1, 2, 3
+  mechanic_signature_url?: string;
+}
+
+export type CheckupType = 'qc_general' | 'ac_specialist' | 'understeel';
 
 export interface CheckupRecord {
   id: string;
@@ -172,6 +199,7 @@ export interface CheckupRecord {
   check_date: string;
   qc_data?: QCGeneralCheckupData;
   ac_data?: ACCheckupData;
+  understeel_data?: UndersteelCheckupData;
   created_at: string;
   updated_at?: string;
 }
