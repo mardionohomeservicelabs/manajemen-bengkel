@@ -62,7 +62,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
               <h2 className="text-base font-black text-slate-900">Hak Akses Terbatas (Role Mekanik)</h2>
               <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                Role Mekanik hanya memiliki akses ke modul <strong>General Checkup, Tune-Up &amp; AC Mobil</strong>. Mengalihkan ke lembar checklist...
+                Role Mekanik dikhususkan untuk mengisi modul <strong>Checklist Quality Control (Tune Up, AC &amp; Understeel)</strong>. Mengalihkan ke lembar checklist...
               </p>
             </div>
           </main>

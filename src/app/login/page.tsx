@@ -214,26 +214,64 @@ export default function LoginPage() {
               </button>
             </form>
 
-            {/* Branches Info */}
-            <div className="mt-6 pt-5 border-t border-slate-700/40">
-              <div className="flex items-center space-x-2 mb-3">
-                <Building2 className="w-3.5 h-3.5 text-slate-500" />
-                <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
-                  Cabang Tersedia
-                </span>
+            {/* Branches & Mechanic Quick Fill Info */}
+            <div className="mt-6 pt-5 border-t border-slate-700/40 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Building2 className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-[11px] text-amber-400 font-bold uppercase tracking-wider">
+                    Akses Cepat Login Mekanik
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-400">Klik untuk isi otomatis</span>
               </div>
-              <div className="flex gap-2">
-                {BRANCHES.map((branch: BranchId) => (
-                  <div
-                    key={branch}
-                    className="flex-1 text-center py-1.5 px-2 rounded-lg bg-slate-800/50 border border-slate-700/50 text-[11px] font-bold text-slate-300"
-                  >
-                    {branch}
-                  </div>
-                ))}
+
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('mekanik@mhs1.mardiono');
+                    setPassword('mhs1mekanik');
+                    setError('');
+                  }}
+                  className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/50 text-left transition cursor-pointer group"
+                >
+                  <div className="text-[10px] font-black text-amber-300 group-hover:text-amber-200">MHS 1 (Trosobo)</div>
+                  <div className="text-[9px] text-slate-400 truncate">Agus Susanto</div>
+                  <div className="text-[8.5px] text-slate-500 font-mono mt-0.5">mhs1mekanik</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('mekanik@mhs2.mardiono');
+                    setPassword('mhs2mekanik');
+                    setError('');
+                  }}
+                  className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/50 text-left transition cursor-pointer group"
+                >
+                  <div className="text-[10px] font-black text-amber-300 group-hover:text-amber-200">MHS 2 (Wiyung)</div>
+                  <div className="text-[9px] text-slate-400 truncate">Budi Santoso</div>
+                  <div className="text-[8.5px] text-slate-500 font-mono mt-0.5">mhs2mekanik</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('mekanik@mhs3.mardiono');
+                    setPassword('mhs3mekanik');
+                    setError('');
+                  }}
+                  className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/50 text-left transition cursor-pointer group"
+                >
+                  <div className="text-[10px] font-black text-amber-300 group-hover:text-amber-200">MHS 3 (Kenjeran)</div>
+                  <div className="text-[9px] text-slate-400 truncate">Agus Susanto</div>
+                  <div className="text-[8.5px] text-slate-500 font-mono mt-0.5">mhs3mekanik</div>
+                </button>
               </div>
-              <p className="text-[10px] text-slate-600 text-center mt-2">
-                Hubungi Owner untuk reset password
+
+              <p className="text-[10px] text-slate-500 text-center pt-1">
+                🔒 Akun mekanik hanya memiliki izin untuk mengisi &amp; melihat formulir checklist.
               </p>
             </div>
           </div>
