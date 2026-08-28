@@ -28,6 +28,7 @@ import {
   AlertCircle,
   ClipboardList,
   Sparkles,
+  Lock,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Suspense } from 'react';
@@ -35,6 +36,7 @@ import { SignatureCanvas } from '@/components/ui/SignatureCanvas';
 import { PrintableGeneralCheckup } from '@/components/ui/PrintableGeneralCheckup';
 import { PrintableACCheckup } from '@/components/ui/PrintableACCheckup';
 import { PrintableUndersteelCheckup } from '@/components/ui/PrintableUndersteelCheckup';
+import { EditLicensePlateModal } from '@/components/ui/EditLicensePlateModal';
 
 function NewCheckupPageContent() {
   const router = useRouter();
@@ -45,9 +47,12 @@ function NewCheckupPageContent() {
 
   const [checkupType, setCheckupType] = useState<CheckupType>('qc_general');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showEditPlateModal, setShowEditPlateModal] = useState(false);
 
   // Selected Active SPK
   const [selectedSpkId, setSelectedSpkId] = useState<string>(spkIdParam || '');
+  const selectedSpk = workOrders.find((w) => w.id === selectedSpkId);
+  const isLocked = selectedSpk?.status === 'completed';
 
   // Common Header Info
   const [customerName, setCustomerName] = useState('Ahmad Fadillah');
@@ -224,6 +229,11 @@ function NewCheckupPageContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isLocked) {
+      showToast('Formulir QC terkunci karena pekerjaan SPK ini telah berstatus Selesai.', 'warning');
+      return;
+    }
 
     const selectedSpk = workOrders.find((w) => w.id === selectedSpkId);
     setIsSubmitting(true);
@@ -447,14 +457,55 @@ function NewCheckupPageContent() {
         </select>
 
         {selectedSpkId && (
-          <div className="flex items-center space-x-2 text-[11px] text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 font-bold">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-            <span>
-              Terhubung dengan SPK: {workOrders.find((w) => w.id === selectedSpkId)?.spk_number}. Hasil checkup akan otomatis tersimpan & terlampir!
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-emerald-800 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200 font-bold">
+            <div className="flex items-center space-x-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+              <span>
+                Terhubung dengan SPK: <strong>{selectedSpk?.spk_number}</strong> ({selectedSpk?.vehicle?.car_brand} {selectedSpk?.vehicle?.car_model})
+              </span>
+            </div>
+            {selectedSpk?.vehicle && (
+              <button
+                type="button"
+                onClick={() => setShowEditPlateModal(true)}
+                className="inline-flex items-center space-x-1 text-xs font-bold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg transition cursor-pointer"
+              >
+                <Car className="w-3.5 h-3.5" />
+                <span>Ganti Plat ({selectedSpk.vehicle.license_plate ? formatPlate(selectedSpk.vehicle.license_plate) : ''})</span>
+              </button>
+            )}
           </div>
         )}
       </div>
+
+      {/* PROMINENT LOCKING BANNER */}
+      {isLocked && (
+        <div className="bg-amber-50 border-2 border-amber-400 text-amber-950 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in duration-150">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+              <Lock className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-black text-sm text-amber-950 flex items-center space-x-1.5">
+                <span>Formulir QC Terkunci (Pekerjaan Selesai)</span>
+              </h4>
+              <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
+                Pekerjaan untuk SPK <strong>{selectedSpk?.spk_number}</strong> telah berstatus Selesai. Hasil pemeriksaan checklist tidak dapat diubah lagi. <em>Plat nomor kendaraan tetap dapat diubah jika diperlukan.</em>
+              </p>
+            </div>
+          </div>
+          {selectedSpk?.vehicle && (
+            <button
+              type="button"
+              onClick={() => setShowEditPlateModal(true)}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-amber-300 rounded-xl text-xs font-bold transition shadow-xs flex-shrink-0 cursor-pointer"
+            >
+              <Car className="w-4 h-4 text-blue-600" />
+              <span>Ubah Plat Nomor</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Form Type Selector */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1233,16 +1284,40 @@ function NewCheckupPageContent() {
           >
             Batal
           </Link>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="inline-flex items-center space-x-2 bg-maroon-700 hover:bg-maroon-800 text-white font-black text-xs px-6 py-2.5 rounded-xl shadow-md transition disabled:opacity-50"
-          >
-            <Save className="w-4 h-4" />
-            <span>{isSubmitting ? 'Menyimpan ke Supabase...' : 'Simpan & Terbitkan Formulir Checkup'}</span>
-          </button>
+          {isLocked ? (
+            <div className="inline-flex items-center space-x-2 bg-slate-200 text-slate-600 font-bold text-xs px-6 py-2.5 rounded-xl border border-slate-300 cursor-not-allowed">
+              <Lock className="w-4 h-4 text-amber-600" />
+              <span>Formulir QC Terkunci (Pekerjaan Selesai)</span>
+            </div>
+          ) : (
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="inline-flex items-center space-x-2 bg-maroon-700 hover:bg-maroon-800 text-white font-black text-xs px-6 py-2.5 rounded-xl shadow-md transition disabled:opacity-50 cursor-pointer"
+            >
+              <Save className="w-4 h-4" />
+              <span>{isSubmitting ? 'Menyimpan ke Supabase...' : 'Simpan & Terbitkan Formulir Checkup'}</span>
+            </button>
+          )}
         </div>
       </form>
+
+      {/* Modal Edit Plat Nomor */}
+      {showEditPlateModal && (selectedSpk?.vehicle || licensePlate) && (
+        <EditLicensePlateModal
+          vehicleId={selectedSpk?.vehicle?.id || selectedSpk?.vehicle_id || ''}
+          currentPlate={licensePlate}
+          customerName={customerName}
+          carModel={carModel}
+          onClose={() => setShowEditPlateModal(false)}
+          onSuccess={(newPlate) => {
+            setLicensePlate(newPlate);
+            if (selectedSpk?.vehicle) {
+              selectedSpk.vehicle.license_plate = newPlate;
+            }
+          }}
+        />
+      )}
 
       {/* Success Modal */}
       {savedRecord && (

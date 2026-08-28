@@ -13,17 +13,20 @@ import {
   Trash2,
   Eye,
   ShieldCheck,
-  Car
+  Car,
+  Lock,
 } from 'lucide-react';
 import { PrintableGeneralCheckup } from '@/components/ui/PrintableGeneralCheckup';
 import { PrintableACCheckup } from '@/components/ui/PrintableACCheckup';
 import { PrintableUndersteelCheckup } from '@/components/ui/PrintableUndersteelCheckup';
+import { EditLicensePlateModal } from '@/components/ui/EditLicensePlateModal';
 
 export default function CheckupPage() {
-  const { checkups, settings, deleteCheckupAsync, showToast } = useApp();
+  const { checkups, workOrders, settings, deleteCheckupAsync, showToast } = useApp();
   const [activeTab, setActiveTab] = useState<'all' | 'qc_general' | 'ac_specialist' | 'understeel'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<CheckupRecord | null>(null);
+  const [editingPlateRecord, setEditingPlateRecord] = useState<CheckupRecord | null>(null);
 
   const filteredCheckups = checkups.filter((c) => {
     const matchesTab = activeTab === 'all' || c.type === activeTab;
@@ -128,10 +131,10 @@ export default function CheckupPage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold uppercase text-[11px]">
-                  <th className="p-3.5">No. Dokumen & Jenis</th>
-                  <th className="p-3.5">Plat & Kendaraan</th>
+                  <th className="p-3.5">No. Dokumen &amp; Jenis</th>
+                  <th className="p-3.5">Plat &amp; Kendaraan</th>
                   <th className="p-3.5">Pelanggan</th>
-                  <th className="p-3.5">Tanggal & Teknisi</th>
+                  <th className="p-3.5">Tanggal &amp; Teknisi</th>
                   <th className="p-3.5 text-right">Aksi</th>
                 </tr>
               </thead>
@@ -141,38 +144,63 @@ export default function CheckupPage() {
                     <td colSpan={5} className="p-8 text-center text-slate-400">Belum ada data.</td>
                   </tr>
                 ) : (
-                  filteredCheckups.map((rec) => (
-                    <tr key={rec.id} onClick={() => setSelectedRecord(rec)} className="hover:bg-maroon-50/30 transition cursor-pointer">
-                      <td className="p-3.5">
-                        <div className="font-mono font-bold text-slate-900">{rec.document_number}</div>
-                        <span className={`inline-block mt-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                            rec.type === 'qc_general' ? 'bg-red-50 text-red-700 border-red-200' : 
-                            rec.type === 'understeel' ? 'bg-amber-50 text-amber-800 border-amber-200' : 
-                            'bg-blue-50 text-blue-700 border-blue-200'
-                          }`}>
-                          {rec.type === 'qc_general' ? 'Quality Control Tune Up' : rec.type === 'understeel' ? 'Form Keluhan Understeel' : 'Quality Control AC'}
-                        </span>
-                      </td>
-                      <td className="p-3.5">
-                        <div className="font-black text-maroon-900 text-sm">{formatPlate(rec.license_plate)}</div>
-                        <div className="text-slate-700 font-medium">{rec.car_model}</div>
-                      </td>
-                      <td className="p-3.5 font-semibold text-slate-900">{rec.customer_name}</td>
-                      <td className="p-3.5">
-                        <div className="font-medium text-slate-800">{formatDate(rec.check_date)}</div>
-                        <div className="text-[11px] text-slate-500 font-medium">Teknisi: {rec.technician_name}</div>
-                      </td>
-                      <td className="p-3.5 text-right space-x-1">
-                        <button onClick={(e) => { e.stopPropagation(); setSelectedRecord(rec); }} className="inline-flex items-center space-x-1 bg-maroon-50 hover:bg-maroon-100 text-maroon-800 font-bold px-3 py-1.5 rounded-lg text-xs transition border border-maroon-200">
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>Detail</span>
-                        </button>
-                        <button onClick={(e) => handleDelete(rec.id, e)} className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  filteredCheckups.map((rec) => {
+                    const linkedWo = workOrders.find((w) => w.id === rec.work_order_id);
+                    const isLocked = linkedWo?.status === 'completed';
+
+                    return (
+                      <tr key={rec.id} onClick={() => setSelectedRecord(rec)} className="hover:bg-maroon-50/30 transition cursor-pointer">
+                        <td className="p-3.5">
+                          <div className="font-mono font-bold text-slate-900">{rec.document_number}</div>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                            <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                rec.type === 'qc_general' ? 'bg-red-50 text-red-700 border-red-200' : 
+                                rec.type === 'understeel' ? 'bg-amber-50 text-amber-800 border-amber-200' : 
+                                'bg-blue-50 text-blue-700 border-blue-200'
+                              }`}>
+                              {rec.type === 'qc_general' ? 'QC Tune Up' : rec.type === 'understeel' ? 'Understeel' : 'QC AC'}
+                            </span>
+                            {isLocked && (
+                              <span className="inline-flex items-center space-x-0.5 text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                                <Lock className="w-2.5 h-2.5 text-amber-700" />
+                                <span>Terkunci</span>
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3.5">
+                          <div className="font-black text-maroon-900 text-sm">{formatPlate(rec.license_plate)}</div>
+                          <div className="text-slate-700 font-medium">{rec.car_model}</div>
+                        </td>
+                        <td className="p-3.5 font-semibold text-slate-900">{rec.customer_name}</td>
+                        <td className="p-3.5">
+                          <div className="font-medium text-slate-800">{formatDate(rec.check_date)}</div>
+                          <div className="text-[11px] text-slate-500 font-medium">Teknisi: {rec.technician_name}</div>
+                        </td>
+                        <td className="p-3.5 text-right space-x-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingPlateRecord(rec);
+                            }}
+                            className="inline-flex items-center space-x-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2.5 py-1.5 rounded-lg text-xs transition border border-blue-200"
+                            title="Ganti Plat Nomor Kendaraan"
+                          >
+                            <Car className="w-3.5 h-3.5" />
+                            <span>Ganti Plat</span>
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); setSelectedRecord(rec); }} className="inline-flex items-center space-x-1 bg-maroon-50 hover:bg-maroon-100 text-maroon-800 font-bold px-3 py-1.5 rounded-lg text-xs transition border border-maroon-200">
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Detail</span>
+                          </button>
+                          <button onClick={(e) => handleDelete(rec.id, e)} className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -180,6 +208,7 @@ export default function CheckupPage() {
         </div>
       </div>
 
+      {/* Modal Preview Checklist */}
       {selectedRecord && (
         <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
           <div className="w-full max-w-4xl max-h-[92vh] overflow-y-auto">
@@ -194,6 +223,20 @@ export default function CheckupPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Modal Edit Plat Nomor */}
+      {editingPlateRecord && (
+        <EditLicensePlateModal
+          vehicleId={editingPlateRecord.vehicle_id || ''}
+          currentPlate={editingPlateRecord.license_plate}
+          customerName={editingPlateRecord.customer_name}
+          carModel={editingPlateRecord.car_model}
+          onClose={() => setEditingPlateRecord(null)}
+          onSuccess={(newPlate) => {
+            editingPlateRecord.license_plate = newPlate;
+          }}
+        />
       )}
     </div>
   );

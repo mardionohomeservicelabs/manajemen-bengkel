@@ -25,9 +25,11 @@ import {
   ChevronRight,
   User,
   Wrench,
+  Lock,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PrintableSPK } from '@/components/ui/PrintableSPK';
+import { EditLicensePlateModal } from '@/components/ui/EditLicensePlateModal';
 
 function SPKListContent() {
   const { workOrders, refreshData, showToast, settings, currentRole, updateWorkOrderStatusAsync } = useApp();
@@ -37,6 +39,7 @@ function SPKListContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
+  const [editingPlateOrder, setEditingPlateOrder] = useState<WorkOrder | null>(null);
 
   useEffect(() => {
     if (targetId && workOrders.length > 0) {
@@ -226,7 +229,18 @@ function SPKListContent() {
                         </select>
                       </td>
 
-                      <td className="p-3.5 align-top text-right space-x-1">
+                      <td className="p-3.5 align-top text-right space-x-1.5 whitespace-nowrap">
+                        {order.vehicle && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingPlateOrder(order)}
+                            className="inline-flex items-center space-x-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2.5 py-1.5 rounded-lg text-xs transition border border-blue-200"
+                            title="Ganti Plat Nomor Kendaraan"
+                          >
+                            <Car className="w-3.5 h-3.5" />
+                            <span>Ganti Plat</span>
+                          </button>
+                        )}
                         <button
                           onClick={() => setSelectedOrder(order)}
                           className="inline-flex items-center space-x-1 bg-slate-100 hover:bg-maroon-50 text-slate-700 hover:text-maroon-700 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
@@ -257,6 +271,22 @@ function SPKListContent() {
             />
           </div>
         </div>
+      )}
+
+      {/* Modal Edit Plat Nomor */}
+      {editingPlateOrder && editingPlateOrder.vehicle && (
+        <EditLicensePlateModal
+          vehicleId={editingPlateOrder.vehicle.id}
+          currentPlate={editingPlateOrder.vehicle.license_plate}
+          customerName={editingPlateOrder.vehicle.customer_name}
+          carModel={`${editingPlateOrder.vehicle.car_brand} ${editingPlateOrder.vehicle.car_model}`}
+          onClose={() => setEditingPlateOrder(null)}
+          onSuccess={(newPlate) => {
+            if (editingPlateOrder.vehicle) {
+              editingPlateOrder.vehicle.license_plate = newPlate;
+            }
+          }}
+        />
       )}
     </div>
   );

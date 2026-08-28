@@ -300,6 +300,119 @@ export class DBService {
     return localSaved;
   }
 
+  /**
+   * Update Plat Nomor Kendaraan di seluruh sistem (Vehicles, SPK, Checkups, Invoices)
+   * Tetap dapat diubah meskipun status SPK sudah 'completed' (terkunci).
+   */
+  static updateVehiclePlate(
+    vehicleId: string,
+    newPlate: string,
+    branch?: BranchId
+  ): boolean {
+    const formattedPlate = newPlate.toUpperCase().trim();
+    if (!formattedPlate) return false;
+
+    // 1. Update Vehicles
+    const keyVehicles = getBranchKey(BASE_STORAGE_KEYS.VEHICLES, branch);
+    const vehicles = getLocal<VehicleCustomer[]>(keyVehicles, []);
+    const vIdx = vehicles.findIndex((v) => v.id === vehicleId);
+    let oldPlate = '';
+    if (vIdx !== -1) {
+      oldPlate = vehicles[vIdx].license_plate;
+      vehicles[vIdx].license_plate = formattedPlate;
+      vehicles[vIdx].updated_at = new Date().toISOString();
+      setLocal(keyVehicles, vehicles);
+    }
+
+    // 2. Update Work Orders
+    const keyOrders = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, branch);
+    const orders = getLocal<WorkOrder[]>(keyOrders, []);
+    let ordersUpdated = false;
+    orders.forEach((o) => {
+      if (
+        o.vehicle_id === vehicleId ||
+        (o.vehicle && o.vehicle.id === vehicleId) ||
+        (oldPlate && o.vehicle?.license_plate === oldPlate)
+      ) {
+        if (o.vehicle) {
+          o.vehicle.license_plate = formattedPlate;
+        }
+        o.updated_at = new Date().toISOString();
+        ordersUpdated = true;
+      }
+    });
+    if (ordersUpdated) {
+      setLocal(keyOrders, orders);
+    }
+
+    // 3. Update Checkups
+    const keyCheckups = getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, branch);
+    const checkups = getLocal<CheckupRecord[]>(keyCheckups, []);
+    let checkupsUpdated = false;
+    checkups.forEach((c) => {
+      if (c.vehicle_id === vehicleId || (oldPlate && c.license_plate === oldPlate)) {
+        c.license_plate = formattedPlate;
+        if (c.qc_data) c.qc_data.license_plate = formattedPlate;
+        if (c.ac_data) c.ac_data.license_plate = formattedPlate;
+        if (c.understeel_data) c.understeel_data.license_plate = formattedPlate;
+        c.updated_at = new Date().toISOString();
+        checkupsUpdated = true;
+      }
+    });
+    if (checkupsUpdated) {
+      setLocal(keyCheckups, checkups);
+    }
+
+    // 4. Update Invoices / Estimations
+    const keyInvoices = getBranchKey(BASE_STORAGE_KEYS.INVOICES, branch);
+    const invoices = getLocal<Invoice[]>(keyInvoices, []);
+    let invoicesUpdated = false;
+    invoices.forEach((inv) => {
+      if (
+        inv.vehicle_id === vehicleId ||
+        (inv.vehicle && inv.vehicle.id === vehicleId) ||
+        (oldPlate && inv.vehicle?.license_plate === oldPlate)
+      ) {
+        if (inv.vehicle) {
+          inv.vehicle.license_plate = formattedPlate;
+        }
+        invoicesUpdated = true;
+      }
+    });
+    if (invoicesUpdated) {
+      setLocal(keyInvoices, invoices);
+    }
+
+    return true;
+  }
+
+  static async updateVehiclePlateAsync(
+    vehicleId: string,
+    newPlate: string,
+    branch?: BranchId
+  ): Promise<boolean> {
+    const formattedPlate = newPlate.toUpperCase().trim();
+    if (!formattedPlate) return false;
+
+    this.updateVehiclePlate(vehicleId, formattedPlate, branch);
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('vehicles_customers')
+          .update({
+            license_plate: formattedPlate,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', vehicleId);
+      } catch (err) {
+        console.warn('Supabase updateVehiclePlate exception:', err);
+      }
+    }
+
+    return true;
+  }
+
   // --- INVENTORY & SPAREPARTS (PER CABANG) ---
   static getInventory(branch?: BranchId): InventoryItem[] {
     const key = getBranchKey(BASE_STORAGE_KEYS.INVENTORY, branch);

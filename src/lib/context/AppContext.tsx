@@ -47,6 +47,7 @@ interface AppContextType {
     approvedOption: 'opsi1' | 'opsi2'
   ) => Promise<Invoice | null>;
   updateWorkOrderStatusAsync: (id: string, status: WorkOrderStatus) => Promise<boolean>;
+  updateVehiclePlateAsync: (vehicleId: string, newPlate: string) => Promise<boolean>;
   toasts: ToastMessage[];
   showToast: (message: string, type?: ToastMessage['type'], title?: string) => void;
   removeToast: (id: string) => void;
@@ -166,6 +167,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return ok;
   };
 
+  const updateVehiclePlateAsync = async (vehicleId: string, newPlate: string): Promise<boolean> => {
+    const ok = await DBService.updateVehiclePlateAsync(vehicleId, newPlate, activeBranch);
+    refreshData();
+    if (ok) {
+      showToast(`Plat nomor berhasil diperbarui menjadi ${newPlate.toUpperCase()}`, 'success');
+    }
+    return ok;
+  };
+
   const showToast = (message: string, type: ToastMessage['type'] = 'info', title?: string) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
     const newToast: ToastMessage = { id, message, type, title };
@@ -201,6 +211,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         saveInvoiceAsync,
         approveEstimationSignatureAsync,
         updateWorkOrderStatusAsync,
+        updateVehiclePlateAsync,
         toasts,
         showToast,
         removeToast,

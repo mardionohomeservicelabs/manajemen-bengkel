@@ -24,9 +24,11 @@ import {
   PlusCircle,
   ChevronRight,
   Filter,
+  Lock,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PrintableSPK } from '@/components/ui/PrintableSPK';
+import { EditLicensePlateModal } from '@/components/ui/EditLicensePlateModal';
 
 const COLUMNS: { id: WorkOrderStatus; title: string; color: string; border: string; bg: string }[] = [
   {
@@ -77,6 +79,7 @@ export default function QueueBoardPage() {
   const { workOrders, showToast, settings, currentRole, updateWorkOrderStatusAsync } = useApp();
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
+  const [editingPlateOrder, setEditingPlateOrder] = useState<WorkOrder | null>(null);
 
   const handleStatusChange = async (orderId: string, newStatus: WorkOrderStatus) => {
     const success = await updateWorkOrderStatusAsync(orderId, newStatus);
@@ -205,48 +208,60 @@ export default function QueueBoardPage() {
                             </div>
                           </div>
 
-                          {/* Quick Action Buttons */}
-                          <div className="pt-2 border-t border-slate-100 flex flex-col space-y-1.5">
-                            <div className="flex items-center justify-between gap-1">
-                              <button
-                                onClick={() => setSelectedOrder(order)}
-                                className="flex-1 text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 py-1 px-1.5 rounded font-medium text-center transition"
-                              >
-                                SPK & Cek
-                              </button>
-                              <Link
-                                href={`/estimasi?spkId=${order.id}`}
-                                className="flex-1 text-[10px] bg-amber-50 hover:bg-amber-100 text-amber-800 py-1 px-1.5 rounded font-medium text-center border border-amber-200 transition"
-                              >
-                                Estimasi
-                              </Link>
-                              {col.id === 'completed' && (
-                                <Link
-                                  href={`/kasir?spkId=${order.id}`}
-                                  className="flex-1 text-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 py-1 px-1.5 rounded font-medium text-center border border-emerald-200 transition"
+                            {/* Quick Action Buttons */}
+                            <div className="pt-2 border-t border-slate-100 flex flex-col space-y-1.5">
+                              <div className="flex items-center justify-between gap-1">
+                                <button
+                                  onClick={() => setSelectedOrder(order)}
+                                  className="flex-1 text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 py-1 px-1.5 rounded font-medium text-center transition"
                                 >
-                                  Kasir
+                                  SPK & Cek
+                                </button>
+                                <Link
+                                  href={`/estimasi?spkId=${order.id}`}
+                                  className="flex-1 text-[10px] bg-amber-50 hover:bg-amber-100 text-amber-800 py-1 px-1.5 rounded font-medium text-center border border-amber-200 transition"
+                                >
+                                  Estimasi
                                 </Link>
-                              )}
-                            </div>
+                                {col.id === 'completed' && (
+                                  <Link
+                                    href={`/kasir?spkId=${order.id}`}
+                                    className="flex-1 text-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 py-1 px-1.5 rounded font-medium text-center border border-emerald-200 transition"
+                                  >
+                                    Kasir
+                                  </Link>
+                                )}
+                              </div>
 
-                            {/* Stage Move Dropdown */}
-                            <select
-                              value={order.status}
-                              onChange={(e) =>
-                                handleStatusChange(order.id, e.target.value as WorkOrderStatus)
-                              }
-                              className="w-full text-[10px] p-1 rounded border border-slate-200 bg-slate-50 text-slate-700 outline-none"
-                            >
-                              <option value="queue">Pindah: Antrean</option>
-                              <option value="estimating">Pindah: Estimasi</option>
-                              <option value="approved">Pindah: Disetujui</option>
-                              <option value="servicing">Pindah: Dikerjakan</option>
-                              <option value="waiting_parts">Pindah: Tunggu Part</option>
-                              <option value="completed">Pindah: Selesai</option>
-                              <option value="cancelled">Pindah: Batal</option>
-                            </select>
-                          </div>
+                              {/* Ganti Plat Button */}
+                              {vehicle && (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingPlateOrder(order)}
+                                  className="w-full inline-flex items-center justify-center space-x-1 text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-700 py-1 px-1.5 rounded font-bold border border-blue-200 transition"
+                                >
+                                  <Car className="w-3 h-3" />
+                                  <span>Ganti Plat Nomor</span>
+                                </button>
+                              )}
+
+                              {/* Stage Move Dropdown */}
+                              <select
+                                value={order.status}
+                                onChange={(e) =>
+                                  handleStatusChange(order.id, e.target.value as WorkOrderStatus)
+                                }
+                                className="w-full text-[10px] p-1 rounded border border-slate-200 bg-slate-50 text-slate-700 outline-none"
+                              >
+                                <option value="queue">Pindah: Antrean</option>
+                                <option value="estimating">Pindah: Estimasi</option>
+                                <option value="approved">Pindah: Disetujui</option>
+                                <option value="servicing">Pindah: Dikerjakan</option>
+                                <option value="waiting_parts">Pindah: Tunggu Part</option>
+                                <option value="completed">Pindah: Selesai</option>
+                                <option value="cancelled">Pindah: Batal</option>
+                              </select>
+                            </div>
                         </div>
                       );
                     })
@@ -309,7 +324,18 @@ export default function QueueBoardPage() {
                           <option value="cancelled">Batal</option>
                         </select>
                       </td>
-                      <td className="p-3.5 text-right space-x-2">
+                      <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
+                        {vehicle && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingPlateOrder(order)}
+                            className="px-2.5 py-1.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs border border-blue-200 inline-flex items-center space-x-1"
+                            title="Ganti Plat Nomor Kendaraan"
+                          >
+                            <Car className="w-3.5 h-3.5" />
+                            <span>Ganti Plat</span>
+                          </button>
+                        )}
                         <button
                           onClick={() => setSelectedOrder(order)}
                           className="px-2.5 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs"
@@ -344,6 +370,22 @@ export default function QueueBoardPage() {
             />
           </div>
         </div>
+      )}
+
+      {/* Modal Edit Plat Nomor */}
+      {editingPlateOrder && editingPlateOrder.vehicle && (
+        <EditLicensePlateModal
+          vehicleId={editingPlateOrder.vehicle.id}
+          currentPlate={editingPlateOrder.vehicle.license_plate}
+          customerName={editingPlateOrder.vehicle.customer_name}
+          carModel={`${editingPlateOrder.vehicle.car_brand} ${editingPlateOrder.vehicle.car_model}`}
+          onClose={() => setEditingPlateOrder(null)}
+          onSuccess={(newPlate) => {
+            if (editingPlateOrder.vehicle) {
+              editingPlateOrder.vehicle.license_plate = newPlate;
+            }
+          }}
+        />
       )}
     </div>
   );
