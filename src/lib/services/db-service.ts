@@ -1246,6 +1246,77 @@ export class DBService {
         setLocal(keyCheckups, checkups);
       }
 
+      // 3. Fetch Invoices & Estimations
+      const { data: invData, error: invErr } = await supabase
+        .from('invoices')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!invErr && invData) {
+        const keyInvoices = getBranchKey(BASE_STORAGE_KEYS.INVOICES, activeBranch);
+        const localInvoices = getLocal<Invoice[]>(keyInvoices, []);
+        const mergedInvoicesMap = new Map<string, Invoice>();
+
+        invData.forEach((row: any) => {
+          const inv: Invoice = {
+            id: row.id,
+            invoice_number: row.invoice_number,
+            type: row.type || (row.invoice_number?.startsWith('EST-') ? 'estimation' : 'invoice'),
+            work_order_id: row.work_order_id || undefined,
+            vehicle_id: row.vehicle_id,
+            items: Array.isArray(row.items) ? row.items : [],
+            subtotal: Number(row.subtotal) || 0,
+            discount_amount: Number(row.discount_amount) || 0,
+            tax_percent: Number(row.tax_percent) || 0,
+            tax_amount: Number(row.tax_amount) || 0,
+            total_amount: Number(row.total_amount) || 0,
+            down_payment: Number(row.down_payment) || 0,
+            balance_due: Number(row.balance_due) || 0,
+            payment_status: row.payment_status || 'pending',
+            payment_method: row.payment_method || undefined,
+            admin_notes: row.admin_notes || undefined,
+            signature_customer_url: row.signature_customer_url || undefined,
+            signature_admin_url: row.signature_admin_url || undefined,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            estimation_type: row.estimation_type || undefined,
+            estimation_tab: row.estimation_tab || undefined,
+            estimation_date: row.estimation_date || undefined,
+            estimation_time: row.estimation_time || undefined,
+            vehicle_status: row.vehicle_status || undefined,
+            payment_plan: row.payment_plan || undefined,
+            has_discount: row.has_discount,
+            has_opsi2: row.has_opsi2,
+            has_tax: row.has_tax,
+            total_opsi1: row.total_opsi1,
+            total_opsi2: row.total_opsi2,
+            ttd_status: row.ttd_status,
+            customer_signature: row.signature_customer_url || row.customer_signature,
+            customer_signed_at: row.customer_signed_at,
+            customer_signed_name: row.customer_signed_name,
+            customer_approved_option: row.customer_approved_option,
+          };
+          mergedInvoicesMap.set(inv.invoice_number || inv.id, inv);
+        });
+
+        // Merge with local invoices to preserve any rich frontend metadata
+        localInvoices.forEach((localInv) => {
+          const key = localInv.invoice_number || localInv.id;
+          if (!mergedInvoicesMap.has(key)) {
+            mergedInvoicesMap.set(key, localInv);
+          } else {
+            const remote = mergedInvoicesMap.get(key)!;
+            mergedInvoicesMap.set(key, {
+              ...remote,
+              ...localInv,
+              items: (localInv.items && localInv.items.length > 0) ? localInv.items : remote.items,
+            });
+          }
+        });
+
+        setLocal(keyInvoices, Array.from(mergedInvoicesMap.values()));
+      }
+
       return true;
     } catch (err) {
       console.warn('Supabase syncFromSupabase exception:', err);

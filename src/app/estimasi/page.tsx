@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useApp } from '@/lib/context/AppContext';
 import { DBService } from '@/lib/services/db-service';
@@ -110,6 +110,7 @@ function EstimationBuilderContent() {
   // Live real-time clock
   const [currentClock, setCurrentClock] = useState<string>('');
   const [currentDateStr, setCurrentDateStr] = useState<string>('');
+  const lastLoadedSpkId = useRef<string>('');
 
   useEffect(() => {
     const updateTime = () => {
@@ -126,7 +127,83 @@ function EstimationBuilderContent() {
     return () => clearInterval(interval);
   }, []);
 
-  // Initialize selected SPK
+  // Helper function to load and populate estimation data for a work order
+  const loadEstimationForSpk = useCallback((found: WorkOrder) => {
+    // 1. Check invoices state
+    let existingEst = invoices.find(
+      (inv) => inv.type === 'estimation' && inv.work_order_id === found.id
+    );
+
+    // 2. Check work_order checklist_data.estimation
+    if (!existingEst && (found as any).checklist_data?.estimation) {
+      existingEst = (found as any).checklist_data.estimation;
+    }
+
+    // 3. Check local storage saved estimation
+    if (!existingEst && typeof window !== 'undefined') {
+      try {
+        const savedRaw = localStorage.getItem(`mhs_estimation_saved_${found.id}`);
+        if (savedRaw) existingEst = JSON.parse(savedRaw);
+      } catch {}
+    }
+
+    // 4. Check local storage draft estimation
+    let draftData: any = null;
+    if (typeof window !== 'undefined') {
+      try {
+        const draftRaw = localStorage.getItem(`mhs_estimation_draft_${found.id}`);
+        if (draftRaw) draftData = JSON.parse(draftRaw);
+      } catch {}
+    }
+
+    const sourceData = draftData || existingEst;
+
+    if (existingEst) {
+      setCurrentEstimationRecord(existingEst);
+    } else {
+      setCurrentEstimationRecord(null);
+    }
+
+    if (sourceData) {
+      setEstimationType(sourceData.estimation_type || sourceData.estimation_tab || 'Umum');
+      if (sourceData.estimation_date) setEstimationDate(sourceData.estimation_date);
+      if (sourceData.estimation_time) setEstimationTime(sourceData.estimation_time);
+      if (sourceData.vehicle_status) setVehicleStatus(sourceData.vehicle_status);
+      if (sourceData.payment_plan) setPaymentPlan(sourceData.payment_plan);
+      setShowDiscount(sourceData.has_discount || (sourceData.discount_amount || 0) > 0);
+      setShowOpsi2(sourceData.has_opsi2 !== undefined ? sourceData.has_opsi2 : true);
+      setShowTax(sourceData.has_tax || (sourceData.tax_percent || 0) > 0);
+      setDiscountAmount(sourceData.discount_amount || 0);
+      setTaxPercent(sourceData.tax_percent || 11);
+      setAdminNotes(sourceData.admin_notes || '');
+
+      if (sourceData.items && sourceData.items.length > 0) {
+        const mappedItems = sourceData.items.map((it: any) => {
+          const p1 = it.price_opsi1 !== undefined ? it.price_opsi1 : it.price;
+          const p2 = it.price_opsi2 !== undefined ? it.price_opsi2 : p1;
+          const qty = it.qty || 1;
+          const isP1Text = typeof p1 === 'string' && /[a-zA-Z]/.test(p1);
+          const isP2Text = typeof p2 === 'string' && /[a-zA-Z]/.test(p2);
+          return {
+            ...it,
+            unit: it.unit || (it.is_service ? 'JASA' : 'PCS'),
+            price_opsi1: p1,
+            total_opsi1: isP1Text ? p1 : qty * (Number(p1) || 0),
+            price_opsi2: p2,
+            total_opsi2: isP2Text ? p2 : qty * (Number(p2) || 0),
+            price: p1,
+            subtotal: isP1Text ? p1 : qty * (Number(p1) || 0),
+          };
+        });
+        setItems(mappedItems);
+      }
+    } else {
+      // Default sample rows for new SPK
+      setItems(DEFAULT_ESTIMATION_ROWS);
+    }
+  }, [invoices]);
+
+  // Initialize selected SPK and load estimation only on target SPK change
   useEffect(() => {
     if (workOrders.length > 0) {
       const activeWorkOrders = workOrders.filter((w) => w.status !== 'completed');
@@ -137,57 +214,57 @@ function EstimationBuilderContent() {
           setSelectedSpk(found);
           if (!selectedSpkId) setSelectedSpkId(found.id);
 
-          // Find existing estimation for this SPK and active tab
-          const existingEst = invoices.find(
-            (inv) => inv.type === 'estimation' && inv.work_order_id === found.id
-          );
-
-          if (existingEst) {
-            setCurrentEstimationRecord(existingEst);
-            setEstimationType(existingEst.estimation_type || 'Umum');
-            if (existingEst.estimation_date) setEstimationDate(existingEst.estimation_date);
-            if (existingEst.estimation_time) setEstimationTime(existingEst.estimation_time);
-            if (existingEst.vehicle_status) setVehicleStatus(existingEst.vehicle_status);
-            if (existingEst.payment_plan) setPaymentPlan(existingEst.payment_plan);
-            setShowDiscount(existingEst.has_discount || (existingEst.discount_amount || 0) > 0);
-            setShowOpsi2(existingEst.has_opsi2 !== undefined ? existingEst.has_opsi2 : true);
-            setShowTax(existingEst.has_tax || (existingEst.tax_percent || 0) > 0);
-            setDiscountAmount(existingEst.discount_amount || 0);
-            setTaxPercent(existingEst.tax_percent || 11);
-            setAdminNotes(existingEst.admin_notes || '');
-
-            if (existingEst.items && existingEst.items.length > 0) {
-              const mappedItems = existingEst.items.map((it) => {
-                const p1 = it.price_opsi1 !== undefined ? it.price_opsi1 : it.price;
-                const p2 = it.price_opsi2 !== undefined ? it.price_opsi2 : p1;
-                const qty = it.qty || 1;
-                const isP1Text = typeof p1 === 'string' && /[a-zA-Z]/.test(p1);
-                const isP2Text = typeof p2 === 'string' && /[a-zA-Z]/.test(p2);
-                return {
-                  ...it,
-                  unit: it.unit || (it.is_service ? 'JASA' : 'PCS'),
-                  price_opsi1: p1,
-                  total_opsi1: isP1Text ? p1 : qty * (Number(p1) || 0),
-                  price_opsi2: p2,
-                  total_opsi2: isP2Text ? p2 : qty * (Number(p2) || 0),
-                  price: p1,
-                  subtotal: isP1Text ? p1 : qty * (Number(p1) || 0),
-                };
-              });
-              setItems(mappedItems);
-            }
-          } else {
-            setCurrentEstimationRecord(null);
-            // Default sample rows for new SPK
-            setItems(DEFAULT_ESTIMATION_ROWS);
+          if (lastLoadedSpkId.current !== found.id) {
+            lastLoadedSpkId.current = found.id;
+            loadEstimationForSpk(found);
           }
         }
       }
     }
-  }, [selectedSpkId, workOrders, invoices]);
+  }, [selectedSpkId, spkIdParam, workOrders, loadEstimationForSpk]);
 
   // Check whether work order is completed and locked
   const isLocked = selectedSpk?.status === 'completed';
+
+  // Auto-save draft in LocalStorage so edits are never lost when navigating away
+  useEffect(() => {
+    if (!selectedSpk || !selectedSpkId || isLocked) return;
+    const draftPayload = {
+      items,
+      estimation_type: estimationType,
+      estimation_tab: activeTab,
+      estimation_date: estimationDate,
+      estimation_time: estimationTime,
+      vehicle_status: vehicleStatus,
+      payment_plan: paymentPlan,
+      has_discount: showDiscount,
+      has_opsi2: showOpsi2,
+      has_tax: showTax,
+      discount_amount: discountAmount,
+      tax_percent: taxPercent,
+      admin_notes: adminNotes,
+    };
+    try {
+      localStorage.setItem(`mhs_estimation_draft_${selectedSpkId}`, JSON.stringify(draftPayload));
+    } catch {}
+  }, [
+    selectedSpk,
+    selectedSpkId,
+    isLocked,
+    items,
+    estimationType,
+    activeTab,
+    estimationDate,
+    estimationTime,
+    vehicleStatus,
+    paymentPlan,
+    showDiscount,
+    showOpsi2,
+    showTax,
+    discountAmount,
+    taxPercent,
+    adminNotes,
+  ]);
 
   // Calculations (handles string/text prices like CEK cleanly)
   const subtotalOpsi1 = items.reduce((sum, it) => {
@@ -394,11 +471,29 @@ function EstimationBuilderContent() {
         customer_approved_option: currentEstimationRecord?.customer_approved_option,
       };
 
+      // 1. Save to Invoices (LocalStorage + Supabase)
       const saved = await saveInvoiceAsync(invoicePayload);
-      DBService.updateWorkOrderStatus(selectedSpk.id, 'estimating', currentRole);
+
+      // 2. Attach estimation to Work Order checklist_data and persist
+      const updatedWorkOrder: WorkOrder = {
+        ...selectedSpk,
+        status: selectedSpk.status === 'queue' ? 'estimating' : selectedSpk.status,
+        checklist_data: {
+          ...(selectedSpk.checklist_data || {}),
+          estimation: saved,
+        } as any,
+      };
+      await DBService.saveWorkOrderAsync(updatedWorkOrder);
+
+      // 3. Backup to LocalStorage and remove draft
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`mhs_estimation_saved_${selectedSpk.id}`, JSON.stringify(saved));
+        localStorage.removeItem(`mhs_estimation_draft_${selectedSpk.id}`);
+      }
+
       refreshData();
       setCurrentEstimationRecord(saved);
-      showToast(`Estimasi ${estNumber} berhasil disimpan!`, 'success');
+      showToast(`Estimasi ${estNumber} berhasil disimpan permanen!`, 'success');
       return saved;
     } catch (err) {
       console.error(err);
