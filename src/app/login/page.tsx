@@ -234,11 +234,10 @@ export default function LoginPage() {
                     setPassword('mhs1mekanik');
                     setError('');
                   }}
-                  className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/50 text-left transition cursor-pointer group"
+                  className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/50 text-left transition cursor-pointer group flex flex-col justify-between"
                 >
-                  <div className="text-[10px] font-black text-amber-300 group-hover:text-amber-200">MHS 1 (Trosobo)</div>
-                  <div className="text-[9px] text-slate-400 truncate">Agus Susanto</div>
-                  <div className="text-[8.5px] text-slate-500 font-mono mt-0.5">mhs1mekanik</div>
+                  <div className="text-[11px] font-black text-amber-300 group-hover:text-amber-200">Mekanik MHS 1</div>
+                  <div className="text-[9px] text-slate-400 font-mono mt-1">mhs1mekanik</div>
                 </button>
 
                 <button
@@ -248,11 +247,10 @@ export default function LoginPage() {
                     setPassword('mhs2mekanik');
                     setError('');
                   }}
-                  className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/50 text-left transition cursor-pointer group"
+                  className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/50 text-left transition cursor-pointer group flex flex-col justify-between"
                 >
-                  <div className="text-[10px] font-black text-amber-300 group-hover:text-amber-200">MHS 2 (Wiyung)</div>
-                  <div className="text-[9px] text-slate-400 truncate">Budi Santoso</div>
-                  <div className="text-[8.5px] text-slate-500 font-mono mt-0.5">mhs2mekanik</div>
+                  <div className="text-[11px] font-black text-amber-300 group-hover:text-amber-200">Mekanik MHS 2</div>
+                  <div className="text-[9px] text-slate-400 font-mono mt-1">mhs2mekanik</div>
                 </button>
 
                 <button
@@ -262,11 +260,10 @@ export default function LoginPage() {
                     setPassword('mhs3mekanik');
                     setError('');
                   }}
-                  className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/50 text-left transition cursor-pointer group"
+                  className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/50 text-left transition cursor-pointer group flex flex-col justify-between"
                 >
-                  <div className="text-[10px] font-black text-amber-300 group-hover:text-amber-200">MHS 3 (Kenjeran)</div>
-                  <div className="text-[9px] text-slate-400 truncate">Agus Susanto</div>
-                  <div className="text-[8.5px] text-slate-500 font-mono mt-0.5">mhs3mekanik</div>
+                  <div className="text-[11px] font-black text-amber-300 group-hover:text-amber-200">Mekanik MHS 3</div>
+                  <div className="text-[9px] text-slate-400 font-mono mt-1">mhs3mekanik</div>
                 </button>
               </div>
 

@@ -798,7 +798,7 @@ export class DBService {
             .upsert({
               spk_number: checkup.document_number,
               vehicle_id: vehicleId,
-              mechanic_name: checkup.technician_name || 'Agus Susanto',
+              mechanic_name: checkup.technician_name || 'Mekanik',
               entry_date: checkup.check_date ? new Date(checkup.check_date).toISOString() : new Date().toISOString(),
               finish_date: new Date().toISOString(),
               complaints: checkup.type === 'qc_general' ? 'QC General Checkup & Tune Up' : (checkup.type === 'understeel' ? 'Form Keluhan Understeel (Kaki-Kaki)' : 'Pemeriksaan Spesialis AC'),
@@ -1228,7 +1228,7 @@ export class DBService {
               customer_name: vehicle?.customer_name || 'Pelanggan',
               license_plate: vehicle?.license_plate || 'W 0000 XX',
               car_model: vehicle ? `${vehicle.car_brand} ${vehicle.car_model}` : 'Mobil',
-              technician_name: row.mechanic_name || 'Agus Susanto',
+              technician_name: row.mechanic_name || 'Mekanik',
               check_date: row.entry_date?.slice(0, 10) || new Date().toISOString().slice(0, 10),
               qc_data: checklist.qc_data || undefined,
               ac_data: checklist.ac_data || undefined,

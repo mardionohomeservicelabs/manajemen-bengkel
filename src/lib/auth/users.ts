@@ -41,10 +41,10 @@ export const APP_USERS: AppUser[] = [
     branch: 'MHS 1',
   },
   {
-    id: 'mhs1-mekanik-agus',
+    id: 'mhs1-mekanik',
     email: 'mekanik@mhs1.mardiono',
     password: 'mhs1mekanik',
-    full_name: 'Agus Susanto',
+    full_name: 'Mekanik MHS 1',
     role: 'mekanik',
     branch: 'MHS 1',
   },
@@ -76,10 +76,10 @@ export const APP_USERS: AppUser[] = [
     branch: 'MHS 2',
   },
   {
-    id: 'mhs2-mekanik-budi',
+    id: 'mhs2-mekanik',
     email: 'mekanik@mhs2.mardiono',
     password: 'mhs2mekanik',
-    full_name: 'Budi Santoso',
+    full_name: 'Mekanik MHS 2',
     role: 'mekanik',
     branch: 'MHS 2',
   },
@@ -93,7 +93,7 @@ export const APP_USERS: AppUser[] = [
     canAccessAllBranches: true,
   },
 
-  // ─────────── MHS 3 (susunan sama dengan MHS 1) ───────────
+  // ─────────── MHS 3 ───────────
   {
     id: 'mhs3-admin-arida',
     email: 'arida@mhs3.mardiono',
@@ -111,10 +111,10 @@ export const APP_USERS: AppUser[] = [
     branch: 'MHS 3',
   },
   {
-    id: 'mhs3-mekanik-agus',
+    id: 'mhs3-mekanik',
     email: 'mekanik@mhs3.mardiono',
     password: 'mhs3mekanik',
-    full_name: 'Agus Susanto',
+    full_name: 'Mekanik MHS 3',
     role: 'mekanik',
     branch: 'MHS 3',
   },
@@ -133,7 +133,7 @@ export const APP_USERS: AppUser[] = [
     id: 'global-mekanik',
     email: 'mekanik@mardiono',
     password: 'mekanik123',
-    full_name: 'Mekanik Servis',
+    full_name: 'Mekanik MHS',
     role: 'mekanik',
     branch: 'MHS 1',
   },

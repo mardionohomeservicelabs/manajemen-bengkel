@@ -46,7 +46,7 @@ export default function NewSPKPage() {
   const [currentMileage, setCurrentMileage] = useState<number>(35000);
   const [chassisNumber, setChassisNumber] = useState('');
   const [fuelLevel, setFuelLevel] = useState<number>(60);
-  const [mechanicName, setMechanicName] = useState('Agus Susanto');
+  const [mechanicName, setMechanicName] = useState('');
 
   // New PKB Fields
   const now = new Date();
@@ -352,21 +352,11 @@ export default function NewSPKPage() {
                   <input
                     type="text"
                     required
-                    list="mechanic-suggestions"
-                    placeholder="Ketik nama mekanik (contoh: Daffa / Joko)"
+                    placeholder="Ketik nama mekanik yang mengerjakan..."
                     value={mechanicName}
                     onChange={(e) => setMechanicName(e.target.value)}
                     className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none font-medium text-slate-900"
                   />
-                  <datalist id="mechanic-suggestions">
-                    <option value="Agus Susanto" />
-                    <option value="Daffa" />
-                    <option value="Joko" />
-                    <option value="Bambang Irawan" />
-                    <option value="Rudi Hartono" />
-                    <option value="Dedi Kurniawan" />
-                    <option value="Emi" />
-                  </datalist>
                 </div>
               </div>
 

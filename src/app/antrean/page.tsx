@@ -199,7 +199,7 @@ export default function QueueBoardPage() {
                             <div className="flex items-center space-x-1">
                               <Wrench className="w-3 h-3 text-slate-400" />
                               <span className="text-slate-600 font-medium">
-                                {order.mechanic_name || 'Agus S.'}
+                                {order.mechanic_name || '-'}
                               </span>
                             </div>
                             <div className="flex items-center space-x-1">
@@ -306,7 +306,7 @@ export default function QueueBoardPage() {
                         <div className="font-medium text-slate-900">{vehicle?.customer_name}</div>
                         <div className="text-[11px] text-slate-500">{vehicle?.phone_number}</div>
                       </td>
-                      <td className="p-3.5 text-slate-700">{order.mechanic_name || 'Agus S.'}</td>
+                      <td className="p-3.5 text-slate-700">{order.mechanic_name || '-'}</td>
                       <td className="p-3.5">
                         <select
                           value={order.status}

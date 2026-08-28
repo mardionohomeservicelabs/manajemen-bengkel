@@ -129,7 +129,8 @@ function EstimationBuilderContent() {
   // Initialize selected SPK
   useEffect(() => {
     if (workOrders.length > 0) {
-      const targetId = selectedSpkId || workOrders[0]?.id;
+      const activeWorkOrders = workOrders.filter((w) => w.status !== 'completed');
+      const targetId = selectedSpkId || spkIdParam || activeWorkOrders[0]?.id || workOrders[0]?.id;
       if (targetId) {
         const found = workOrders.find((w) => w.id === targetId);
         if (found) {
@@ -489,11 +490,17 @@ function EstimationBuilderContent() {
                     onChange={(e) => setSelectedSpkId(e.target.value)}
                     className="text-xs font-mono font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1 rounded-lg border border-slate-300 outline-none cursor-pointer"
                   >
-                    {workOrders.map((wo) => (
-                      <option key={wo.id} value={wo.id}>
-                        {wo.spk_number} - {wo.vehicle?.customer_name} ({wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''})
-                      </option>
-                    ))}
+                    {workOrders.filter((wo) => wo.status !== 'completed').length === 0 ? (
+                      <option value="">(Tidak ada mobil aktif yang perlu diestimasi)</option>
+                    ) : (
+                      workOrders
+                        .filter((wo) => wo.status !== 'completed')
+                        .map((wo) => (
+                          <option key={wo.id} value={wo.id}>
+                            {wo.spk_number} - {wo.vehicle?.customer_name} ({wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''})
+                          </option>
+                        ))
+                    )}
                   </select>
                 </div>
               )}

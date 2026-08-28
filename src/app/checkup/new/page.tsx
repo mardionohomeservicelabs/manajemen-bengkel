@@ -55,14 +55,14 @@ function NewCheckupPageContent() {
   const isLocked = selectedSpk?.status === 'completed';
 
   // Common Header Info
-  const [customerName, setCustomerName] = useState('Ahmad Fadillah');
-  const [licensePlate, setLicensePlate] = useState('W 1984 RFS');
-  const [carModel, setCarModel] = useState('Toyota Avanza 1.3 G');
+  const [customerName, setCustomerName] = useState('');
+  const [licensePlate, setLicensePlate] = useState('');
+  const [carModel, setCarModel] = useState('');
   const [carBrand, setCarBrand] = useState('Toyota');
   const [carYear, setCarYear] = useState<number | string>(2021);
   const [carColor, setCarColor] = useState('Putih');
-  const [mileage, setMileage] = useState<number>(45200);
-  const [technicianName, setTechnicianName] = useState('Agus Susanto');
+  const [mileage, setMileage] = useState<number>(45000);
+  const [technicianName, setTechnicianName] = useState('');
   const [checkDate, setCheckDate] = useState<string>(new Date().toISOString().slice(0, 10));
 
   // Auto-fill when an active SPK is selected
@@ -196,7 +196,7 @@ function NewCheckupPageContent() {
     { label: '', replace: false, service: false, notes: '' },
   ]);
 
-  const [mech1, setMech1] = useState('Agus Susanto');
+  const [mech1, setMech1] = useState('');
   const [mech2, setMech2] = useState('');
   const [mech3, setMech3] = useState('');
 
@@ -662,6 +662,22 @@ function NewCheckupPageContent() {
                 value={checkDate}
                 onChange={(e) => setCheckDate(e.target.value)}
                 className="w-full p-2 rounded-xl border border-slate-200 font-medium"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Nama Teknisi / Mekanik <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={technicianName}
+                onChange={(e) => {
+                  setTechnicianName(e.target.value);
+                  setMech1(e.target.value);
+                }}
+                placeholder="Ketik nama pemeriksa..."
+                className="w-full p-2 rounded-xl border-2 border-slate-300 focus:border-maroon-600 outline-none font-bold text-slate-900 bg-white"
               />
             </div>
           </div>

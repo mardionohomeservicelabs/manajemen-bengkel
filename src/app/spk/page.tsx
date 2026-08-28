@@ -209,8 +209,8 @@ function SPKListContent() {
                       </td>
 
                       <td className="p-3.5 align-top">
-                        <div className="font-medium text-slate-800">{order.mechanic_name || 'Agus S.'}</div>
-                        <div className="text-[10px] text-slate-400">SA: {order.sa_profile?.full_name || 'Eko P.'}</div>
+                        <div className="font-medium text-slate-800">{order.mechanic_name || '-'}</div>
+                        <div className="text-[10px] text-slate-400">SA: {order.sa_profile?.full_name || 'SA'}</div>
                       </td>
 
                       <td className="p-3.5 align-top text-center">

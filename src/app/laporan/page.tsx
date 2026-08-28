@@ -212,10 +212,10 @@ export default function ReportsPage() {
 
           <div className="space-y-3">
             {[
-              { name: 'Agus Susanto', specialty: 'Senior AC & Mesin', spkCount: 14, rating: '4.9/5' },
-              { name: 'Bambang Irawan', specialty: 'Spesialis Sistem AC', spkCount: 9, rating: '4.8/5' },
-              { name: 'Rudi Hartono', specialty: 'Mekanik Mesin & Tune Up', spkCount: 8, rating: '4.7/5' },
-              { name: 'Dedi Kurniawan', specialty: 'Teknisi Rem & Kaki-kaki', spkCount: 6, rating: '4.8/5' },
+              { name: 'Mekanik MHS 1', specialty: 'Senior AC & Mesin', spkCount: 14, rating: '4.9/5' },
+              { name: 'Mekanik MHS 2', specialty: 'Spesialis Sistem AC', spkCount: 9, rating: '4.8/5' },
+              { name: 'Mekanik MHS 3', specialty: 'Mekanik Mesin & Tune Up', spkCount: 8, rating: '4.7/5' },
+              { name: 'Teknisi Understeel', specialty: 'Teknisi Rem & Kaki-kaki', spkCount: 6, rating: '4.8/5' },
             ].map((m, idx) => (
               <div
                 key={idx}

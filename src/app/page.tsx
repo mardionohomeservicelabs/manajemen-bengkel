@@ -294,7 +294,7 @@ export default function DashboardPage() {
                       <div className="flex items-center space-x-3 text-[11px] text-slate-400 font-medium">
                         <span>Pelanggan: {vehicle?.customer_name}</span>
                         <span>•</span>
-                        <span>Mekanik: {order.mechanic_name || 'Agus S.'}</span>
+                        <span>Mekanik: {order.mechanic_name || '-'}</span>
                         <span>•</span>
                         <span>{formatDateTime(order.entry_date)}</span>
                       </div>
