@@ -344,15 +344,6 @@ export function PrintableEstimation({
                 <span>{complaintsText}</span>
               </div>
             )}
-
-            <div className="grid grid-cols-2 gap-3 text-xs border border-slate-800 rounded-xl p-2 bg-slate-50">
-              <div className="font-semibold text-slate-900">
-                Status Mobil: <strong className="font-bold text-slate-950">{estimation.vehicle_status || 'Ditinggal'}</strong>
-              </div>
-              <div className="font-semibold text-slate-900 text-right">
-                Rencana Pembayaran: <strong className="font-bold text-slate-950">{estimation.payment_plan || 'Transfer'}</strong>
-              </div>
-            </div>
           </div>
 
           {/* Items Table — Exact format from user reference screenshot */}
