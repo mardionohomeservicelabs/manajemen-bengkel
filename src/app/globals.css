@@ -69,11 +69,18 @@ body {
 }
 
 /* ==============================================================================
-   PRINT & PDF — Multi-page A4, no clipping, repeating headers
+   PRINT & PDF — A4 portrait default, estimasi single long-page
 ============================================================================== */
 @media print {
+  /* Default: A4 portrait untuk semua dokumen */
   @page {
     size: A4 portrait;
+    margin: 6mm 8mm;
+  }
+
+  /* Untuk estimasi: kertas A4 lebar dengan tinggi otomatis mengikuti konten */
+  @page estimation-long {
+    size: 210mm auto;
     margin: 6mm 8mm;
   }
 
@@ -285,7 +292,11 @@ body {
     break-after: avoid !important;
   }
 
-  /* Step 13: Multi-Page Form Estimasi A4 Print Engine */
+  /* Step 13: Single Long-Page Form Estimasi (Memanjang — 1 Halaman Penuh) */
+  /* 
+   * Menggunakan @page estimation-long dengan size: 210mm auto (tinggi mengikuti konten)
+   * Ini memastikan seluruh estimasi tercetak dalam 1 lembar panjang, tidak terpotong di halaman ke-2.
+   */
   .printable-estimation-sheet {
     display: block !important;
     position: static !important;
@@ -295,19 +306,32 @@ body {
     min-height: auto !important;
     max-height: none !important;
     overflow: visible !important;
-    page-break-inside: auto !important;
-    break-inside: auto !important;
+    /* Gunakan halaman estimasi panjang */
+    page: estimation-long !important;
+    /* Cegah semua page break agar konten tidak terpotong ke halaman 2 */
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-before: avoid !important;
+    break-before: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
     padding: 0 !important;
     margin: 0 !important;
     box-shadow: none !important;
     border: none !important;
   }
 
+  /* Saat mencetak estimasi, gunakan ukuran kertas otomatis (tinggi menyesuaikan konten) */
+  body:has(.printable-estimation-sheet) {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
   .printable-estimation-sheet .estimation-table-wrapper {
     overflow: visible !important;
     border-radius: 8px !important;
-    page-break-inside: auto !important;
-    break-inside: auto !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
     height: auto !important;
     max-height: none !important;
   }
@@ -315,8 +339,8 @@ body {
   .printable-estimation-sheet .estimation-items-table {
     width: 100% !important;
     border-collapse: collapse !important;
-    page-break-inside: auto !important;
-    break-inside: auto !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
     table-layout: fixed !important;
   }
 
@@ -336,8 +360,8 @@ body {
 
   .printable-estimation-sheet .estimation-items-table tbody {
     display: table-row-group !important;
-    page-break-inside: auto !important;
-    break-inside: auto !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   .printable-estimation-sheet .estimation-items-table tr {

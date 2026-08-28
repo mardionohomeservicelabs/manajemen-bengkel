@@ -40,7 +40,36 @@ export function PrintableEstimation({
   const [signerEstimator, setSignerEstimator] = useState<string>('Via Rizkiana');
 
   const handlePrint = () => {
+    // Inject a temporary style that overrides @page to auto-height (single long page)
+    const styleId = 'estimation-long-page-style';
+    let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = styleId;
+      document.head.appendChild(styleEl);
+    }
+    styleEl.textContent = `
+      @media print {
+        @page {
+          size: 210mm auto !important;
+          margin: 6mm 8mm !important;
+        }
+        .printable-estimation-sheet,
+        .printable-estimation-sheet * {
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+        }
+        .printable-estimation-sheet .estimation-items-table {
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+        }
+      }
+    `;
     window.print();
+    // Clean up after print dialog closes
+    setTimeout(() => {
+      styleEl?.remove();
+    }, 2000);
   };
 
   const getWhatsAppMessage = () => {
