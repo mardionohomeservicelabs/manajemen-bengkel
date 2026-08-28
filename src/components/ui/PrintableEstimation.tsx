@@ -44,14 +44,27 @@ export function PrintableEstimation({
     const docSheet = document.querySelector('.printable-estimation-sheet') as HTMLElement;
     if (!docSheet) return;
 
-    // Kumpulkan semua style dari halaman saat ini (Tailwind + custom CSS)
-    const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
-      .map((el) => el.outerHTML)
+    const origin = window.location.origin;
+
+    // Kumpulkan semua <style> inline (Tailwind yang sudah di-compile + custom CSS)
+    const inlineStyles = Array.from(document.querySelectorAll('style'))
+      .map((el) => `<style>${el.textContent}</style>`)
       .join('\n');
 
-    // Ambil customer signature jika ada
-    const customerSignatureSrc =
-      (estimation.customer_signature || estimation.signature_customer_url) || null;
+    // Kumpulkan <link rel="stylesheet"> dengan URL diubah ke absolut
+    const linkStyles = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+      .map((el) => {
+        const href = (el as HTMLLinkElement).href;
+        // href sudah absolut dari browser, langsung pakai
+        return `<link rel="stylesheet" href="${href}" />`;
+      })
+      .join('\n');
+
+    // Ambil innerHTML dokumen estimasi dan ganti semua src relatif ke absolut
+    let docHtml = docSheet.innerHTML;
+    // Ganti src="/..." menjadi src="https://..."
+    docHtml = docHtml.replace(/src="\/([^"]+)"/g, `src="${origin}/$1"`);
+    docHtml = docHtml.replace(/href="\/([^"]+)"/g, `href="${origin}/$1"`);
 
     // Buat HTML lengkap untuk popup window
     const popupHtml = `<!DOCTYPE html>
@@ -60,46 +73,47 @@ export function PrintableEstimation({
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Estimasi Biaya - ${estimation.invoice_number}</title>
-  ${styles}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  ${linkStyles}
+  ${inlineStyles}
   <style>
-    /* Reset print: 1 halaman panjang mengikuti konten */
     @page {
       size: 210mm auto;
       margin: 8mm 10mm;
     }
-    * {
+    *, *::before, *::after {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
       color-adjust: exact !important;
-    }
-    html, body {
-      margin: 0;
-      padding: 0;
-      background: #fff;
-      font-family: 'Montserrat', system-ui, sans-serif;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-    }
-    .doc-preview-wrapper {
-      background: #fff !important;
-      padding: 0 !important;
-      margin: 0 !important;
-    }
-    .doc-sheet {
-      width: 100%;
-      max-width: 100%;
-      margin: 0;
-      padding: 20px 24px;
-      box-shadow: none;
-      border: none;
-      border-radius: 0;
-      background: #fff;
       box-sizing: border-box;
     }
-    /* Pastikan tabel dan konten TIDAK terpotong */
-    table { page-break-inside: avoid !important; break-inside: avoid !important; }
-    tr { page-break-inside: avoid !important; break-inside: avoid !important; }
-    .avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; }
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #ffffff !important;
+      font-family: 'Montserrat', system-ui, sans-serif !important;
+    }
+    /* Override wrapper agar tidak ada background abu */
+    .doc-preview-wrapper {
+      background: #ffffff !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      display: block !important;
+    }
+    /* Sheet: full lebar, tanpa shadow/border layar */
+    .doc-sheet {
+      width: 100% !important;
+      max-width: 100% !important;
+      margin: 0 !important;
+      padding: 20px 24px !important;
+      box-shadow: none !important;
+      border: none !important;
+      border-radius: 0 !important;
+      background: #ffffff !important;
+      display: block !important;
+    }
+    /* Pastikan semua bagian estimasi TIDAK terpotong */
     .estimation-header-box,
     .estimation-table-wrapper,
     .estimation-terms-box,
@@ -108,56 +122,45 @@ export function PrintableEstimation({
       page-break-inside: avoid !important;
       break-inside: avoid !important;
     }
-    /* Sembunyikan elemen non-print */
+    table {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      border-collapse: collapse !important;
+      width: 100% !important;
+    }
+    tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+    .avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; }
+    /* Sembunyikan control bar */
     .no-print { display: none !important; }
     @media print {
       @page { size: 210mm auto; margin: 8mm 10mm; }
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
     }
   </style>
 </head>
 <body>
   <div class="doc-preview-wrapper">
-    <div class="doc-sheet printable-estimation-sheet space-y-2-5">
-      ${docSheet.innerHTML}
+    <div class="doc-sheet printable-estimation-sheet space-y-2.5">
+      ${docHtml}
     </div>
   </div>
   <script>
-    // Ganti src logo dengan absolute URL agar terlihat di popup
-    document.querySelectorAll('img').forEach(function(img) {
-      var src = img.getAttribute('src');
-      if (src && src.startsWith('/')) {
-        img.src = '${typeof window !== 'undefined' ? window.location.origin : ''}' + src;
-      }
+    // Tunggu font & semua gambar dimuat lalu print
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        window.print();
+        setTimeout(function() { window.close(); }, 1000);
+      }, 600);
     });
-    // Tunggu semua gambar selesai dimuat lalu print
-    var images = Array.from(document.querySelectorAll('img'));
-    var loaded = 0;
-    if (images.length === 0) {
-      setTimeout(function() { window.print(); window.close(); }, 300);
-    } else {
-      images.forEach(function(img) {
-        if (img.complete) {
-          loaded++;
-          if (loaded >= images.length) {
-            setTimeout(function() { window.print(); window.close(); }, 300);
-          }
-        } else {
-          img.onload = img.onerror = function() {
-            loaded++;
-            if (loaded >= images.length) {
-              setTimeout(function() { window.print(); window.close(); }, 300);
-            }
-          };
-        }
-      });
-    }
   <\/script>
 </body>
 </html>`;
 
-    const popup = window.open('', '_blank', 'width=900,height=900,scrollbars=yes');
+    const popup = window.open('', '_blank', 'width=920,height=1000,scrollbars=yes');
     if (!popup) {
-      // Fallback jika popup diblokir browser
       alert('Popup diblokir browser. Izinkan popup untuk halaman ini lalu coba lagi.');
       return;
     }
