@@ -40,36 +40,130 @@ export function PrintableEstimation({
   const [signerEstimator, setSignerEstimator] = useState<string>('Via Rizkiana');
 
   const handlePrint = () => {
-    // Inject a temporary style that overrides @page to auto-height (single long page)
-    const styleId = 'estimation-long-page-style';
-    let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
-    if (!styleEl) {
-      styleEl = document.createElement('style');
-      styleEl.id = styleId;
-      document.head.appendChild(styleEl);
+    // Ambil HTML dari .doc-sheet (konten dokumen estimasi murni)
+    const docSheet = document.querySelector('.printable-estimation-sheet') as HTMLElement;
+    if (!docSheet) return;
+
+    // Kumpulkan semua style dari halaman saat ini (Tailwind + custom CSS)
+    const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+      .map((el) => el.outerHTML)
+      .join('\n');
+
+    // Ambil customer signature jika ada
+    const customerSignatureSrc =
+      (estimation.customer_signature || estimation.signature_customer_url) || null;
+
+    // Buat HTML lengkap untuk popup window
+    const popupHtml = `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Estimasi Biaya - ${estimation.invoice_number}</title>
+  ${styles}
+  <style>
+    /* Reset print: 1 halaman panjang mengikuti konten */
+    @page {
+      size: 210mm auto;
+      margin: 8mm 10mm;
     }
-    styleEl.textContent = `
-      @media print {
-        @page {
-          size: 210mm auto !important;
-          margin: 6mm 8mm !important;
-        }
-        .printable-estimation-sheet,
-        .printable-estimation-sheet * {
-          page-break-inside: avoid !important;
-          break-inside: avoid !important;
-        }
-        .printable-estimation-sheet .estimation-items-table {
-          page-break-inside: avoid !important;
-          break-inside: avoid !important;
-        }
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #fff;
+      font-family: 'Montserrat', system-ui, sans-serif;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .doc-preview-wrapper {
+      background: #fff !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    .doc-sheet {
+      width: 100%;
+      max-width: 100%;
+      margin: 0;
+      padding: 20px 24px;
+      box-shadow: none;
+      border: none;
+      border-radius: 0;
+      background: #fff;
+      box-sizing: border-box;
+    }
+    /* Pastikan tabel dan konten TIDAK terpotong */
+    table { page-break-inside: avoid !important; break-inside: avoid !important; }
+    tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+    .avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; }
+    .estimation-header-box,
+    .estimation-table-wrapper,
+    .estimation-terms-box,
+    .estimation-signatures-box,
+    .estimation-footer-box {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+    /* Sembunyikan elemen non-print */
+    .no-print { display: none !important; }
+    @media print {
+      @page { size: 210mm auto; margin: 8mm 10mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="doc-preview-wrapper">
+    <div class="doc-sheet printable-estimation-sheet space-y-2-5">
+      ${docSheet.innerHTML}
+    </div>
+  </div>
+  <script>
+    // Ganti src logo dengan absolute URL agar terlihat di popup
+    document.querySelectorAll('img').forEach(function(img) {
+      var src = img.getAttribute('src');
+      if (src && src.startsWith('/')) {
+        img.src = '${typeof window !== 'undefined' ? window.location.origin : ''}' + src;
       }
-    `;
-    window.print();
-    // Clean up after print dialog closes
-    setTimeout(() => {
-      styleEl?.remove();
-    }, 2000);
+    });
+    // Tunggu semua gambar selesai dimuat lalu print
+    var images = Array.from(document.querySelectorAll('img'));
+    var loaded = 0;
+    if (images.length === 0) {
+      setTimeout(function() { window.print(); window.close(); }, 300);
+    } else {
+      images.forEach(function(img) {
+        if (img.complete) {
+          loaded++;
+          if (loaded >= images.length) {
+            setTimeout(function() { window.print(); window.close(); }, 300);
+          }
+        } else {
+          img.onload = img.onerror = function() {
+            loaded++;
+            if (loaded >= images.length) {
+              setTimeout(function() { window.print(); window.close(); }, 300);
+            }
+          };
+        }
+      });
+    }
+  <\/script>
+</body>
+</html>`;
+
+    const popup = window.open('', '_blank', 'width=900,height=900,scrollbars=yes');
+    if (!popup) {
+      // Fallback jika popup diblokir browser
+      alert('Popup diblokir browser. Izinkan popup untuk halaman ini lalu coba lagi.');
+      return;
+    }
+    popup.document.open();
+    popup.document.write(popupHtml);
+    popup.document.close();
   };
 
   const getWhatsAppMessage = () => {
