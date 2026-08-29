@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/context/AuthContext';
-import { BRANCHES, BranchId } from '@/lib/auth/users';
 import {
   Shield,
   Eye,
@@ -11,7 +10,6 @@ import {
   Mail,
   Lock,
   AlertCircle,
-  Building2,
 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -213,64 +211,6 @@ export default function LoginPage() {
                 )}
               </button>
             </form>
-
-            {/* Branches & Mechanic Quick Fill Info */}
-            <div className="mt-6 pt-5 border-t border-slate-700/40 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Building2 className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="text-[11px] text-amber-400 font-bold uppercase tracking-wider">
-                    Akses Cepat Login Mekanik
-                  </span>
-                </div>
-                <span className="text-[10px] text-slate-400">Klik untuk isi otomatis</span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('mekanik@mhs1.mardiono');
-                    setPassword('mhs1mekanik');
-                    setError('');
-                  }}
-                  className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/50 text-left transition cursor-pointer group flex flex-col justify-between"
-                >
-                  <div className="text-[11px] font-black text-amber-300 group-hover:text-amber-200">Mekanik MHS 1</div>
-                  <div className="text-[9px] text-slate-400 font-mono mt-1">mhs1mekanik</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('mekanik@mhs2.mardiono');
-                    setPassword('mhs2mekanik');
-                    setError('');
-                  }}
-                  className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/50 text-left transition cursor-pointer group flex flex-col justify-between"
-                >
-                  <div className="text-[11px] font-black text-amber-300 group-hover:text-amber-200">Mekanik MHS 2</div>
-                  <div className="text-[9px] text-slate-400 font-mono mt-1">mhs2mekanik</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('mekanik@mhs3.mardiono');
-                    setPassword('mhs3mekanik');
-                    setError('');
-                  }}
-                  className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/50 text-left transition cursor-pointer group flex flex-col justify-between"
-                >
-                  <div className="text-[11px] font-black text-amber-300 group-hover:text-amber-200">Mekanik MHS 3</div>
-                  <div className="text-[9px] text-slate-400 font-mono mt-1">mhs3mekanik</div>
-                </button>
-              </div>
-
-              <p className="text-[10px] text-slate-500 text-center pt-1">
-                🔒 Akun mekanik hanya memiliki izin untuk mengisi &amp; melihat formulir checklist.
-              </p>
-            </div>
           </div>
         </div>
 
