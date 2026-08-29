@@ -36,8 +36,10 @@ export function PrintableEstimation({
 }: PrintableEstimationProps) {
   const vehicle = estimation.vehicle;
 
-  // State untuk nama Estimator yang bisa diketik manual (Default: Via Rizkiana)
-  const [signerEstimator, setSignerEstimator] = useState<string>('Via Rizkiana');
+  // State untuk nama Estimator (ambil dari data estimasi, bisa dioverride)
+  const [signerEstimator, setSignerEstimator] = useState<string>(
+    estimation.estimator_name || (estimation as any).estimator_name || ''
+  );
 
   const handlePrint = () => {
     // Ambil HTML dari .doc-sheet (konten dokumen estimasi murni)
@@ -290,8 +292,8 @@ export function PrintableEstimation({
               </div>
             </div>
 
-            {/* Meta Info (Symmetrical 3-Column) */}
-            <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50 p-2 rounded-xl border border-slate-300">
+            {/* Meta Info (4-Column: Waktu, Ref SPK, Estimator, Durasi) */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs bg-slate-50 p-2 rounded-xl border border-slate-300">
               <div>
                 <span className="text-slate-500 text-[10px] block">Waktu Terbit:</span>
                 <strong className="text-slate-900">{formatDateTime(estimation.created_at)}</strong>
@@ -303,13 +305,17 @@ export function PrintableEstimation({
                 </div>
               ) : (
                 <div className="text-center">
-                  <span className="text-slate-500 text-[10px] block">Tipe Estimasi:</span>
-                  <strong className="text-slate-900">Estimasi Awal</strong>
+                  <span className="text-slate-500 text-[10px] block">Jenis Estimasi:</span>
+                  <strong className="text-slate-900">{estimation.estimation_type || 'Estimasi'}</strong>
                 </div>
               )}
+              <div className="text-center">
+                <span className="text-slate-500 text-[10px] block">Estimator / SA:</span>
+                <strong className="text-slate-900 font-black text-[#8B0000]">{signerEstimator || '-'}</strong>
+              </div>
               <div className="text-right">
-                <span className="text-slate-500 text-[10px] block">Estimator:</span>
-                <strong className="text-slate-900 font-black text-[#8B0000]">{signerEstimator || 'Via Rizkiana'}</strong>
+                <span className="text-slate-500 text-[10px] block">Est. Lama Pekerjaan:</span>
+                <strong className="text-slate-900 font-black">{(estimation as any).estimated_duration || '-'}</strong>
               </div>
             </div>
 

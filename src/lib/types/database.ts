@@ -366,6 +366,16 @@ export interface Invoice {
   ttd_status?: 'pending' | 'signed' | 'declined';
   ttd_token?: string;
 
+  // --- Customer Response (filled by SA after customer responds) ---
+  customer_response?: 'opsi1' | 'opsi2' | 'pending' | 'lain_lain';
+  customer_response_note?: string; // Catatan bebas jika "Lain-lainnya"
+
+  // --- Estimasi Lama Pekerjaan ---
+  estimated_duration?: string; // "2 Hari", "3 Jam", "1 Minggu", dll.
+
+  // --- Estimator / SA Name per-estimasi ---
+  estimator_name?: string;
+
   // Joined fields
   vehicle?: VehicleCustomer;
   work_order?: WorkOrder;

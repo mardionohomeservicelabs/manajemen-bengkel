@@ -38,23 +38,16 @@ import { formatNumberOrText } from '@/lib/utils';
 // Satuan item options (Sesuai permintaan: SET, PCS, JASA)
 const UNIT_OPTIONS = ['SET', 'PCS', 'JASA'] as const;
 
-// Sample default rows if creating a new estimate (100% matching screenshot)
-const DEFAULT_ESTIMATION_ROWS: InvoiceItem[] = [
-  { name: 'SHOCK BREAKER BLKNG L/R ORI SET', is_service: false, qty: 1, unit: 'SET', price_opsi1: 4225000, total_opsi1: 4225000, price_opsi2: 0, total_opsi2: 0, price: 4225000, subtotal: 4225000 },
-  { name: 'SHOCK BREAKER BLKNG L/R IMI', is_service: false, qty: 2, unit: 'PCS', price_opsi1: 0, total_opsi1: 0, price_opsi2: 675000, total_opsi2: 1350000, price: 0, subtotal: 0 },
-  { name: 'KARET STABILIZER U BLKNG L/R ORI', is_service: false, qty: 2, unit: 'PCS', price_opsi1: 165000, total_opsi1: 330000, price_opsi2: 165000, total_opsi2: 330000, price: 165000, subtotal: 330000 },
-  { name: 'BEARING RODA DPN KANAN ABS JPN', is_service: false, qty: 1, unit: 'PCS', price_opsi1: 665000, total_opsi1: 665000, price_opsi2: 665000, total_opsi2: 665000, price: 665000, subtotal: 665000 },
-  { name: 'REMATCHING DISK BREAK DPN L/R', is_service: false, qty: 2, unit: 'PCS', price_opsi1: 275000, total_opsi1: 550000, price_opsi2: 275000, total_opsi2: 550000, price: 275000, subtotal: 550000 },
-  { name: 'KARET SUPPORT SHOCK BLKNG L/R IMI', is_service: false, qty: 4, unit: 'PCS', price_opsi1: 75000, total_opsi1: 300000, price_opsi2: 75000, total_opsi2: 300000, price: 75000, subtotal: 300000 },
-  { name: 'LINK STABILIZER BLKNG L/R JPN', is_service: false, qty: 2, unit: 'PCS', price_opsi1: 398000, total_opsi1: 796000, price_opsi2: 398000, total_opsi2: 796000, price: 398000, subtotal: 796000 },
-  { name: 'KAMPAS REM DPN L/R SET ORI', is_service: false, qty: 1, unit: 'SET', price_opsi1: 2095000, total_opsi1: 2095000, price_opsi2: 0, total_opsi2: 0, price: 2095000, subtotal: 2095000 },
-  { name: 'KAMPAS REM DPN L/R SET IMI', is_service: false, qty: 1, unit: 'SET', price_opsi1: 0, total_opsi1: 0, price_opsi2: 785000, total_opsi2: 785000, price: 0, subtotal: 0 },
-  { name: 'JASA B/P KAMPAS REM DPN', is_service: true, qty: 1, unit: 'JASA', price_opsi1: 150000, total_opsi1: 150000, price_opsi2: 150000, total_opsi2: 150000, price: 150000, subtotal: 150000 },
-  { name: 'JASA B/P SPAREPART', is_service: true, qty: 1, unit: 'JASA', price_opsi1: 450000, total_opsi1: 450000, price_opsi2: 450000, total_opsi2: 450000, price: 450000, subtotal: 450000 },
-  { name: 'JASA B/P BEARING RODA DPN KANAN', is_service: true, qty: 1, unit: 'JASA', price_opsi1: 275000, total_opsi1: 275000, price_opsi2: 275000, total_opsi2: 275000, price: 275000, subtotal: 275000 },
-  { name: 'JASA B/P SHOCK BREAKER BLKNG L/R', is_service: true, qty: 1, unit: 'JASA', price_opsi1: 300000, total_opsi1: 300000, price_opsi2: 300000, total_opsi2: 300000, price: 300000, subtotal: 300000 },
-  { name: 'SHAKING MACHINE', is_service: true, qty: 1, unit: 'JASA', price_opsi1: 150000, total_opsi1: 150000, price_opsi2: 150000, total_opsi2: 150000, price: 150000, subtotal: 150000 },
+// Estimasi baru selalu mulai kosong (1 baris kosong)
+const EMPTY_ESTIMATION_ROW: InvoiceItem[] = [
+  { name: '', is_service: false, qty: 1, unit: 'PCS', price_opsi1: 0, total_opsi1: 0, price_opsi2: 0, total_opsi2: 0, price: 0, subtotal: 0 },
 ];
+
+// Tab estimasi berbentuk {id, name} agar bisa rename bebas
+interface EstimationTab {
+  id: string;
+  name: string;
+}
 
 function EstimationBuilderContent() {
   const router = useRouter();
@@ -62,14 +55,16 @@ function EstimationBuilderContent() {
   const spkIdParam = searchParams.get('spkId');
   const { workOrders, inventory, invoices, refreshData, showToast, settings, currentRole, saveInvoiceAsync } = useApp();
 
-  // Selected SPK & Tab
+  // Selected SPK & Tab (tab berbentuk {id, name} agar bisa rename bebas)
   const [selectedSpkId, setSelectedSpkId] = useState<string>(spkIdParam || '');
   const [selectedSpk, setSelectedSpk] = useState<WorkOrder | null>(null);
-  const [activeTab, setActiveTab] = useState<string>('Umum');
-  const [tabList, setTabList] = useState<string[]>(['Umum']);
+  const [activeTabId, setActiveTabId] = useState<string>('tab_1');
+  const [tabList, setTabList] = useState<EstimationTab[]>([{ id: 'tab_1', name: 'Estimasi 1' }]);
+  const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState<string>('');
 
-  // Meta Form Fields (matching screenshot)
-  const [estimationType, setEstimationType] = useState<string>('Umum');
+  // Meta Form Fields
+  const [estimationType, setEstimationType] = useState<string>('Estimasi 1');
   const [estimationDate, setEstimationDate] = useState<string>(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -78,16 +73,24 @@ function EstimationBuilderContent() {
     const today = new Date();
     return `${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
   });
-  const [vehicleStatus, setVehicleStatus] = useState<string>('Ditinggal');
+  const [vehicleStatus, setVehicleStatus] = useState<string>('Di Tinggal');
   const [paymentPlan, setPaymentPlan] = useState<string>('Transfer');
+
+  // Estimator/SA name & estimated work duration (baru)
+  const [estimatorName, setEstimatorName] = useState<string>('');
+  const [estimatedDuration, setEstimatedDuration] = useState<string>('');
+
+  // Customer response (baru)
+  const [customerResponse, setCustomerResponse] = useState<string>('');
+  const [customerResponseNote, setCustomerResponseNote] = useState<string>('');
 
   // Switch Toggles
   const [showDiscount, setShowDiscount] = useState<boolean>(false);
-  const [showOpsi2, setShowOpsi2] = useState<boolean>(true); // Default ON like screenshot
+  const [showOpsi2, setShowOpsi2] = useState<boolean>(true);
   const [showTax, setShowTax] = useState<boolean>(false);
 
   // Items & Values
-  const [items, setItems] = useState<InvoiceItem[]>(DEFAULT_ESTIMATION_ROWS);
+  const [items, setItems] = useState<InvoiceItem[]>(EMPTY_ESTIMATION_ROW);
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [taxPercent, setTaxPercent] = useState<number>(11);
   const [adminNotes, setAdminNotes] = useState<string>('');
@@ -127,36 +130,50 @@ function EstimationBuilderContent() {
     return () => clearInterval(interval);
   }, []);
 
-  // Helper function to load and populate estimation data for a work order
-  const loadEstimationForSpk = useCallback((found: WorkOrder) => {
-    // 1. Check invoices state
-    let existingEst = invoices.find(
-      (inv) => inv.type === 'estimation' && inv.work_order_id === found.id
+  // Helper: load estimasi for a specific tab from saved/draft
+  const loadTabData = useCallback((spkId: string, tabId: string, allInvoices: Invoice[]) => {
+    // 1. Cek invoices state (sudah tersimpan di server)
+    let existingEst = allInvoices.find(
+      (inv) => inv.type === 'estimation' && inv.work_order_id === spkId && (inv as any).tab_id === tabId
     );
-
-    // 2. Check work_order checklist_data.estimation
-    if (!existingEst && (found as any).checklist_data?.estimation) {
-      existingEst = (found as any).checklist_data.estimation;
+    // Fallback: cari berdasarkan estimation_tab (untuk data lama tanpa tab_id)
+    if (!existingEst && tabId === 'tab_1') {
+      existingEst = allInvoices.find(
+        (inv) => inv.type === 'estimation' && inv.work_order_id === spkId
+      );
     }
 
-    // 3. Check local storage saved estimation
-    if (!existingEst && typeof window !== 'undefined') {
-      try {
-        const savedRaw = localStorage.getItem(`mhs_estimation_saved_${found.id}`);
-        if (savedRaw) existingEst = JSON.parse(savedRaw);
-      } catch {}
-    }
-
-    // 4. Check local storage draft estimation
+    // 2. Cek localStorage draft
     let draftData: any = null;
     if (typeof window !== 'undefined') {
       try {
-        const draftRaw = localStorage.getItem(`mhs_estimation_draft_${found.id}`);
+        const draftRaw = localStorage.getItem(`mhs_est_draft_${spkId}_${tabId}`);
         if (draftRaw) draftData = JSON.parse(draftRaw);
       } catch {}
     }
 
     const sourceData = draftData || existingEst;
+    return { sourceData, existingEst };
+  }, []);
+
+  // Helper function to load and populate estimation data for a work order (first tab)
+  const loadEstimationForSpk = useCallback((found: WorkOrder) => {
+    // Load tabs yang sudah tersimpan dari localStorage
+    let savedTabs: EstimationTab[] = [];
+    if (typeof window !== 'undefined') {
+      try {
+        const tabsRaw = localStorage.getItem(`mhs_est_tabs_${found.id}`);
+        if (tabsRaw) savedTabs = JSON.parse(tabsRaw);
+      } catch {}
+    }
+
+    const tabs = savedTabs.length > 0 ? savedTabs : [{ id: 'tab_1', name: 'Estimasi 1' }];
+    setTabList(tabs);
+    const firstTabId = tabs[0].id;
+    setActiveTabId(firstTabId);
+
+    // Load data untuk tab pertama
+    const { sourceData, existingEst } = loadTabData(found.id, firstTabId, invoices);
 
     if (existingEst) {
       setCurrentEstimationRecord(existingEst);
@@ -165,11 +182,15 @@ function EstimationBuilderContent() {
     }
 
     if (sourceData) {
-      setEstimationType(sourceData.estimation_type || sourceData.estimation_tab || 'Umum');
+      setEstimationType(sourceData.estimation_type || tabs[0].name || 'Estimasi 1');
       if (sourceData.estimation_date) setEstimationDate(sourceData.estimation_date);
       if (sourceData.estimation_time) setEstimationTime(sourceData.estimation_time);
       if (sourceData.vehicle_status) setVehicleStatus(sourceData.vehicle_status);
       if (sourceData.payment_plan) setPaymentPlan(sourceData.payment_plan);
+      if (sourceData.estimator_name) setEstimatorName(sourceData.estimator_name);
+      if (sourceData.estimated_duration) setEstimatedDuration(sourceData.estimated_duration);
+      if (sourceData.customer_response) setCustomerResponse(sourceData.customer_response);
+      if (sourceData.customer_response_note) setCustomerResponseNote(sourceData.customer_response_note);
       setShowDiscount(sourceData.has_discount || (sourceData.discount_amount || 0) > 0);
       setShowOpsi2(sourceData.has_opsi2 !== undefined ? sourceData.has_opsi2 : true);
       setShowTax(sourceData.has_tax || (sourceData.tax_percent || 0) > 0);
@@ -196,12 +217,20 @@ function EstimationBuilderContent() {
           };
         });
         setItems(mappedItems);
+      } else {
+        setItems(EMPTY_ESTIMATION_ROW);
       }
     } else {
-      // Default sample rows for new SPK
-      setItems(DEFAULT_ESTIMATION_ROWS);
+      // SPK baru: mulai dengan 1 baris kosong (BUKAN sample data)
+      setItems(EMPTY_ESTIMATION_ROW);
+      setEstimatorName('');
+      setEstimatedDuration('');
+      setCustomerResponse('');
+      setCustomerResponseNote('');
+      setAdminNotes('');
+      setVehicleStatus('Di Tinggal');
     }
-  }, [invoices]);
+  }, [invoices, loadTabData]);
 
   // Initialize selected SPK and load estimation only on target SPK change
   useEffect(() => {
@@ -226,44 +255,86 @@ function EstimationBuilderContent() {
   // Check whether work order is completed and locked
   const isLocked = selectedSpk?.status === 'completed';
 
+  // Handler: ganti tab aktif (save current, load next)
+  const handleSwitchTab = useCallback((tab: EstimationTab) => {
+    // Save current tab draft before switching
+    if (selectedSpkId && !isLocked) {
+      const draftPayload = {
+        items, estimation_type: estimationType, estimation_tab: activeTabId,
+        estimation_date: estimationDate, estimation_time: estimationTime,
+        vehicle_status: vehicleStatus, payment_plan: paymentPlan,
+        estimator_name: estimatorName, estimated_duration: estimatedDuration,
+        customer_response: customerResponse, customer_response_note: customerResponseNote,
+        has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
+        discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
+      };
+      try { localStorage.setItem(`mhs_est_draft_${selectedSpkId}_${activeTabId}`, JSON.stringify(draftPayload)); } catch {}
+    }
+    setActiveTabId(tab.id);
+    // Load data for the new tab
+    const { sourceData, existingEst } = loadTabData(selectedSpkId, tab.id, invoices);
+    setCurrentEstimationRecord(existingEst || null);
+    setEstimationType(tab.name);
+    if (sourceData) {
+      if (sourceData.estimation_date) setEstimationDate(sourceData.estimation_date);
+      if (sourceData.estimation_time) setEstimationTime(sourceData.estimation_time);
+      if (sourceData.vehicle_status) setVehicleStatus(sourceData.vehicle_status); else setVehicleStatus('Di Tinggal');
+      if (sourceData.payment_plan) setPaymentPlan(sourceData.payment_plan);
+      setEstimatorName(sourceData.estimator_name || '');
+      setEstimatedDuration(sourceData.estimated_duration || '');
+      setCustomerResponse(sourceData.customer_response || '');
+      setCustomerResponseNote(sourceData.customer_response_note || '');
+      setShowDiscount(sourceData.has_discount || (sourceData.discount_amount || 0) > 0);
+      setShowOpsi2(sourceData.has_opsi2 !== undefined ? sourceData.has_opsi2 : true);
+      setShowTax(sourceData.has_tax || (sourceData.tax_percent || 0) > 0);
+      setDiscountAmount(sourceData.discount_amount || 0);
+      setTaxPercent(sourceData.tax_percent || 11);
+      setAdminNotes(sourceData.admin_notes || '');
+      if (sourceData.items && sourceData.items.length > 0) {
+        const mapped = sourceData.items.map((it: any) => {
+          const p1 = it.price_opsi1 !== undefined ? it.price_opsi1 : it.price;
+          const p2 = it.price_opsi2 !== undefined ? it.price_opsi2 : p1;
+          const qty = it.qty || 1;
+          const isP1Text = typeof p1 === 'string' && /[a-zA-Z]/.test(p1);
+          const isP2Text = typeof p2 === 'string' && /[a-zA-Z]/.test(p2);
+          return { ...it, unit: it.unit || (it.is_service ? 'JASA' : 'PCS'),
+            price_opsi1: p1, total_opsi1: isP1Text ? p1 : qty * (Number(p1) || 0),
+            price_opsi2: p2, total_opsi2: isP2Text ? p2 : qty * (Number(p2) || 0),
+            price: p1, subtotal: isP1Text ? p1 : qty * (Number(p1) || 0) };
+        });
+        setItems(mapped);
+      } else { setItems(EMPTY_ESTIMATION_ROW); }
+    } else {
+      setItems(EMPTY_ESTIMATION_ROW);
+      setEstimatorName(''); setEstimatedDuration('');
+      setCustomerResponse(''); setCustomerResponseNote('');
+      setAdminNotes(''); setVehicleStatus('Di Tinggal');
+    }
+  }, [selectedSpkId, isLocked, activeTabId, items, estimationType, estimationDate, estimationTime,
+      vehicleStatus, paymentPlan, estimatorName, estimatedDuration, customerResponse, customerResponseNote,
+      showDiscount, showOpsi2, showTax, discountAmount, taxPercent, adminNotes, loadTabData, invoices]);
+
   // Auto-save draft in LocalStorage so edits are never lost when navigating away
   useEffect(() => {
     if (!selectedSpk || !selectedSpkId || isLocked) return;
     const draftPayload = {
-      items,
-      estimation_type: estimationType,
-      estimation_tab: activeTab,
-      estimation_date: estimationDate,
-      estimation_time: estimationTime,
-      vehicle_status: vehicleStatus,
-      payment_plan: paymentPlan,
-      has_discount: showDiscount,
-      has_opsi2: showOpsi2,
-      has_tax: showTax,
-      discount_amount: discountAmount,
-      tax_percent: taxPercent,
-      admin_notes: adminNotes,
+      items, estimation_type: estimationType, estimation_tab: activeTabId,
+      estimation_date: estimationDate, estimation_time: estimationTime,
+      vehicle_status: vehicleStatus, payment_plan: paymentPlan,
+      estimator_name: estimatorName, estimated_duration: estimatedDuration,
+      customer_response: customerResponse, customer_response_note: customerResponseNote,
+      has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
+      discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
     };
     try {
-      localStorage.setItem(`mhs_estimation_draft_${selectedSpkId}`, JSON.stringify(draftPayload));
+      localStorage.setItem(`mhs_est_draft_${selectedSpkId}_${activeTabId}`, JSON.stringify(draftPayload));
+      localStorage.setItem(`mhs_est_tabs_${selectedSpkId}`, JSON.stringify(tabList));
     } catch {}
   }, [
-    selectedSpk,
-    selectedSpkId,
-    isLocked,
-    items,
-    estimationType,
-    activeTab,
-    estimationDate,
-    estimationTime,
-    vehicleStatus,
-    paymentPlan,
-    showDiscount,
-    showOpsi2,
-    showTax,
-    discountAmount,
-    taxPercent,
-    adminNotes,
+    selectedSpk, selectedSpkId, isLocked, items, estimationType, activeTabId,
+    estimationDate, estimationTime, vehicleStatus, paymentPlan,
+    estimatorName, estimatedDuration, customerResponse, customerResponseNote,
+    showDiscount, showOpsi2, showTax, discountAmount, taxPercent, adminNotes, tabList,
   ]);
 
   // Calculations (handles string/text prices like CEK cleanly)
@@ -398,21 +469,61 @@ function EstimationBuilderContent() {
     setShowCatalogModal(false);
   };
 
-  // Add new estimate tab
+  // Add new estimate tab with unique id
   const handleAddNewTab = () => {
     if (isLocked) return;
     const nextNum = tabList.length + 1;
+    const newTabId = `tab_${Date.now()}`;
     const tabName = `Estimasi ${nextNum}`;
-    setTabList([...tabList, tabName]);
-    setActiveTab(tabName);
+    const newTab: EstimationTab = { id: newTabId, name: tabName };
+    // Save current tab before switching
+    const draftPayload = {
+      items, estimation_type: estimationType, estimation_tab: activeTabId,
+      estimation_date: estimationDate, estimation_time: estimationTime,
+      vehicle_status: vehicleStatus, payment_plan: paymentPlan,
+      estimator_name: estimatorName, estimated_duration: estimatedDuration,
+      customer_response: customerResponse, customer_response_note: customerResponseNote,
+      has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
+      discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
+    };
+    if (selectedSpkId) {
+      try { localStorage.setItem(`mhs_est_draft_${selectedSpkId}_${activeTabId}`, JSON.stringify(draftPayload)); } catch {}
+    }
+    const newTabs = [...tabList, newTab];
+    setTabList(newTabs);
+    setActiveTabId(newTabId);
     setEstimationType(tabName);
-    setItems([
-      { name: 'JASA SERVIS & PENGECEKAN', is_service: true, qty: 1, unit: 'JASA', price_opsi1: 150000, total_opsi1: 150000, price_opsi2: 150000, total_opsi2: 150000, price: 150000, subtotal: 150000 }
-    ]);
-    showToast(`Draf tab '${tabName}' dibuat.`, 'info');
+    setItems(EMPTY_ESTIMATION_ROW);
+    setEstimatorName(''); setEstimatedDuration('');
+    setCustomerResponse(''); setCustomerResponseNote('');
+    setAdminNotes(''); setCurrentEstimationRecord(null);
+    if (selectedSpkId) {
+      try { localStorage.setItem(`mhs_est_tabs_${selectedSpkId}`, JSON.stringify(newTabs)); } catch {}
+    }
+    showToast(`Tab '${tabName}' dibuat. Klik nama tab untuk rename.`, 'info');
   };
 
-  // Save Estimation
+  // Rename tab inline
+  const handleStartRename = (tab: EstimationTab) => {
+    if (isLocked) return;
+    setRenamingTabId(tab.id);
+    setRenameValue(tab.name);
+  };
+
+  const handleCommitRename = () => {
+    if (!renamingTabId) return;
+    const trimmed = renameValue.trim() || 'Estimasi';
+    const newTabs = tabList.map((t) => t.id === renamingTabId ? { ...t, name: trimmed } : t);
+    setTabList(newTabs);
+    if (renamingTabId === activeTabId) setEstimationType(trimmed);
+    if (selectedSpkId) {
+      try { localStorage.setItem(`mhs_est_tabs_${selectedSpkId}`, JSON.stringify(newTabs)); } catch {}
+    }
+    setRenamingTabId(null);
+    showToast(`Tab diganti menjadi "${trimmed}"`, 'success');
+  };
+
+  // Save Estimation (untuk tab aktif)
   const handleSaveEstimation = async () => {
     if (!selectedSpk) {
       showToast('Pilih SPK kendaraan terlebih dahulu.', 'error');
@@ -429,12 +540,15 @@ function EstimationBuilderContent() {
 
     setIsSaving(true);
     try {
+      // Cari estimasi existing untuk tab ini
       const existingEst = invoices.find(
         (inv) => inv.type === 'estimation' && inv.work_order_id === selectedSpk.id
+          && ((inv as any).tab_id === activeTabId || (!((inv as any).tab_id) && activeTabId === 'tab_1'))
       );
       const estNumber = existingEst ? existingEst.invoice_number : generateInvoiceNumber('estimation');
+      const activeTabObj = tabList.find((t) => t.id === activeTabId) || tabList[0];
 
-      const invoicePayload: Omit<Invoice, 'id'> & { id?: string } = {
+      const invoicePayload: Omit<Invoice, 'id'> & { id?: string; tab_id?: string } = {
         id: existingEst?.id,
         invoice_number: estNumber,
         type: 'estimation',
@@ -452,48 +566,54 @@ function EstimationBuilderContent() {
         admin_notes: adminNotes,
         created_at: existingEst?.created_at || new Date().toISOString(),
 
-        // Metadata fields matching screenshot
-        estimation_type: estimationType,
-        estimation_tab: activeTab,
+        // Metadata
+        estimation_type: activeTabObj?.name || estimationType,
+        estimation_tab: activeTabId,
         estimation_date: estimationDate,
         estimation_time: estimationTime,
         vehicle_status: vehicleStatus,
         payment_plan: paymentPlan,
+        estimator_name: estimatorName,
+        estimated_duration: estimatedDuration,
+        customer_response: customerResponse as any,
+        customer_response_note: customerResponseNote,
         has_discount: showDiscount,
         has_opsi2: showOpsi2,
         has_tax: showTax,
         total_opsi1: totalFinalOpsi1,
         total_opsi2: totalFinalOpsi2,
+        tab_id: activeTabId,
         ttd_status: currentEstimationRecord?.ttd_status || 'pending',
         customer_signature: currentEstimationRecord?.customer_signature,
         customer_signed_at: currentEstimationRecord?.customer_signed_at,
         customer_signed_name: currentEstimationRecord?.customer_signed_name,
         customer_approved_option: currentEstimationRecord?.customer_approved_option,
-      };
+      } as any;
 
       // 1. Save to Invoices (LocalStorage + Supabase)
-      const saved = await saveInvoiceAsync(invoicePayload);
+      const saved = await saveInvoiceAsync(invoicePayload as any);
 
-      // 2. Attach estimation to Work Order checklist_data and persist
+      // 2. Update Work Order status
       const updatedWorkOrder: WorkOrder = {
         ...selectedSpk,
         status: selectedSpk.status === 'queue' ? 'estimating' : selectedSpk.status,
         checklist_data: {
           ...(selectedSpk.checklist_data || {}),
-          estimation: saved,
+          [`estimation_${activeTabId}`]: saved,
         } as any,
       };
       await DBService.saveWorkOrderAsync(updatedWorkOrder);
 
       // 3. Backup to LocalStorage and remove draft
       if (typeof window !== 'undefined') {
-        localStorage.setItem(`mhs_estimation_saved_${selectedSpk.id}`, JSON.stringify(saved));
-        localStorage.removeItem(`mhs_estimation_draft_${selectedSpk.id}`);
+        localStorage.setItem(`mhs_est_saved_${selectedSpk.id}_${activeTabId}`, JSON.stringify(saved));
+        localStorage.removeItem(`mhs_est_draft_${selectedSpk.id}_${activeTabId}`);
+        localStorage.setItem(`mhs_est_tabs_${selectedSpk.id}`, JSON.stringify(tabList));
       }
 
       refreshData();
       setCurrentEstimationRecord(saved);
-      showToast(`Estimasi ${estNumber} berhasil disimpan permanen!`, 'success');
+      showToast(`Estimasi "${activeTabObj?.name}" (${estNumber}) berhasil disimpan!`, 'success');
       return saved;
     } catch (err) {
       console.error(err);
@@ -693,23 +813,43 @@ function EstimationBuilderContent() {
           </div>
         )}
 
-        {/* Tab Bar (Umum, + Estimasi) */}
-        <div className="flex items-center space-x-2 pt-1 border-b border-slate-100 pb-3">
+        {/* Tab Bar — multi estimasi dengan rename inline */}
+        <div className="flex items-center flex-wrap gap-2 pt-1 border-b border-slate-100 pb-3">
           {tabList.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => {
-                setActiveTab(tab);
-                setEstimationType(tab);
-              }}
-              className={`px-5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
-                activeTab === tab
-                  ? 'bg-[#0F172A] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {tab}
-            </button>
+            <div key={tab.id} className={`relative flex items-center rounded-xl transition ${
+              activeTabId === tab.id ? 'bg-[#0F172A] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}>
+              {renamingTabId === tab.id ? (
+                <input
+                  autoFocus
+                  type="text"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onBlur={handleCommitRename}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleCommitRename(); if (e.key === 'Escape') setRenamingTabId(null); }}
+                  className="text-xs font-black px-3 py-1.5 rounded-xl bg-white text-slate-900 border-2 border-blue-500 outline-none w-36"
+                />
+              ) : (
+                <button
+                  onClick={() => handleSwitchTab(tab)}
+                  onDoubleClick={() => handleStartRename(tab)}
+                  title="Klik untuk aktif • Double-klik untuk rename"
+                  className="px-4 py-1.5 text-xs font-black cursor-pointer"
+                >
+                  {tab.name}
+                </button>
+              )}
+              {/* Rename icon */}
+              {!isLocked && activeTabId === tab.id && renamingTabId !== tab.id && (
+                <button
+                  onClick={() => handleStartRename(tab)}
+                  title="Rename tab"
+                  className="pr-2 text-slate-400 hover:text-white transition cursor-pointer"
+                >
+                  <span className="text-[9px]">✏</span>
+                </button>
+              )}
+            </div>
           ))}
           {!isLocked && (
             <button
@@ -717,7 +857,7 @@ function EstimationBuilderContent() {
               className="inline-flex items-center space-x-1 px-3.5 py-1.5 rounded-xl text-xs font-bold text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-200 transition cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>+ Estimasi</span>
+              <span>+ Estimasi Baru</span>
             </button>
           )}
         </div>
@@ -793,42 +933,105 @@ function EstimationBuilderContent() {
           </div>
         </div>
 
-        {/* Form Fields: Row 2 (Status Mobil, Rencana Pembayaran) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Form Fields: Row 2 (Status Mobil, Estimasi Lama Pekerjaan) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-[10.5px] font-black uppercase tracking-wider text-slate-600 mb-1.5">
               STATUS MOBIL
             </label>
-            <select
-              disabled={isLocked}
-              value={vehicleStatus}
-              onChange={(e) => setVehicleStatus(e.target.value)}
-              className="w-full text-xs font-bold p-3 rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-            >
-              <option value="Ditinggal">Ditinggal</option>
-              <option value="Ditunggu">Ditunggu</option>
-              <option value="Derek / Towing">Derek / Towing</option>
-              <option value="Home Service">Home Service</option>
-            </select>
+            <div className="flex gap-2 flex-wrap">
+              {(['Di Tunggu', 'Di Tinggal', 'Rawat Inap'] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  disabled={isLocked}
+                  onClick={() => setVehicleStatus(s)}
+                  className={`px-3 py-2 rounded-xl text-xs font-black border transition cursor-pointer disabled:cursor-not-allowed ${
+                    vehicleStatus === s
+                      ? s === 'Di Tunggu' ? 'bg-blue-600 text-white border-blue-600'
+                        : s === 'Di Tinggal' ? 'bg-slate-800 text-white border-slate-800'
+                        : 'bg-red-600 text-white border-red-600'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                  }`}
+                >
+                  {s === 'Di Tunggu' ? '⏳ Di Tunggu' : s === 'Di Tinggal' ? '🚗 Di Tinggal' : '🏥 Rawat Inap'}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>
             <label className="block text-[10.5px] font-black uppercase tracking-wider text-slate-600 mb-1.5">
-              RENCANA PEMBAYARAN
+              ESTIMASI LAMA PEKERJAAN
             </label>
-            <select
+            <input
+              type="text"
               disabled={isLocked}
-              value={paymentPlan}
-              onChange={(e) => setPaymentPlan(e.target.value)}
-              className="w-full text-xs font-bold p-3 rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-            >
-              <option value="Transfer">Transfer</option>
-              <option value="Cash">Cash</option>
-              <option value="QRIS">QRIS</option>
-              <option value="Debit">Debit Card</option>
-              <option value="Tempo">Tempo / Invoice Perusahaan</option>
-            </select>
+              value={estimatedDuration}
+              onChange={(e) => setEstimatedDuration(e.target.value)}
+              placeholder="cth: 2 Hari, 3 Jam, 1 Minggu..."
+              className="w-full text-xs font-bold p-3 rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+            />
           </div>
+
+          <div>
+            <label className="block text-[10.5px] font-black uppercase tracking-wider text-slate-600 mb-1.5">
+              ESTIMATOR / SA
+            </label>
+            <input
+              type="text"
+              disabled={isLocked}
+              value={estimatorName}
+              onChange={(e) => setEstimatorName(e.target.value)}
+              placeholder="Nama SA / Estimator..."
+              className="w-full text-xs font-bold p-3 rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+            />
+          </div>
+        </div>
+
+        {/* RESPON CUSTOMER */}
+        <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 space-y-3">
+          <div className="flex items-center space-x-2">
+            <span className="text-[10.5px] font-black uppercase tracking-wider text-slate-600">Respon Customer:</span>
+            {customerResponse && (
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+                customerResponse === 'opsi1' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                : customerResponse === 'opsi2' ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                : customerResponse === 'pending' ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                : 'bg-purple-100 text-purple-800 border border-purple-300'
+              }`}>
+                {customerResponse === 'opsi1' ? '✅ Pilih Opsi 1' : customerResponse === 'opsi2' ? '✅ Pilih Opsi 2' : customerResponse === 'pending' ? '⏸ Pending/Tidak Jadi' : '📝 Lain-lainnya'}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { value: 'opsi1', label: '✅ Pilih Opsi 1', cls: customerResponse === 'opsi1' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400' },
+              { value: 'opsi2', label: '✅ Pilih Opsi 2', cls: customerResponse === 'opsi2' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400' },
+              { value: 'pending', label: '⏸ Pending / Tidak Jadi', cls: customerResponse === 'pending' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-600 border-slate-200 hover:border-amber-400' },
+              { value: 'lain_lain', label: '📝 Lain-lainnya', cls: customerResponse === 'lain_lain' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-200 hover:border-purple-400' },
+            ].map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                disabled={isLocked}
+                onClick={() => setCustomerResponse(customerResponse === opt.value ? '' : opt.value)}
+                className={`px-3 py-2 rounded-xl text-xs font-black border transition cursor-pointer disabled:cursor-not-allowed ${opt.cls}`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {customerResponse === 'lain_lain' && (
+            <input
+              type="text"
+              disabled={isLocked}
+              value={customerResponseNote}
+              onChange={(e) => setCustomerResponseNote(e.target.value)}
+              placeholder="Tulis keterangan respon customer..."
+              className="w-full text-xs font-medium p-2.5 rounded-xl border border-slate-200 bg-white focus:border-purple-500 outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
+            />
+          )}
         </div>
 
         {/* Switch Toggles Row (Diskon, Opsi 2, Pajak) */}
