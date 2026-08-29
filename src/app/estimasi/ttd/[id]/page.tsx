@@ -27,20 +27,41 @@ export default function CustomerSignatureApprovalPage() {
 
   useEffect(() => {
     if (!rawId) return;
-    const result = DBService.findEstimationByIdOrToken(rawId);
-    if (result && result.estimation) {
-      setEstimation(result.estimation);
-      setSettings(DBService.getSettings(result.branch));
-      setSignerName(result.estimation.vehicle?.customer_name || '');
-      if (result.estimation.customer_approved_option) {
-        setSelectedOption(result.estimation.customer_approved_option as CustomerChoice);
+    let isMounted = true;
+
+    const loadData = async () => {
+      try {
+        const result = await DBService.findEstimationByIdOrTokenAsync(rawId);
+        if (!isMounted) return;
+
+        if (result && result.estimation) {
+          setEstimation(result.estimation);
+          setSettings(DBService.getSettings(result.branch));
+          setSignerName(
+            result.estimation.customer_signed_name ||
+            result.estimation.vehicle?.customer_name ||
+            ''
+          );
+          if (result.estimation.customer_approved_option) {
+            setSelectedOption(result.estimation.customer_approved_option as CustomerChoice);
+          }
+          if (result.estimation.ttd_status === 'signed' || result.estimation.customer_signature) {
+            setIsSubmittedSuccess(true);
+          }
+        } else {
+          setNotFound(true);
+        }
+      } catch (err) {
+        console.error('Error fetching estimation for TTD:', err);
+        if (isMounted) setNotFound(true);
       }
-      if (result.estimation.ttd_status === 'signed' || result.estimation.customer_signature) {
-        setIsSubmittedSuccess(true);
-      }
-    } else {
-      setNotFound(true);
-    }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [rawId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,8 +80,8 @@ export default function CustomerSignatureApprovalPage() {
     setIsSubmitting(true);
     try {
       if (selectedOption === 'pending') {
-        // Untuk Pending: simpan pilihan tanpa TTD
-        const saved = DBService.savePendingResponse(
+        // Untuk Pending: simpan pilihan tanpa TTD ke cloud Supabase
+        const saved = await DBService.savePendingResponse(
           rawId,
           signerName || estimation.vehicle?.customer_name || 'Customer'
         );
@@ -69,7 +90,7 @@ export default function CustomerSignatureApprovalPage() {
         return;
       }
 
-      // Opsi 1 atau Opsi 2: simpan TTD + pilihan
+      // Opsi 1 atau Opsi 2: simpan TTD + pilihan ke cloud Supabase
       const updated = await DBService.approveEstimationSignature(
         rawId,
         signatureDataUrl,

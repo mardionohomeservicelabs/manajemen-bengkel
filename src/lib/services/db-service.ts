@@ -1017,17 +1017,127 @@ export class DBService {
   }
 
   /**
-   * Menemukan estimasi berdasarkan ID atau Token publik lintas semua cabang
+  /**
+   * Menemukan estimasi berdasarkan ID atau Token publik lintas semua cabang (Cache Lokal)
    */
   static findEstimationByIdOrToken(idOrToken: string): { estimation: Invoice; branch: BranchId } | null {
     const branches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
     for (const b of branches) {
       const invs = this.getInvoices(b);
-      const found = invs.find((i) => i.id === idOrToken || i.invoice_number === idOrToken || i.ttd_token === idOrToken);
+      const found = invs.find(
+        (i) =>
+          i.id === idOrToken ||
+          i.invoice_number === idOrToken ||
+          i.ttd_token === idOrToken ||
+          i.work_order_id === idOrToken
+      );
       if (found) {
         return { estimation: found, branch: b };
       }
     }
+    return null;
+  }
+
+  /**
+   * Menemukan estimasi secara asinkron dari Cache Lokal maupun Cloud Supabase
+   */
+  static async findEstimationByIdOrTokenAsync(
+    idOrToken: string
+  ): Promise<{ estimation: Invoice; branch: BranchId } | null> {
+    // 1. Coba cari di cache lokal
+    const localTarget = this.findEstimationByIdOrToken(idOrToken);
+    if (localTarget) {
+      return localTarget;
+    }
+
+    // 2. Jika tidak ada di lokal (misal customer membuka link di HP pribadi), query langsung ke Supabase
+    if (supabase && isSupabaseConfigured) {
+      try {
+        // Cari di tabel invoices
+        const { data: invData, error: invErr } = await supabase
+          .from('invoices')
+          .select('*, vehicle:vehicles_customers(*), work_order:work_orders(*)')
+          .or(`id.eq.${idOrToken},invoice_number.eq.${idOrToken},work_order_id.eq.${idOrToken}`)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (!invErr && invData && invData.length > 0) {
+          const row = invData[0];
+          const branch: BranchId = (row.work_order?.checklist_data?.received_at_branch as BranchId) || 'MHS 1';
+          const inv: Invoice = {
+            id: row.id,
+            invoice_number: row.invoice_number,
+            type: row.type || 'estimation',
+            work_order_id: row.work_order_id || undefined,
+            vehicle_id: row.vehicle_id,
+            items: Array.isArray(row.items) ? row.items : [],
+            subtotal: Number(row.subtotal) || 0,
+            discount_amount: Number(row.discount_amount) || 0,
+            tax_percent: Number(row.tax_percent) || 0,
+            tax_amount: Number(row.tax_amount) || 0,
+            total_amount: Number(row.total_amount) || 0,
+            down_payment: Number(row.down_payment) || 0,
+            balance_due: Number(row.balance_due) || 0,
+            payment_status: row.payment_status || 'pending',
+            payment_method: row.payment_method || undefined,
+            admin_notes: row.admin_notes || undefined,
+            signature_customer_url: row.signature_customer_url || undefined,
+            signature_admin_url: row.signature_admin_url || undefined,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            estimation_type: row.estimation_type || undefined,
+            estimation_tab: row.estimation_tab || undefined,
+            estimation_date: row.estimation_date || undefined,
+            estimation_time: row.estimation_time || undefined,
+            vehicle_status: row.vehicle_status || undefined,
+            payment_plan: row.payment_plan || undefined,
+            estimator_name: row.estimator_name || undefined,
+            estimator_signature: row.estimator_signature || row.signature_admin_url || undefined,
+            estimated_duration: row.estimated_duration || undefined,
+            customer_response: row.customer_response || undefined,
+            customer_response_note: row.customer_response_note || undefined,
+            has_discount: row.has_discount,
+            has_opsi2: row.has_opsi2,
+            has_tax: row.has_tax,
+            total_opsi1: row.total_opsi1,
+            total_opsi2: row.total_opsi2,
+            ttd_status: row.ttd_status,
+            customer_signature: row.signature_customer_url || row.customer_signature,
+            customer_signed_at: row.customer_signed_at,
+            customer_signed_name: row.customer_signed_name,
+            customer_approved_option: row.customer_approved_option,
+            vehicle: row.vehicle || undefined,
+            work_order: row.work_order || undefined,
+          };
+          return { estimation: inv, branch };
+        }
+
+        // Cari di tabel work_orders
+        const { data: woData, error: woErr } = await supabase
+          .from('work_orders')
+          .select('*, vehicle:vehicles_customers(*)')
+          .or(`id.eq.${idOrToken},spk_number.eq.${idOrToken}`)
+          .limit(1);
+
+        if (!woErr && woData && woData.length > 0) {
+          const wo = woData[0];
+          const checklist = wo.checklist_data || {};
+          const branch: BranchId = (checklist.received_at_branch as BranchId) || 'MHS 1';
+          const estData = checklist.estimation || checklist.estimation_tab_1 || checklist.estimation_tab_2 || null;
+          if (estData) {
+            const inv: Invoice = {
+              ...estData,
+              work_order_id: wo.id,
+              vehicle: wo.vehicle || undefined,
+            };
+            return { estimation: inv, branch };
+          }
+        }
+      } catch (err) {
+        console.warn('Supabase findEstimationByIdOrTokenAsync exception:', err);
+      }
+    }
+
     return null;
   }
 
@@ -1041,47 +1151,87 @@ export class DBService {
     approvedOption: 'opsi1' | 'opsi2',
     branch?: BranchId
   ): Promise<Invoice | null> {
-    const target = this.findEstimationByIdOrToken(idOrToken);
+    const target = await this.findEstimationByIdOrTokenAsync(idOrToken);
     const activeBranch = branch || (target ? target.branch : this.getActiveBranch());
-    const key = getBranchKey(BASE_STORAGE_KEYS.INVOICES, activeBranch);
-    const invoices = getLocal<Invoice[]>(key, []);
-    const idx = invoices.findIndex((i) => i.id === idOrToken || i.invoice_number === idOrToken || i.ttd_token === idOrToken);
+    const now = new Date().toISOString();
 
-    if (idx === -1) {
-      if (target) {
-        const targetKey = getBranchKey(BASE_STORAGE_KEYS.INVOICES, target.branch);
-        const targetList = getLocal<Invoice[]>(targetKey, []);
-        const tIdx = targetList.findIndex((i) => i.id === target.estimation.id);
-        if (tIdx !== -1) {
-          targetList[tIdx].customer_signature = signatureDataUrl;
-          targetList[tIdx].signature_customer_url = signatureDataUrl;
-          targetList[tIdx].customer_signed_name = customerName;
-          targetList[tIdx].customer_signed_at = new Date().toISOString();
-          targetList[tIdx].customer_approved_option = approvedOption;
-          targetList[tIdx].ttd_status = 'signed';
-          targetList[tIdx].updated_at = new Date().toISOString();
-          setLocal(targetKey, targetList);
+    let targetInvoice: Invoice | null = target ? target.estimation : null;
 
-          if (targetList[tIdx].work_order_id) {
-            this.updateWorkOrderStatus(targetList[tIdx].work_order_id!, 'approved', 'sa', target.branch);
-          }
-          return this.getInvoiceById(targetList[tIdx].id, target.branch) || targetList[tIdx];
-        }
-      }
-      return null;
+    if (targetInvoice) {
+      targetInvoice = {
+        ...targetInvoice,
+        customer_signature: signatureDataUrl,
+        signature_customer_url: signatureDataUrl,
+        customer_signed_name: customerName,
+        customer_signed_at: now,
+        customer_approved_option: approvedOption,
+        customer_response: approvedOption,
+        ttd_status: 'signed',
+        updated_at: now,
+      };
     }
 
-    invoices[idx].customer_signature = signatureDataUrl;
-    invoices[idx].signature_customer_url = signatureDataUrl;
-    invoices[idx].customer_signed_name = customerName;
-    invoices[idx].customer_signed_at = new Date().toISOString();
-    invoices[idx].customer_approved_option = approvedOption;
-    invoices[idx].ttd_status = 'signed';
-    invoices[idx].updated_at = new Date().toISOString();
-    setLocal(key, invoices);
+    // 1. Update cache lokal
+    const key = getBranchKey(BASE_STORAGE_KEYS.INVOICES, activeBranch);
+    const invoices = getLocal<Invoice[]>(key, []);
+    const idx = invoices.findIndex(
+      (i) => i.id === idOrToken || i.invoice_number === idOrToken || (targetInvoice && i.id === targetInvoice.id)
+    );
+    if (idx !== -1 && targetInvoice) {
+      invoices[idx] = targetInvoice;
+      setLocal(key, invoices);
+    } else if (targetInvoice) {
+      invoices.push(targetInvoice);
+      setLocal(key, invoices);
+    }
 
-    if (invoices[idx].work_order_id) {
-      this.updateWorkOrderStatus(invoices[idx].work_order_id!, 'approved', 'sa', activeBranch);
+    // 2. Update Cloud Supabase
+    if (supabase && isSupabaseConfigured && targetInvoice) {
+      try {
+        await supabase
+          .from('invoices')
+          .update({
+            signature_customer_url: signatureDataUrl,
+            customer_signature: signatureDataUrl,
+            customer_signed_name: customerName,
+            customer_signed_at: now,
+            customer_approved_option: approvedOption,
+            customer_response: approvedOption,
+            ttd_status: 'signed',
+            updated_at: now,
+          })
+          .or(`id.eq.${targetInvoice.id},invoice_number.eq.${targetInvoice.invoice_number}`);
+
+        // Update status work order menjadi approved / servicing
+        if (targetInvoice.work_order_id) {
+          const { data: woData } = await supabase
+            .from('work_orders')
+            .select('checklist_data')
+            .eq('id', targetInvoice.work_order_id)
+            .single();
+
+          const existingChecklist = woData?.checklist_data || {};
+          const tabKey = (targetInvoice as any).tab_id || targetInvoice.estimation_tab || 'tab_1';
+
+          await supabase
+            .from('work_orders')
+            .update({
+              status: 'approved',
+              checklist_data: {
+                ...existingChecklist,
+                estimation: targetInvoice,
+                [`estimation_${tabKey}`]: targetInvoice,
+              },
+            })
+            .eq('id', targetInvoice.work_order_id);
+        }
+      } catch (err) {
+        console.warn('Supabase approveEstimationSignature error:', err);
+      }
+    }
+
+    if (targetInvoice?.work_order_id) {
+      this.updateWorkOrderStatus(targetInvoice.work_order_id, 'approved', 'sa', activeBranch);
     }
 
     // Log audit
@@ -1090,56 +1240,91 @@ export class DBService {
       'sa',
       'CUSTOMER_SIGN_ESTIMATION',
       'invoices',
-      invoices[idx].invoice_number,
-      { approvedOption, invoice_number: invoices[idx].invoice_number },
+      targetInvoice?.invoice_number || idOrToken,
+      { approvedOption, invoice_number: targetInvoice?.invoice_number },
       activeBranch
     );
 
-    return this.getInvoiceById(invoices[idx].id, activeBranch) || invoices[idx];
+    return targetInvoice;
   }
 
   // Save customer "pending" response (no signature needed)
-  static savePendingResponse(
+  static async savePendingResponse(
     idOrToken: string,
     customerName: string,
     branch?: BranchId
-  ): Invoice | null {
-    const target = this.findEstimationByIdOrToken(idOrToken);
+  ): Promise<Invoice | null> {
+    const target = await this.findEstimationByIdOrTokenAsync(idOrToken);
     const activeBranch = branch || (target ? target.branch : this.getActiveBranch());
+    const now = new Date().toISOString();
+
+    let targetInvoice: Invoice | null = target ? target.estimation : null;
+    if (targetInvoice) {
+      targetInvoice = {
+        ...targetInvoice,
+        customer_response: 'pending',
+        ttd_status: 'pending',
+        customer_signed_name: customerName,
+        customer_signed_at: now,
+        updated_at: now,
+      };
+    }
+
+    // 1. Update cache lokal
     const key = getBranchKey(BASE_STORAGE_KEYS.INVOICES, activeBranch);
     const invoices = getLocal<Invoice[]>(key, []);
     const idx = invoices.findIndex(
-      (i) => i.id === idOrToken || i.invoice_number === idOrToken || i.ttd_token === idOrToken
-        || (target && i.id === target.estimation.id)
+      (i) => i.id === idOrToken || i.invoice_number === idOrToken || (targetInvoice && i.id === targetInvoice.id)
     );
-
-    const now = new Date().toISOString();
-    if (idx !== -1) {
-      invoices[idx].customer_response = 'pending';
-      invoices[idx].ttd_status = 'pending';
-      invoices[idx].customer_signed_name = customerName;
-      invoices[idx].customer_signed_at = now;
-      invoices[idx].updated_at = now;
+    if (idx !== -1 && targetInvoice) {
+      invoices[idx] = targetInvoice;
       setLocal(key, invoices);
-      return invoices[idx];
+    } else if (targetInvoice) {
+      invoices.push(targetInvoice);
+      setLocal(key, invoices);
     }
 
-    // Try via target branch
-    if (target) {
-      const targetKey = getBranchKey(BASE_STORAGE_KEYS.INVOICES, target.branch);
-      const targetList = getLocal<Invoice[]>(targetKey, []);
-      const tIdx = targetList.findIndex((i) => i.id === target.estimation.id);
-      if (tIdx !== -1) {
-        targetList[tIdx].customer_response = 'pending';
-        targetList[tIdx].ttd_status = 'pending';
-        targetList[tIdx].customer_signed_name = customerName;
-        targetList[tIdx].customer_signed_at = now;
-        targetList[tIdx].updated_at = now;
-        setLocal(targetKey, targetList);
-        return targetList[tIdx];
+    // 2. Update Cloud Supabase
+    if (supabase && isSupabaseConfigured && targetInvoice) {
+      try {
+        await supabase
+          .from('invoices')
+          .update({
+            customer_response: 'pending',
+            ttd_status: 'pending',
+            customer_signed_name: customerName,
+            customer_signed_at: now,
+            updated_at: now,
+          })
+          .or(`id.eq.${targetInvoice.id},invoice_number.eq.${targetInvoice.invoice_number}`);
+
+        if (targetInvoice.work_order_id) {
+          const { data: woData } = await supabase
+            .from('work_orders')
+            .select('checklist_data')
+            .eq('id', targetInvoice.work_order_id)
+            .single();
+
+          const existingChecklist = woData?.checklist_data || {};
+          const tabKey = (targetInvoice as any).tab_id || targetInvoice.estimation_tab || 'tab_1';
+
+          await supabase
+            .from('work_orders')
+            .update({
+              checklist_data: {
+                ...existingChecklist,
+                estimation: targetInvoice,
+                [`estimation_${tabKey}`]: targetInvoice,
+              },
+            })
+            .eq('id', targetInvoice.work_order_id);
+        }
+      } catch (err) {
+        console.warn('Supabase savePendingResponse error:', err);
       }
     }
-    return null;
+
+    return targetInvoice;
   }
 
   // --- CRM & SERVICE REMINDERS (PER CABANG) ---

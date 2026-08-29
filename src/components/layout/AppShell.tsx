@@ -11,19 +11,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  const isLoginPage = pathname === '/login';
+  const isPublicPage = pathname === '/login' || pathname.startsWith('/estimasi/ttd');
   const isMekanik = currentUser?.role === 'mekanik';
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && !isLoginPage) {
+    if (!isLoading && !isAuthenticated && !isPublicPage) {
       router.push('/login');
-    } else if (!isLoading && isAuthenticated && isMekanik && !pathname.startsWith('/checkup')) {
+    } else if (!isLoading && isAuthenticated && isMekanik && !pathname.startsWith('/checkup') && !isPublicPage) {
       router.replace('/checkup');
     }
-  }, [isLoading, isAuthenticated, isLoginPage, isMekanik, pathname, router]);
+  }, [isLoading, isAuthenticated, isPublicPage, isMekanik, pathname, router]);
 
-  // Halaman login: tampilkan saja tanpa shell
-  if (isLoginPage) {
+  // Halaman publik (Login atau Lembar TTD Customer Publik): tampilkan langsung tanpa shell/sidebar/navbar
+  if (isPublicPage) {
     return <>{children}</>;
   }
 
