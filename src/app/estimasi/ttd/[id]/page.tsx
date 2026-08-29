@@ -251,6 +251,20 @@ export default function CustomerSignatureApprovalPage() {
               </span>
             )}
           </div>
+
+          {(estimation.estimator_signature || (estimation as any).signature_admin_url) && (
+            <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+              <span className="font-semibold">Estimasi ini telah diverifikasi &amp; ditandatangani oleh Estimator: <strong>{(estimation as any).estimator_name || 'SA Bengkel'}</strong></span>
+              <div className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={estimation.estimator_signature || (estimation as any).signature_admin_url}
+                  alt="TTD Estimator"
+                  className="h-7 object-contain opacity-90"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── TABEL ESTIMASI ── */}

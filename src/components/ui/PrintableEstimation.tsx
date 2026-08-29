@@ -463,11 +463,20 @@ export function PrintableEstimation({
             <div className="grid grid-cols-2 gap-4 text-center text-xs">
               <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between h-[115px]">
                 <p className="font-black text-[#001F7A] text-[10px] uppercase">Estimator</p>
-                <div className="h-14 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white my-0.5">
-                  <span className="text-[9px] text-slate-400 italic">Tanda tangan Estimator</span>
+                <div className="h-14 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white my-0.5 overflow-hidden">
+                  {estimation.estimator_signature || (estimation as any).signature_admin_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={estimation.estimator_signature || (estimation as any).signature_admin_url}
+                      alt="TTD Estimator"
+                      className="max-h-12 object-contain"
+                    />
+                  ) : (
+                    <span className="text-[9px] text-slate-400 italic">Tanda tangan Estimator</span>
+                  )}
                 </div>
                 <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate">
-                  {signerEstimator || 'Via Rizkiana'}
+                  {signerEstimator || estimation.estimator_name || 'Via Rizkiana'}
                 </p>
               </div>
 

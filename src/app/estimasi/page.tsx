@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { PrintableEstimation } from '@/components/ui/PrintableEstimation';
 import { EditLicensePlateModal } from '@/components/ui/EditLicensePlateModal';
+import { SignatureCanvas } from '@/components/ui/SignatureCanvas';
 import { formatNumberOrText } from '@/lib/utils';
 
 // Satuan item options (Sesuai permintaan: SET, PCS, JASA)
@@ -76,8 +77,9 @@ function EstimationBuilderContent() {
   const [vehicleStatus, setVehicleStatus] = useState<string>('Di Tinggal');
   const [paymentPlan, setPaymentPlan] = useState<string>('Transfer');
 
-  // Estimator/SA name & estimated work duration (baru)
+  // Estimator/SA name, signature & estimated work duration (baru)
   const [estimatorName, setEstimatorName] = useState<string>('');
+  const [estimatorSignature, setEstimatorSignature] = useState<string>('');
   const [estimatedDuration, setEstimatedDuration] = useState<string>('');
 
   // Customer response (baru)
@@ -188,6 +190,11 @@ function EstimationBuilderContent() {
       if (sourceData.vehicle_status) setVehicleStatus(sourceData.vehicle_status);
       if (sourceData.payment_plan) setPaymentPlan(sourceData.payment_plan);
       if (sourceData.estimator_name) setEstimatorName(sourceData.estimator_name);
+      if (sourceData.estimator_signature || sourceData.signature_admin_url) {
+        setEstimatorSignature(sourceData.estimator_signature || sourceData.signature_admin_url);
+      } else {
+        setEstimatorSignature('');
+      }
       if (sourceData.estimated_duration) setEstimatedDuration(sourceData.estimated_duration);
       if (sourceData.customer_response) setCustomerResponse(sourceData.customer_response);
       if (sourceData.customer_response_note) setCustomerResponseNote(sourceData.customer_response_note);
@@ -224,6 +231,7 @@ function EstimationBuilderContent() {
       // SPK baru: mulai dengan 1 baris kosong (BUKAN sample data)
       setItems(EMPTY_ESTIMATION_ROW);
       setEstimatorName('');
+      setEstimatorSignature('');
       setEstimatedDuration('');
       setCustomerResponse('');
       setCustomerResponseNote('');
@@ -263,7 +271,8 @@ function EstimationBuilderContent() {
         items, estimation_type: estimationType, estimation_tab: activeTabId,
         estimation_date: estimationDate, estimation_time: estimationTime,
         vehicle_status: vehicleStatus, payment_plan: paymentPlan,
-        estimator_name: estimatorName, estimated_duration: estimatedDuration,
+        estimator_name: estimatorName, estimator_signature: estimatorSignature,
+        estimated_duration: estimatedDuration,
         customer_response: customerResponse, customer_response_note: customerResponseNote,
         has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
         discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
@@ -281,6 +290,7 @@ function EstimationBuilderContent() {
       if (sourceData.vehicle_status) setVehicleStatus(sourceData.vehicle_status); else setVehicleStatus('Di Tinggal');
       if (sourceData.payment_plan) setPaymentPlan(sourceData.payment_plan);
       setEstimatorName(sourceData.estimator_name || '');
+      setEstimatorSignature(sourceData.estimator_signature || sourceData.signature_admin_url || '');
       setEstimatedDuration(sourceData.estimated_duration || '');
       setCustomerResponse(sourceData.customer_response || '');
       setCustomerResponseNote(sourceData.customer_response_note || '');
@@ -306,12 +316,12 @@ function EstimationBuilderContent() {
       } else { setItems(EMPTY_ESTIMATION_ROW); }
     } else {
       setItems(EMPTY_ESTIMATION_ROW);
-      setEstimatorName(''); setEstimatedDuration('');
+      setEstimatorName(''); setEstimatorSignature(''); setEstimatedDuration('');
       setCustomerResponse(''); setCustomerResponseNote('');
       setAdminNotes(''); setVehicleStatus('Di Tinggal');
     }
   }, [selectedSpkId, isLocked, activeTabId, items, estimationType, estimationDate, estimationTime,
-      vehicleStatus, paymentPlan, estimatorName, estimatedDuration, customerResponse, customerResponseNote,
+      vehicleStatus, paymentPlan, estimatorName, estimatorSignature, estimatedDuration, customerResponse, customerResponseNote,
       showDiscount, showOpsi2, showTax, discountAmount, taxPercent, adminNotes, loadTabData, invoices]);
 
   // Auto-save draft in LocalStorage so edits are never lost when navigating away
@@ -321,7 +331,8 @@ function EstimationBuilderContent() {
       items, estimation_type: estimationType, estimation_tab: activeTabId,
       estimation_date: estimationDate, estimation_time: estimationTime,
       vehicle_status: vehicleStatus, payment_plan: paymentPlan,
-      estimator_name: estimatorName, estimated_duration: estimatedDuration,
+      estimator_name: estimatorName, estimator_signature: estimatorSignature,
+      estimated_duration: estimatedDuration,
       customer_response: customerResponse, customer_response_note: customerResponseNote,
       has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
       discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
@@ -333,7 +344,7 @@ function EstimationBuilderContent() {
   }, [
     selectedSpk, selectedSpkId, isLocked, items, estimationType, activeTabId,
     estimationDate, estimationTime, vehicleStatus, paymentPlan,
-    estimatorName, estimatedDuration, customerResponse, customerResponseNote,
+    estimatorName, estimatorSignature, estimatedDuration, customerResponse, customerResponseNote,
     showDiscount, showOpsi2, showTax, discountAmount, taxPercent, adminNotes, tabList,
   ]);
 
@@ -481,7 +492,8 @@ function EstimationBuilderContent() {
       items, estimation_type: estimationType, estimation_tab: activeTabId,
       estimation_date: estimationDate, estimation_time: estimationTime,
       vehicle_status: vehicleStatus, payment_plan: paymentPlan,
-      estimator_name: estimatorName, estimated_duration: estimatedDuration,
+      estimator_name: estimatorName, estimator_signature: estimatorSignature,
+      estimated_duration: estimatedDuration,
       customer_response: customerResponse, customer_response_note: customerResponseNote,
       has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
       discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
@@ -494,7 +506,7 @@ function EstimationBuilderContent() {
     setActiveTabId(newTabId);
     setEstimationType(tabName);
     setItems(EMPTY_ESTIMATION_ROW);
-    setEstimatorName(''); setEstimatedDuration('');
+    setEstimatorName(''); setEstimatorSignature(''); setEstimatedDuration('');
     setCustomerResponse(''); setCustomerResponseNote('');
     setAdminNotes(''); setCurrentEstimationRecord(null);
     if (selectedSpkId) {
@@ -574,6 +586,8 @@ function EstimationBuilderContent() {
         vehicle_status: vehicleStatus,
         payment_plan: paymentPlan,
         estimator_name: estimatorName,
+        estimator_signature: estimatorSignature,
+        signature_admin_url: estimatorSignature,
         estimated_duration: estimatedDuration,
         customer_response: customerResponse as any,
         customer_response_note: customerResponseNote,
@@ -989,6 +1003,35 @@ function EstimationBuilderContent() {
           </div>
         </div>
 
+        {/* BOX TANDA TANGAN ESTIMATOR / SA */}
+        <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <PenTool className="w-4 h-4 text-blue-600" />
+              <label className="block text-[10.5px] font-black uppercase tracking-wider text-slate-700">
+                Tanda Tangan Estimator / SA Yang Mengerjakan:
+              </label>
+            </div>
+            {estimatorSignature ? (
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                ✓ Tanda Tangan Tersimpan
+              </span>
+            ) : (
+              <span className="text-[10px] text-slate-400">
+                Bubuhkan tanda tangan di bawah
+              </span>
+            )}
+          </div>
+          <div className="max-w-md bg-white p-3 rounded-xl border border-slate-200">
+            <SignatureCanvas
+              key={`${selectedSpkId}_${activeTabId}_${estimatorSignature ? 'has_sig' : 'empty'}`}
+              initialDataUrl={estimatorSignature}
+              onSave={(dataUrl) => setEstimatorSignature(dataUrl)}
+              readOnly={isLocked}
+            />
+          </div>
+        </div>
+
         {/* RESPON CUSTOMER */}
         <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 space-y-3">
           <div className="flex items-center space-x-2">
@@ -1328,8 +1371,15 @@ function EstimationBuilderContent() {
               <button
                 type="button"
                 onClick={() => {
-                  if (currentEstimationRecord) {
-                    setSavedEstimation(currentEstimationRecord);
+                  const estToPreview = currentEstimationRecord
+                    ? {
+                        ...currentEstimationRecord,
+                        estimator_name: estimatorName || currentEstimationRecord.estimator_name,
+                        estimator_signature: estimatorSignature || currentEstimationRecord.estimator_signature,
+                      }
+                    : null;
+                  if (estToPreview) {
+                    setSavedEstimation(estToPreview);
                   } else {
                     handleSaveEstimation().then((res) => {
                       if (res) setSavedEstimation(res);

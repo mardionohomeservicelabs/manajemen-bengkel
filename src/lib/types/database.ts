@@ -373,8 +373,9 @@ export interface Invoice {
   // --- Estimasi Lama Pekerjaan ---
   estimated_duration?: string; // "2 Hari", "3 Jam", "1 Minggu", dll.
 
-  // --- Estimator / SA Name per-estimasi ---
+  // --- Estimator / SA Name & Signature per-estimasi ---
   estimator_name?: string;
+  estimator_signature?: string; // Base64 data URL signature of Estimator/SA
 
   // Joined fields
   vehicle?: VehicleCustomer;
