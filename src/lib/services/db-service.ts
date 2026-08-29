@@ -1066,6 +1066,50 @@ export class DBService {
     return this.getInvoiceById(invoices[idx].id, activeBranch) || invoices[idx];
   }
 
+  // Save customer "pending" response (no signature needed)
+  static savePendingResponse(
+    idOrToken: string,
+    customerName: string,
+    branch?: BranchId
+  ): Invoice | null {
+    const target = this.findEstimationByIdOrToken(idOrToken);
+    const activeBranch = branch || (target ? target.branch : this.getActiveBranch());
+    const key = getBranchKey(BASE_STORAGE_KEYS.INVOICES, activeBranch);
+    const invoices = getLocal<Invoice[]>(key, []);
+    const idx = invoices.findIndex(
+      (i) => i.id === idOrToken || i.invoice_number === idOrToken || i.ttd_token === idOrToken
+        || (target && i.id === target.estimation.id)
+    );
+
+    const now = new Date().toISOString();
+    if (idx !== -1) {
+      invoices[idx].customer_response = 'pending';
+      invoices[idx].ttd_status = 'pending';
+      invoices[idx].customer_signed_name = customerName;
+      invoices[idx].customer_signed_at = now;
+      invoices[idx].updated_at = now;
+      setLocal(key, invoices);
+      return invoices[idx];
+    }
+
+    // Try via target branch
+    if (target) {
+      const targetKey = getBranchKey(BASE_STORAGE_KEYS.INVOICES, target.branch);
+      const targetList = getLocal<Invoice[]>(targetKey, []);
+      const tIdx = targetList.findIndex((i) => i.id === target.estimation.id);
+      if (tIdx !== -1) {
+        targetList[tIdx].customer_response = 'pending';
+        targetList[tIdx].ttd_status = 'pending';
+        targetList[tIdx].customer_signed_name = customerName;
+        targetList[tIdx].customer_signed_at = now;
+        targetList[tIdx].updated_at = now;
+        setLocal(targetKey, targetList);
+        return targetList[tIdx];
+      }
+    }
+    return null;
+  }
+
   // --- CRM & SERVICE REMINDERS (PER CABANG) ---
   static getCRMLogs(branch?: BranchId): CRMLog[] {
     const key = getBranchKey(BASE_STORAGE_KEYS.CRM_LOGS, branch);

@@ -6,8 +6,10 @@ import { DBService } from '@/lib/services/db-service';
 import { Invoice, WorkshopSettings } from '@/lib/types/database';
 import { formatCurrency, formatPlate, formatDateTime, formatNumberOrText } from '@/lib/utils';
 import { SignatureCanvas } from '@/components/ui/SignatureCanvas';
-import { CheckCircle2, ShieldCheck, Car, Calendar, Clock, ArrowRight, Printer, Sparkles, Building2 } from 'lucide-react';
+import { CheckCircle2, Clock, AlertTriangle } from 'lucide-react';
 import confetti from 'canvas-confetti';
+
+type CustomerChoice = 'opsi1' | 'opsi2' | 'pending';
 
 export default function CustomerSignatureApprovalPage() {
   const params = useParams();
@@ -15,7 +17,7 @@ export default function CustomerSignatureApprovalPage() {
 
   const [estimation, setEstimation] = useState<Invoice | null>(null);
   const [settings, setSettings] = useState<WorkshopSettings | null>(null);
-  const [selectedOption, setSelectedOption] = useState<'opsi1' | 'opsi2'>('opsi1');
+  const [selectedOption, setSelectedOption] = useState<CustomerChoice>('opsi1');
   const [signerName, setSignerName] = useState<string>('');
   const [signatureDataUrl, setSignatureDataUrl] = useState<string>('');
   const [agreedTerms, setAgreedTerms] = useState<boolean>(false);
@@ -25,14 +27,13 @@ export default function CustomerSignatureApprovalPage() {
 
   useEffect(() => {
     if (!rawId) return;
-
     const result = DBService.findEstimationByIdOrToken(rawId);
     if (result && result.estimation) {
       setEstimation(result.estimation);
       setSettings(DBService.getSettings(result.branch));
       setSignerName(result.estimation.vehicle?.customer_name || '');
       if (result.estimation.customer_approved_option) {
-        setSelectedOption(result.estimation.customer_approved_option);
+        setSelectedOption(result.estimation.customer_approved_option as CustomerChoice);
       }
       if (result.estimation.ttd_status === 'signed' || result.estimation.customer_signature) {
         setIsSubmittedSuccess(true);
@@ -42,58 +43,69 @@ export default function CustomerSignatureApprovalPage() {
     }
   }, [rawId]);
 
-  const handleSubmitSignature = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!estimation) return;
-    if (!signatureDataUrl) {
+
+    if (selectedOption !== 'pending' && !signatureDataUrl) {
       alert('Silakan bubuhkan tanda tangan Anda pada kanvas terlebih dahulu.');
       return;
     }
     if (!agreedTerms) {
-      alert('Harap centang persetujuan estimasi & ketentuan servis.');
+      alert('Harap centang persetujuan ketentuan estimasi.');
       return;
     }
 
     setIsSubmitting(true);
     try {
+      if (selectedOption === 'pending') {
+        // Untuk Pending: simpan pilihan tanpa TTD
+        const saved = DBService.savePendingResponse(
+          rawId,
+          signerName || estimation.vehicle?.customer_name || 'Customer'
+        );
+        if (saved) setEstimation(saved);
+        setIsSubmittedSuccess(true);
+        return;
+      }
+
+      // Opsi 1 atau Opsi 2: simpan TTD + pilihan
       const updated = await DBService.approveEstimationSignature(
         rawId,
         signatureDataUrl,
         signerName.trim() || estimation.vehicle?.customer_name || 'Customer',
-        selectedOption
+        selectedOption as 'opsi1' | 'opsi2'
       );
 
       if (updated) {
-        setEstimation(updated);
+        // Juga update customer_response sesuai pilihan
+        const finalUpdated: Invoice = {
+          ...updated,
+          customer_response: selectedOption as 'opsi1' | 'opsi2',
+        };
+        setEstimation(finalUpdated);
         setIsSubmittedSuccess(true);
         try {
-          confetti({
-            particleCount: 100,
-            spread: 70,
-            origin: { y: 0.6 },
-          });
-        } catch {
-          // ignore confetti error if any
-        }
+          confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+        } catch { /* ignore */ }
       }
     } catch (err) {
-      console.error('Error approving signature:', err);
-      alert('Terjadi kesalahan saat mengirim tanda tangan. Silakan coba lagi.');
+      console.error(err);
+      alert('Terjadi kesalahan. Silakan coba lagi.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  /* ─── Loading & Error States ─── */
   if (notFound) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white max-w-md w-full p-8 rounded-2xl border border-slate-200 shadow-xl text-center space-y-4">
-          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto text-2xl font-black">
-            !
-          </div>
-          <h2 className="text-lg font-black text-slate-900">Estimasi Tidak Ditemukan</h2>
-          <p className="text-xs text-slate-500">
-            Tautan estimasi tidak valid atau telah dihapus oleh sistem. Silakan hubungi Service Advisor bengkel Anda.
+        <div className="bg-white max-w-sm w-full p-8 rounded-2xl border border-slate-200 shadow-xl text-center space-y-4">
+          <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto text-2xl font-black">!</div>
+          <h2 className="text-base font-black text-slate-900">Estimasi Tidak Ditemukan</h2>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Tautan estimasi tidak valid atau telah kedaluwarsa. Silakan hubungi Service Advisor bengkel Anda.
           </p>
         </div>
       </div>
@@ -102,10 +114,10 @@ export default function CustomerSignatureApprovalPage() {
 
   if (!estimation) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="text-center space-y-2">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center space-y-3">
           <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs font-bold text-slate-600">Memuat Lembar Persetujuan Estimasi...</p>
+          <p className="text-xs font-bold text-slate-500">Memuat Lembar Persetujuan...</p>
         </div>
       </div>
     );
@@ -115,155 +127,158 @@ export default function CustomerSignatureApprovalPage() {
   const items = estimation.items || [];
   const hasOpsi2 = estimation.has_opsi2 !== false;
 
-  // Total Opsi 1
-  const totalOpsi1 = items.reduce((sum, it) => {
-    const tot = typeof it.total_opsi1 === 'number'
-      ? it.total_opsi1
-      : (typeof it.price_opsi1 === 'number' ? (it.qty || 1) * it.price_opsi1 : (typeof it.price === 'number' ? (it.qty || 1) * it.price : 0));
-    return sum + (Number.isNaN(tot) ? 0 : tot);
-  }, 0) - (estimation.discount_amount || 0);
+  const totalOpsi1 = Math.max(0, items.reduce((s, it) => {
+    const t = typeof it.total_opsi1 === 'number' ? it.total_opsi1
+      : (typeof it.price_opsi1 === 'number' ? (it.qty || 1) * it.price_opsi1 : 0);
+    return s + (isNaN(t) ? 0 : t);
+  }, 0) - (estimation.discount_amount || 0));
 
-  // Total Opsi 2
-  const totalOpsi2 = items.reduce((sum, it) => {
-    const tot = typeof it.total_opsi2 === 'number'
-      ? it.total_opsi2
-      : (typeof it.price_opsi2 === 'number'
-        ? (it.qty || 1) * it.price_opsi2
-        : (typeof it.price_opsi1 === 'number' ? (it.qty || 1) * it.price_opsi1 : (typeof it.price === 'number' ? (it.qty || 1) * it.price : 0)));
-    return sum + (Number.isNaN(tot) ? 0 : tot);
-  }, 0) - (estimation.discount_amount || 0);
+  const totalOpsi2 = Math.max(0, items.reduce((s, it) => {
+    const t = typeof it.total_opsi2 === 'number' ? it.total_opsi2
+      : (typeof it.price_opsi2 === 'number' ? (it.qty || 1) * it.price_opsi2
+        : (typeof it.price_opsi1 === 'number' ? (it.qty || 1) * it.price_opsi1 : 0));
+    return s + (isNaN(t) ? 0 : t);
+  }, 0) - (estimation.discount_amount || 0));
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100 py-6 px-3 sm:px-6">
-      <div className="max-w-3xl mx-auto space-y-5">
-        {/* Official Header */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center space-x-3.5 text-center sm:text-left">
-            <div className="w-12 h-12 rounded-xl bg-blue-900 text-white flex items-center justify-center font-black text-xl shadow-md flex-shrink-0">
-              <Building2 className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
-                {settings?.name || 'MARDIONO HOME SERVICE'}
-              </h1>
-              <p className="text-xs text-slate-500 font-medium">{settings?.tagline || 'Spesialis Mesin & AC Mobil'}</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">{settings?.phone || '0812-3076-2930'} • {settings?.city || 'Sidoarjo'}</p>
-            </div>
+  const workshopName = settings?.name || 'MARDIONO HOME SERVICE';
+  const workshopPhone = settings?.phone || '';
+  const workshopAddress = settings?.address || '';
+
+  /* ─── Success Page ─── */
+  if (isSubmittedSuccess) {
+    const isPending = estimation.customer_response === 'pending' || selectedOption === 'pending';
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center p-4">
+        <div className="max-w-sm w-full space-y-5 text-center">
+          <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto shadow-lg ${isPending ? 'bg-amber-500' : 'bg-emerald-500'}`}>
+            {isPending
+              ? <Clock className="w-8 h-8 text-white" />
+              : <CheckCircle2 className="w-8 h-8 text-white" />
+            }
           </div>
-          <div className="text-center sm:text-right bg-blue-50/80 px-4 py-2.5 rounded-xl border border-blue-200">
-            <span className="text-[10px] text-blue-700 font-bold uppercase tracking-wider block">No. Estimasi Resmi</span>
-            <span className="font-mono font-black text-sm text-blue-950">{estimation.invoice_number}</span>
-          </div>
-        </div>
-
-        {/* Success Banner if already signed */}
-        {isSubmittedSuccess && (
-          <div className="bg-emerald-50 border-2 border-emerald-500/80 rounded-2xl p-5 shadow-sm text-center space-y-3">
-            <div className="w-12 h-12 bg-emerald-600 text-white rounded-full flex items-center justify-center mx-auto shadow-md">
-              <CheckCircle2 className="w-7 h-7" />
-            </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-black text-emerald-950">
-                Persetujuan Estimasi Berhasil Dikonfirmasi!
-              </h2>
-              <p className="text-xs text-emerald-800 mt-1 max-w-lg mx-auto">
-                Terima kasih, <strong>{estimation.customer_signed_name || signerName || vehicle?.customer_name}</strong>. Anda telah menyetujui pengerjaan dengan pilihan <strong>{estimation.customer_approved_option === 'opsi2' ? 'OPSI 2' : 'OPSI 1'}</strong>.
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-3">
+            <h2 className={`text-base font-black ${isPending ? 'text-amber-800' : 'text-emerald-800'}`}>
+              {isPending ? 'Respon Diterima: Pending' : 'Persetujuan Berhasil Dikonfirmasi!'}
+            </h2>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              {isPending
+                ? `Terima kasih, ${signerName || vehicle?.customer_name}. Kami akan menunggu keputusan Anda. Silakan hubungi SA kami untuk konfirmasi selanjutnya.`
+                : `Terima kasih, ${estimation.customer_signed_name || signerName || vehicle?.customer_name}. Anda telah menyetujui dengan pilihan ${selectedOption === 'opsi2' ? 'Opsi 2' : 'Opsi 1'}.`
+              }
+            </p>
+            {estimation.customer_signed_at && (
+              <p className="text-[11px] text-slate-400 font-mono">
+                Waktu: {formatDateTime(estimation.customer_signed_at)}
               </p>
-              {estimation.customer_signed_at && (
-                <p className="text-[11px] text-emerald-700 font-mono mt-1">
-                  Waktu Konfirmasi: {formatDateTime(estimation.customer_signed_at)}
-                </p>
+            )}
+            {!isPending && estimation.customer_signature && (
+              <div className="mt-2 pt-3 border-t border-slate-100">
+                <span className="text-[10px] text-slate-400 block mb-1">Tanda Tangan Digital Tersimpan:</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={estimation.customer_signature} alt="TTD" className="h-16 mx-auto object-contain opacity-80" />
+              </div>
+            )}
+          </div>
+          <p className="text-[11px] text-slate-400">{workshopName} · Sistem Manajemen Bengkel</p>
+        </div>
+      </div>
+    );
+  }
+
+  /* ─── Main Page ─── */
+  return (
+    <div className="min-h-screen bg-[#f5f5f5] py-4 px-3">
+      <div className="max-w-2xl mx-auto space-y-3">
+
+        {/* ── BENGKEL HEADER (mirip header dokumen resmi) ── */}
+        <div className="bg-white rounded-xl border border-slate-300 p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              {settings?.logo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={settings.logo_url} alt="Logo" className="h-12 w-12 object-contain rounded-lg border border-slate-200" />
+              ) : (
+                <div className="w-12 h-12 rounded-lg bg-[#001F7A] text-white flex items-center justify-center font-black text-lg flex-shrink-0">
+                  {workshopName.charAt(0)}
+                </div>
+              )}
+              <div>
+                <h1 className="font-black text-sm text-slate-900 leading-tight">{workshopName}</h1>
+                {workshopPhone && <p className="text-[11px] text-slate-500 font-mono">No. HP: {workshopPhone}</p>}
+                {workshopAddress && <p className="text-[11px] text-slate-500 leading-tight line-clamp-1">{workshopAddress}</p>}
+              </div>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <span className="text-[9px] text-slate-400 font-bold uppercase block">No. Estimasi</span>
+              <span className="font-mono font-black text-xs text-[#001F7A]">{estimation.invoice_number}</span>
+              {estimation.work_order?.spk_number && (
+                <span className="text-[9px] text-slate-400 font-mono block mt-0.5">SPK: {estimation.work_order.spk_number}</span>
               )}
             </div>
-
-            {estimation.customer_signature && (
-              <div className="mt-4 pt-3 border-t border-emerald-200 max-w-xs mx-auto">
-                <span className="text-[10px] text-slate-500 font-bold block mb-1">Tanda Tangan Digital Tersimpan:</span>
-                <div className="bg-white p-2 rounded-xl border border-emerald-200">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={estimation.customer_signature} alt="Tanda Tangan Customer" className="h-20 mx-auto object-contain" />
-                </div>
-              </div>
-            )}
-
-            <button
-              onClick={() => window.print()}
-              className="inline-flex items-center space-x-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-xs transition"
-            >
-              <Printer className="w-4 h-4" />
-              <span>Cetak / Simpan Salinan Persetujuan</span>
-            </button>
           </div>
-        )}
 
-        {/* Customer & Vehicle Info Box */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center space-x-2">
-              <Car className="w-4 h-4 text-blue-600" />
-              <span>Identitas Kendaraan &amp; Pelanggan</span>
-            </h3>
+          {/* Identitas Customer & Kendaraan */}
+          <div className="mt-3 pt-3 border-t border-slate-200 grid grid-cols-2 gap-3 text-xs">
+            <div>
+              <span className="text-[9px] font-bold text-slate-400 uppercase block">Pemilik / Pelanggan</span>
+              <div className="font-black text-slate-900">{vehicle?.customer_name || '-'}</div>
+              <div className="text-slate-500 font-mono text-[11px]">{vehicle?.phone_number || '-'}</div>
+              <div className="text-slate-500 text-[11px] leading-tight">{vehicle?.address || '-'}</div>
+            </div>
+            <div>
+              <span className="text-[9px] font-bold text-slate-400 uppercase block">Kendaraan</span>
+              <div className="font-black text-[#8B0000] font-mono">{vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'}</div>
+              <div className="font-bold text-slate-800 text-[11px]">{vehicle?.car_brand} {vehicle?.car_model} ({vehicle?.car_year || '-'})</div>
+              <div className="text-slate-500 text-[11px]">KM: {vehicle?.current_mileage?.toLocaleString('id-ID') || '-'}</div>
+            </div>
+          </div>
+
+          {/* Status Mobil + Estimator */}
+          <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
             {estimation.vehicle_status && (
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                Status Mobil: {estimation.vehicle_status}
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold border border-slate-200">
+                {estimation.vehicle_status === 'Di Tunggu' ? '⏳' : estimation.vehicle_status === 'Rawat Inap' ? '🏥' : '🚗'} {estimation.vehicle_status}
               </span>
             )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80 space-y-1">
-              <span className="text-slate-400 text-[10.5px] font-semibold block">Pemilik / Pelanggan:</span>
-              <div className="font-black text-slate-900 text-sm">{vehicle?.customer_name || 'Pelanggan'}</div>
-              <div className="text-slate-600 font-mono">{vehicle?.phone_number || '-'}</div>
-              <div className="text-slate-500 text-[11px] line-clamp-1">{vehicle?.address || '-'}</div>
-            </div>
-
-            <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80 space-y-1">
-              <span className="text-slate-400 text-[10.5px] font-semibold block">Unit Kendaraan:</span>
-              <div className="font-black text-blue-900 font-mono text-sm">
-                {vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'}
-              </div>
-              <div className="font-bold text-slate-800">{vehicle?.car_brand} {vehicle?.car_model}</div>
-              <div className="text-slate-500 text-[11px]">Rencana Bayar: <strong>{estimation.payment_plan || 'Transfer'}</strong></div>
-            </div>
+            {(estimation as any).estimated_duration && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                ⏱ Est. {(estimation as any).estimated_duration}
+              </span>
+            )}
+            {(estimation as any).estimator_name && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 font-bold border border-amber-200">
+                👤 SA: {(estimation as any).estimator_name}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Estimation Items Table */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div>
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
-                Rincian Estimasi Biaya Pekerjaan &amp; Part
-              </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">Silakan tinjau rincian opsi estimasi di bawah ini.</p>
-            </div>
-            {estimation.work_order?.spk_number && (
-              <span className="text-[11px] font-mono font-bold text-blue-900 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
-                SPK: {estimation.work_order.spk_number}
-              </span>
-            )}
+        {/* ── TABEL ESTIMASI ── */}
+        <div className="bg-white rounded-xl border border-slate-300 shadow-sm overflow-hidden">
+          {/* Section header */}
+          <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5">
+            <h2 className="text-[11px] font-black text-slate-800 uppercase tracking-wider">
+              Estimasi: {estimation.estimation_type || 'Umum'}
+            </h2>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              Harga berlaku sesuai dengan estimasi, dilangsungkan untuk jasa servis dengan ketersediaan sparepart di gudang.
+            </p>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
-            <table className="w-full text-left text-xs border-collapse min-w-[550px]">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[11px] border-collapse min-w-[480px]">
               <thead>
-                <tr className="bg-slate-50 border-b-2 border-slate-300 text-slate-800 font-black text-[11px] uppercase">
-                  <th className="p-3 w-8 text-center border-r border-slate-200">No</th>
-                  <th className="p-3 border-r border-slate-200">Saran/Perbaikan/Ganti Sparepart</th>
-                  <th className="p-3 w-16 text-center border-r border-slate-200">QTY</th>
-                  <th className="p-3 w-20 text-center border-r border-slate-200">Satuan</th>
-                  <th className="p-3 text-right border-r border-slate-200">Hrg Sat</th>
-                  <th className="p-3 text-right border-r border-slate-200">Total Opsi 1</th>
-                  {hasOpsi2 && (
-                    <>
-                      <th className="p-3 text-right text-blue-950 bg-blue-50/50 border-r border-slate-200">Hrg Opsi 2</th>
-                      <th className="p-3 text-right text-blue-950 bg-blue-50/50">Total Opsi 2</th>
-                    </>
-                  )}
+                <tr className="bg-slate-800 text-white text-[10px] font-black uppercase">
+                  <th className="p-2 w-7 text-center border-r border-slate-600">No</th>
+                  <th className="p-2 border-r border-slate-600">Item</th>
+                  <th className="p-2 w-10 text-center border-r border-slate-600">Qty</th>
+                  <th className="p-2 w-14 text-center border-r border-slate-600">Satuan</th>
+                  <th className="p-2 w-24 text-right border-r border-slate-600">Harga</th>
+                  <th className="p-2 w-24 text-right border-r border-slate-600">Total 1</th>
+                  {hasOpsi2 && <th className="p-2 w-24 text-right bg-blue-900">Total 2</th>}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
+              <tbody className="divide-y divide-slate-100">
                 {items.map((item, idx) => {
                   const p1 = item.price_opsi1 !== undefined ? item.price_opsi1 : item.price;
                   const tot1 = item.total_opsi1 !== undefined ? item.total_opsi1 : (typeof p1 === 'number' ? (item.qty || 1) * p1 : p1);
@@ -271,212 +286,205 @@ export default function CustomerSignatureApprovalPage() {
                   const tot2 = item.total_opsi2 !== undefined ? item.total_opsi2 : (typeof p2 === 'number' ? (item.qty || 1) * p2 : p2);
 
                   return (
-                    <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="p-3 text-center text-slate-500 font-bold border-r border-slate-200">{idx + 1}</td>
-                      <td className="p-3 border-r border-slate-200">
-                        <div className="font-bold text-slate-900 uppercase">{item.name}</div>
-                        {item.code && <div className="text-[10px] text-slate-400 font-mono">{item.code}</div>}
+                    <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                      <td className="p-2 text-center text-slate-400 font-bold border-r border-slate-100">{idx + 1}</td>
+                      <td className="p-2 border-r border-slate-100">
+                        <div className="font-bold text-slate-900 uppercase text-[10.5px]">{item.name}</div>
                       </td>
-                      <td className="p-3 text-center font-bold font-mono border-r border-slate-200">{item.qty || 1}</td>
-                      <td className="p-3 text-center text-[11px] uppercase text-slate-700 font-bold border-r border-slate-200">{item.unit || 'PCS'}</td>
-                      <td className="p-3 text-right font-mono font-bold text-slate-800 border-r border-slate-200">{formatNumberOrText(p1)}</td>
-                      <td className="p-3 text-right font-mono font-black text-slate-950 border-r border-slate-200">{formatNumberOrText(tot1)}</td>
+                      <td className="p-2 text-center font-mono font-bold text-slate-700 border-r border-slate-100">{item.qty || 1}</td>
+                      <td className="p-2 text-center text-[10px] font-black uppercase text-slate-600 border-r border-slate-100">{item.unit || 'PCS'}</td>
+                      <td className="p-2 text-right font-mono text-slate-700 border-r border-slate-100">{formatNumberOrText(p1)}</td>
+                      <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-100">{formatNumberOrText(tot1)}</td>
                       {hasOpsi2 && (
-                        <>
-                          <td className="p-3 text-right font-mono font-bold text-blue-900 bg-blue-50/30 border-r border-slate-200">{formatNumberOrText(p2)}</td>
-                          <td className="p-3 text-right font-mono font-black text-blue-950 bg-blue-50/30">{formatNumberOrText(tot2)}</td>
-                        </>
+                        <td className="p-2 text-right font-mono font-black text-blue-900 bg-blue-50/30">{formatNumberOrText(tot2)}</td>
                       )}
                     </tr>
                   );
                 })}
               </tbody>
-              {/* Grand Total Footer Row */}
               <tfoot>
-                <tr className="bg-slate-100 font-black border-t-2 border-slate-300 text-xs">
-                  <td colSpan={5} className="p-3 text-center uppercase tracking-wider text-slate-900 font-black">
-                    JUMLAH KESELURUHAN
+                <tr className="bg-slate-100 border-t-2 border-slate-300 font-black text-[11px]">
+                  <td colSpan={5} className="p-2 text-center uppercase tracking-wider text-slate-800 border-r border-slate-200">
+                    Total Cost
                   </td>
-                  <td className="p-3 text-right font-mono font-black text-sm text-slate-950 border-r border-slate-200">
+                  <td className="p-2 text-right font-mono text-slate-950 border-r border-slate-200">
                     {formatNumberOrText(totalOpsi1)}
                   </td>
                   {hasOpsi2 && (
-                    <>
-                      <td className="p-3 bg-blue-50/30 border-r border-slate-200"></td>
-                      <td className="p-3 text-right font-mono font-black text-sm text-blue-950 bg-blue-50/30">
-                        {formatNumberOrText(totalOpsi2)}
-                      </td>
-                    </>
+                    <td className="p-2 text-right font-mono text-blue-950 bg-blue-50/30">
+                      {formatNumberOrText(totalOpsi2)}
+                    </td>
                   )}
                 </tr>
               </tfoot>
             </table>
           </div>
-
-          {/* Total Breakdown Summary */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-            <div className="p-3.5 bg-blue-50/60 rounded-xl border border-blue-200/80 flex items-center justify-between">
-              <div>
-                <span className="text-[10.5px] font-black uppercase tracking-wider text-blue-900 block">Total Estimasi Opsi 1</span>
-                <span className="text-[11px] text-slate-500">Standar / Rekomendasi Utama</span>
-              </div>
-              <div className="text-right">
-                <span className="font-mono font-black text-base text-blue-950">{formatCurrency(totalOpsi1)}</span>
-              </div>
-            </div>
-
-            {hasOpsi2 && (
-              <div className="p-3.5 bg-purple-50/60 rounded-xl border border-purple-200/80 flex items-center justify-between">
-                <div>
-                  <span className="text-[10.5px] font-black uppercase tracking-wider text-purple-900 block">Total Estimasi Opsi 2</span>
-                  <span className="text-[11px] text-slate-500">Pilihan Alternatif</span>
-                </div>
-                <div className="text-right">
-                  <span className="font-mono font-black text-base text-purple-950">{formatCurrency(totalOpsi2)}</span>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Signature & Approval Form (if not yet submitted) */}
-        {!isSubmittedSuccess && (
-          <form onSubmit={handleSubmitSignature} className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-md space-y-5">
-            <div className="pb-3 border-b border-slate-100">
-              <h3 className="text-sm font-black text-slate-900 flex items-center space-x-2">
-                <ShieldCheck className="w-5 h-5 text-blue-600" />
-                <span>Persetujuan &amp; Tanda Tangan Digital Pelanggan</span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Pilih opsi estimasi yang Anda setujui dan bubuhkan tanda tangan di bawah ini.
-              </p>
-            </div>
-
-            {/* Option Selection Radio Cards */}
-            <div className="space-y-2">
-              <label className="block text-xs font-black uppercase tracking-wider text-slate-800">
-                1. Pilih Opsi Estimasi yang Anda Setujui: <span className="text-red-500">*</span>
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div
-                  onClick={() => setSelectedOption('opsi1')}
-                  className={`p-4 rounded-xl border-2 cursor-pointer transition flex items-center justify-between ${
-                    selectedOption === 'opsi1'
-                      ? 'border-blue-600 bg-blue-50/50 shadow-sm'
-                      : 'border-slate-200 bg-slate-50/50 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="radio"
-                      name="approved_option"
-                      checked={selectedOption === 'opsi1'}
-                      onChange={() => setSelectedOption('opsi1')}
-                      className="w-4 h-4 text-blue-600 focus:ring-blue-500 accent-blue-600"
-                    />
-                    <div>
-                      <div className="font-black text-xs text-slate-900">SETUJUI OPSI 1</div>
-                      <div className="text-[11px] text-slate-500">Estimasi Standar</div>
-                    </div>
-                  </div>
-                  <div className="font-mono font-black text-sm text-blue-900">{formatCurrency(totalOpsi1)}</div>
-                </div>
-
-                {hasOpsi2 && (
-                  <div
-                    onClick={() => setSelectedOption('opsi2')}
-                    className={`p-4 rounded-xl border-2 cursor-pointer transition flex items-center justify-between ${
-                      selectedOption === 'opsi2'
-                        ? 'border-purple-600 bg-purple-50/50 shadow-sm'
-                        : 'border-slate-200 bg-slate-50/50 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <input
-                        type="radio"
-                        name="approved_option"
-                        checked={selectedOption === 'opsi2'}
-                        onChange={() => setSelectedOption('opsi2')}
-                        className="w-4 h-4 text-purple-600 focus:ring-purple-500 accent-purple-600"
-                      />
-                      <div>
-                        <div className="font-black text-xs text-slate-900">SETUJUI OPSI 2</div>
-                        <div className="text-[11px] text-slate-500">Estimasi Alternatif</div>
-                      </div>
-                    </div>
-                    <div className="font-mono font-black text-sm text-purple-900">{formatCurrency(totalOpsi2)}</div>
-                  </div>
-                )}
+        {/* ── FORM PERSETUJUAN & TTD ── */}
+        <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-300 shadow-sm overflow-hidden">
+          {/* Keputusan Anda */}
+          <div className="border-b border-slate-200 px-4 py-3 bg-slate-50">
+            <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-700">Keputusan Anda</h3>
+          </div>
+          <div className="p-4 space-y-2">
+            {/* Opsi 1 */}
+            <label className={`flex items-center space-x-3 p-3 rounded-xl border-2 cursor-pointer transition ${
+              selectedOption === 'opsi1' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:border-slate-300'
+            }`}>
+              <input
+                type="radio"
+                name="choice"
+                value="opsi1"
+                checked={selectedOption === 'opsi1'}
+                onChange={() => setSelectedOption('opsi1')}
+                className="w-4 h-4 accent-emerald-600"
+              />
+              <div className="flex-1">
+                <span className="text-xs font-black text-slate-900">Setuju → Opsi 1</span>
+                <span className="block text-[11px] text-slate-500">Total: <strong className="text-slate-800 font-mono">{formatCurrency(totalOpsi1)}</strong></span>
               </div>
-            </div>
+              {selectedOption === 'opsi1' && <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />}
+            </label>
 
-            {/* Customer Name Input */}
+            {/* Opsi 2 */}
+            {hasOpsi2 && (
+              <label className={`flex items-center space-x-3 p-3 rounded-xl border-2 cursor-pointer transition ${
+                selectedOption === 'opsi2' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
+              }`}>
+                <input
+                  type="radio"
+                  name="choice"
+                  value="opsi2"
+                  checked={selectedOption === 'opsi2'}
+                  onChange={() => setSelectedOption('opsi2')}
+                  className="w-4 h-4 accent-blue-600"
+                />
+                <div className="flex-1">
+                  <span className="text-xs font-black text-slate-900">Setuju → Opsi 2</span>
+                  <span className="block text-[11px] text-slate-500">Total: <strong className="text-slate-800 font-mono">{formatCurrency(totalOpsi2)}</strong></span>
+                </div>
+                {selectedOption === 'opsi2' && <CheckCircle2 className="w-4 h-4 text-blue-600 flex-shrink-0" />}
+              </label>
+            )}
+
+            {/* Pending */}
+            <label className={`flex items-center space-x-3 p-3 rounded-xl border-2 cursor-pointer transition ${
+              selectedOption === 'pending' ? 'border-amber-400 bg-amber-50' : 'border-slate-200 hover:border-slate-300'
+            }`}>
+              <input
+                type="radio"
+                name="choice"
+                value="pending"
+                checked={selectedOption === 'pending'}
+                onChange={() => setSelectedOption('pending')}
+                className="w-4 h-4 accent-amber-500"
+              />
+              <div className="flex-1">
+                <span className="text-xs font-black text-slate-900">Pending / Tidak pilih dulu</span>
+                <span className="block text-[11px] text-slate-500">Saya perlu waktu untuk mempertimbangkan</span>
+              </div>
+              {selectedOption === 'pending' && <Clock className="w-4 h-4 text-amber-500 flex-shrink-0" />}
+            </label>
+          </div>
+
+          {/* Ketentuan Estimasi */}
+          <div className="border-t border-b border-slate-200 px-4 py-3 bg-slate-50">
+            <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-700 mb-2">KETENTUAN ESTIMASI:</h3>
+            <ol className="text-[10.5px] text-slate-600 space-y-1.5 leading-relaxed list-decimal list-inside">
+              <li>Membawa customer tidak diperkenankan membawa sparepart sendiri pada Kami / Teknisi.</li>
+              <li>Apabila daya dari sendiri, dalam maksimal 2 hari, setelah pembayaran parkir Rp 20.000/hari.</li>
+              <li>Apabila Anda memutuskan untuk melihat sendiri / Dan tidak bertanggung jawab atas kerusakan yang terjadi selama proses.</li>
+              <li>Jika Membawa Part Sendiri Tidak Ada Garansi Dalam Bentuk Apapun.</li>
+              <li className="font-bold text-slate-800">Apabila Sparepart Sudah Terpasang Dan Tidak Berfungsi, Kami Tidak Bisa Diretur.</li>
+              <li className="font-bold text-slate-800">Harga Yang Estimasi Yang Muncul Berlaku 1 Minggu Dari Tanggal Estimasi Di Keluarkan.</li>
+              <li>Apabila Harga Sparepart Ada Kenaikan Akan Kami Informasikan / Kembali Dengan Estimasi Terbaru.</li>
+            </ol>
+          </div>
+
+          {/* Nama Penanda Tangan */}
+          <div className="p-4 space-y-4">
             <div>
-              <label className="block text-xs font-black uppercase tracking-wider text-slate-800 mb-1">
-                2. Nama Lengkap Penanda Tangan: <span className="text-red-500">*</span>
+              <label className="block text-[10.5px] font-black uppercase tracking-wider text-slate-700 mb-1.5">
+                Nama Lengkap:
               </label>
               <input
                 type="text"
-                required
                 value={signerName}
                 onChange={(e) => setSignerName(e.target.value)}
-                placeholder="Contoh: Ahmad Fadillah"
+                placeholder="Nama penanda tangan..."
                 className="w-full text-xs p-3 rounded-xl border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none"
               />
             </div>
 
-            {/* Signature Canvas */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-black uppercase tracking-wider text-slate-800">
-                3. Tanda Tangan Digital (Gunakan Jari / Stylus / Mouse): <span className="text-red-500">*</span>
-              </label>
-              <SignatureCanvas
-                onSave={(dataUrl) => setSignatureDataUrl(dataUrl)}
-              />
-            </div>
-
-            {/* Terms & Conditions Agreement */}
-            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2">
-              <div className="flex items-start space-x-2.5">
-                <input
-                  type="checkbox"
-                  id="agree_terms"
-                  required
-                  checked={agreedTerms}
-                  onChange={(e) => setAgreedTerms(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 accent-blue-600 cursor-pointer"
-                />
-                <label htmlFor="agree_terms" className="text-xs text-slate-700 leading-relaxed cursor-pointer font-medium">
-                  Saya menyatakan telah memeriksa rincian estimasi biaya di atas dan <strong>memberikan izin persetujuan</strong> kepada pihak bengkel untuk memulai proses servis/penggantian suku cadang pada kendaraan saya sesuai opsi yang dipilih.
+            {/* Tanda Tangan — hanya tampil jika bukan Pending */}
+            {selectedOption !== 'pending' && (
+              <div>
+                <label className="block text-[10.5px] font-black uppercase tracking-wider text-slate-700 mb-1.5">
+                  Tanda Tangan: <span className="text-red-500">*</span>
                 </label>
+                <div className="text-[10px] text-slate-400 mb-2">
+                  Saya telah Membaca dan Menyetujui Ketentuan Di Atas
+                </div>
+                <SignatureCanvas onSave={(dataUrl) => setSignatureDataUrl(dataUrl)} />
               </div>
-            </div>
+            )}
+
+            {/* Agree Terms */}
+            <label className="flex items-start space-x-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                id="terms"
+                checked={agreedTerms}
+                onChange={(e) => setAgreedTerms(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded accent-blue-600"
+              />
+              <span className="text-xs text-slate-600 leading-relaxed font-medium">
+                Saya menyatakan telah membaca dan menyetujui seluruh <strong>Ketentuan Estimasi</strong> di atas.
+              </span>
+            </label>
+
+            {/* Warning jika pending tapi tidak ada TTD */}
+            {selectedOption === 'pending' && (
+              <div className="flex items-start space-x-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-[11px] text-amber-800">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500" />
+                <span>Anda memilih <strong>Pending</strong>. Pekerjaan belum akan dimulai. Silakan hubungi SA kami untuk konfirmasi.</span>
+              </div>
+            )}
 
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isSubmitting || !signatureDataUrl || !agreedTerms}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black text-sm py-3.5 rounded-xl transition shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+              disabled={isSubmitting || !agreedTerms || (selectedOption !== 'pending' && !signatureDataUrl)}
+              className={`w-full font-black text-sm py-3.5 rounded-xl transition shadow-md flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                selectedOption === 'pending'
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                  : 'bg-[#1E40AF] hover:bg-[#1E3A8A] text-white'
+              }`}
             >
               {isSubmitting ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Mengirim Tanda Tangan...</span>
+                  <span>Mengirim...</span>
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4" />
-                  <span>Kirim Tanda Tangan &amp; Setujui Estimasi</span>
-                  <ArrowRight className="w-4 h-4" />
+                  {selectedOption === 'pending'
+                    ? <Clock className="w-4 h-4" />
+                    : <CheckCircle2 className="w-4 h-4" />
+                  }
+                  <span>
+                    {selectedOption === 'pending' ? 'Kirim Respon Pending' : '✓ Simpan Persetujuan'}
+                  </span>
                 </>
               )}
             </button>
-          </form>
-        )}
+          </div>
+        </form>
 
         {/* Footer */}
-        <div className="text-center text-[11px] text-slate-400 py-2">
-          {settings?.name} • Sistem Manajemen Bengkel Digital • {new Date().getFullYear()}
+        <div className="text-center text-[10px] text-slate-400 py-2 pb-6">
+          {workshopName} · Sistem Manajemen Bengkel Digital · {new Date().getFullYear()}
         </div>
       </div>
     </div>
