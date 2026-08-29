@@ -134,15 +134,20 @@ function EstimationBuilderContent() {
 
   // Helper: load estimasi for a specific tab from saved/draft
   const loadTabData = useCallback((spkId: string, tabId: string, allInvoices: Invoice[]) => {
-    // 1. Cek invoices state (sudah tersimpan di server)
+    // 1. Cek invoices state (sudah tersimpan di server/Supabase)
     let existingEst = allInvoices.find(
-      (inv) => inv.type === 'estimation' && inv.work_order_id === spkId && (inv as any).tab_id === tabId
+      (inv) => inv.type === 'estimation' && inv.work_order_id === spkId && ((inv as any).tab_id === tabId || inv.estimation_tab === tabId)
     );
     // Fallback: cari berdasarkan estimation_tab (untuk data lama tanpa tab_id)
     if (!existingEst && tabId === 'tab_1') {
       existingEst = allInvoices.find(
         (inv) => inv.type === 'estimation' && inv.work_order_id === spkId
       );
+    }
+
+    // Fallback 2: cek dari work_order checklist_data yang tersinkronisasi dari Supabase
+    if (!existingEst && selectedSpk?.checklist_data) {
+      existingEst = (selectedSpk.checklist_data as any)[`estimation_${tabId}`] || (tabId === 'tab_1' ? (selectedSpk.checklist_data as any).estimation : undefined);
     }
 
     // 2. Cek localStorage draft
@@ -156,17 +161,20 @@ function EstimationBuilderContent() {
 
     const sourceData = draftData || existingEst;
     return { sourceData, existingEst };
-  }, []);
+  }, [selectedSpk]);
 
   // Helper function to load and populate estimation data for a work order (first tab)
   const loadEstimationForSpk = useCallback((found: WorkOrder) => {
-    // Load tabs yang sudah tersimpan dari localStorage
+    // Load tabs yang sudah tersimpan dari localStorage atau Supabase checklist_data
     let savedTabs: EstimationTab[] = [];
     if (typeof window !== 'undefined') {
       try {
         const tabsRaw = localStorage.getItem(`mhs_est_tabs_${found.id}`);
         if (tabsRaw) savedTabs = JSON.parse(tabsRaw);
       } catch {}
+    }
+    if (savedTabs.length === 0 && (found.checklist_data as any)?.tabs) {
+      savedTabs = (found.checklist_data as any).tabs;
     }
 
     const tabs = savedTabs.length > 0 ? savedTabs : [{ id: 'tab_1', name: 'Estimasi 1' }];

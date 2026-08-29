@@ -104,6 +104,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     DBService.init(activeBranch);
     refreshData();
     syncWithSupabase();
+
+    // 1. Sync ketika browser/HP dibuka kembali (visibility / focus)
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        syncWithSupabase();
+      }
+    };
+    window.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
+    // 2. Periodic background sync setiap 15 detik agar perangkat lain langsung dapat update
+    const syncInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        syncWithSupabase();
+      }
+    }, 15000);
+
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      clearInterval(syncInterval);
+    };
   }, [activeBranch, refreshData, syncWithSupabase]);
 
   const updateSettings = (newSettings: Partial<WorkshopSettings>) => {

@@ -585,13 +585,15 @@ export class DBService {
 
     if (supabase && isSupabaseConfigured) {
       try {
-        const checklistPayload: Record<string, any> = {
-          source_info: workOrder.source_info || 'REFERENSI',
-          vehicle_status: workOrder.vehicle_status || 'Ditunggu',
-          received_at_branch: workOrder.received_at_branch || branch || DBService.getActiveBranch(),
-          signature_customer_url: workOrder.signature_customer_url || null,
-          signature_mechanic_url: workOrder.signature_mechanic_url || null,
-          signature_sa_url: workOrder.signature_sa_url || null,
+        const mergedChecklist: Record<string, any> = {
+          ...((localSaved as any).checklist_data || {}),
+          ...((workOrder as any).checklist_data || {}),
+          source_info: workOrder.source_info || (localSaved as any).source_info || 'REFERENSI',
+          vehicle_status: workOrder.vehicle_status || (localSaved as any).vehicle_status || 'Ditunggu',
+          received_at_branch: workOrder.received_at_branch || (localSaved as any).received_at_branch || branch || DBService.getActiveBranch(),
+          signature_customer_url: workOrder.signature_customer_url || (localSaved as any).signature_customer_url || null,
+          signature_mechanic_url: workOrder.signature_mechanic_url || (localSaved as any).signature_mechanic_url || null,
+          signature_sa_url: workOrder.signature_sa_url || (localSaved as any).signature_sa_url || null,
         };
 
         const payload: Record<string, any> = {
@@ -604,7 +606,7 @@ export class DBService {
           fuel_level: workOrder.fuel_level !== undefined ? Number(workOrder.fuel_level) : 50,
           status: workOrder.status || 'queue',
           notes: workOrder.notes || null,
-          checklist_data: checklistPayload,
+          checklist_data: mergedChecklist,
         };
 
         const { data, error } = await supabase
@@ -633,6 +635,7 @@ export class DBService {
             signature_customer_url: remoteSaved.checklist_data?.signature_customer_url,
             signature_mechanic_url: remoteSaved.checklist_data?.signature_mechanic_url,
             signature_sa_url: remoteSaved.checklist_data?.signature_sa_url,
+            checklist_data: remoteSaved.checklist_data || mergedChecklist,
             created_at: remoteSaved.created_at,
             updated_at: remoteSaved.updated_at,
             vehicle: remoteSaved.vehicle || localSaved.vehicle,
@@ -960,13 +963,42 @@ export class DBService {
           payment_method: localSaved.payment_method || null,
           admin_notes: localSaved.admin_notes || null,
           signature_customer_url: localSaved.signature_customer_url || localSaved.customer_signature || null,
-          signature_admin_url: localSaved.signature_admin_url || null,
+          signature_admin_url: localSaved.signature_admin_url || (localSaved as any).estimator_signature || null,
         };
 
         const { data, error } = await supabase
           .from('invoices')
           .upsert(payload, { onConflict: 'invoice_number' })
           .select('*, vehicle:vehicles_customers(*), work_order:work_orders(*)');
+
+        // Jika ini adalah estimasi yang terkait SPK, update juga checklist_data di Supabase
+        if (localSaved.work_order_id) {
+          try {
+            const { data: woData } = await supabase
+              .from('work_orders')
+              .select('checklist_data')
+              .eq('id', localSaved.work_order_id)
+              .single();
+
+            const existingChecklist = woData?.checklist_data || {};
+            const tabKey = (localSaved as any).tab_id || localSaved.estimation_tab || 'tab_1';
+            const updatedChecklist = {
+              ...existingChecklist,
+              estimation: localSaved,
+              [`estimation_${tabKey}`]: localSaved,
+            };
+
+            await supabase
+              .from('work_orders')
+              .update({
+                checklist_data: updatedChecklist,
+                status: 'estimating',
+              })
+              .eq('id', localSaved.work_order_id);
+          } catch (woErr) {
+            console.warn('Failed to update work_order checklist_data with estimation:', woErr);
+          }
+        }
 
         if (!error && data && data[0]) {
           return {
@@ -1168,15 +1200,15 @@ export class DBService {
   }
 
   /**
-   * Mengambil data terbaru langsung dari database Supabase dan mengupdate local storage
+   * Mengambil data terbaru langsung dari database Supabase dan mengupdate local storage untuk semua cabang
    */
   static async syncFromSupabase(branch?: BranchId): Promise<boolean> {
     if (!supabase || !isSupabaseConfigured) return false;
 
-    const activeBranch = branch || this.getActiveBranch();
+    const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
 
     try {
-      // 1. Fetch Vehicles
+      // 1. Fetch Vehicles (tersinkronisasi lintas semua cabang)
       const { data: vData, error: vErr } = await supabase
         .from('vehicles_customers')
         .select('*')
@@ -1202,8 +1234,9 @@ export class DBService {
           updated_at: v.updated_at,
         }));
 
-        const keyVehicles = getBranchKey(BASE_STORAGE_KEYS.VEHICLES, activeBranch);
-        setLocal(keyVehicles, vehicles);
+        allBranches.forEach((b) => {
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.VEHICLES, b), vehicles);
+        });
       }
 
       // 2. Fetch Work Orders & Checkups
@@ -1212,11 +1245,24 @@ export class DBService {
         .select('*, vehicle:vehicles_customers(*)')
         .order('created_at', { ascending: false });
 
+      const extraInvoicesFromWO: Invoice[] = [];
+
       if (!woErr && woData) {
-        const workOrders: WorkOrder[] = [];
-        const checkups: CheckupRecord[] = [];
+        const branchWorkOrders: Record<string, WorkOrder[]> = {
+          'MHS 1': [],
+          'MHS 2': [],
+          'MHS 3': [],
+        };
+        const branchCheckups: Record<string, CheckupRecord[]> = {
+          'MHS 1': [],
+          'MHS 2': [],
+          'MHS 3': [],
+        };
 
         woData.forEach((row: any) => {
+          const targetBranch: string = row.checklist_data?.received_at_branch || 'MHS 1';
+          const branchKey = branchWorkOrders[targetBranch] ? targetBranch : 'MHS 1';
+
           const vehicle: VehicleCustomer | undefined = row.vehicle ? {
             id: row.vehicle.id,
             customer_name: row.vehicle.customer_name,
@@ -1229,7 +1275,8 @@ export class DBService {
 
           const isStandaloneCheckup =
             row.spk_number.startsWith('QC-') ||
-            row.spk_number.startsWith('AC-');
+            row.spk_number.startsWith('AC-') ||
+            row.spk_number.startsWith('UND-');
 
           const checklist = row.checklist_data || {};
 
@@ -1247,23 +1294,44 @@ export class DBService {
               notes: row.notes || undefined,
               source_info: checklist.source_info,
               vehicle_status: checklist.vehicle_status,
-              received_at_branch: checklist.received_at_branch,
+              received_at_branch: checklist.received_at_branch || (branchKey as BranchId),
               signature_customer_url: checklist.signature_customer_url,
               signature_mechanic_url: checklist.signature_mechanic_url,
               signature_sa_url: checklist.signature_sa_url,
+              checklist_data: checklist,
               status: row.status,
               created_at: row.created_at,
               updated_at: row.updated_at,
               vehicle,
             };
-            workOrders.push(wo);
+            branchWorkOrders[branchKey].push(wo);
+
+            // Extract nested estimations from checklist_data
+            if (checklist.estimation) {
+              extraInvoicesFromWO.push({
+                ...checklist.estimation,
+                work_order_id: row.id,
+                vehicle,
+              });
+            }
+            Object.keys(checklist).forEach((k) => {
+              if (k.startsWith('estimation_tab_') && checklist[k]) {
+                extraInvoicesFromWO.push({
+                  ...checklist[k],
+                  work_order_id: row.id,
+                  vehicle,
+                });
+              }
+            });
           }
 
           // Extract checkup records
           if (checklist.checkup_record) {
-            checkups.push(checklist.checkup_record);
+            branchCheckups[branchKey].push(checklist.checkup_record);
           } else if (isStandaloneCheckup) {
-            const checkupType: CheckupType = row.spk_number.startsWith('AC-') ? 'ac_specialist' : 'qc_general';
+            const checkupType: CheckupType = row.spk_number.startsWith('AC-')
+              ? 'ac_specialist'
+              : (row.spk_number.startsWith('UND-') ? 'understeel' : 'qc_general');
             const rec: CheckupRecord = {
               id: row.id,
               type: checklist.checkup_type || checkupType,
@@ -1276,18 +1344,18 @@ export class DBService {
               check_date: row.entry_date?.slice(0, 10) || new Date().toISOString().slice(0, 10),
               qc_data: checklist.qc_data || undefined,
               ac_data: checklist.ac_data || undefined,
+              understeel_data: checklist.understeel_data || undefined,
               created_at: row.created_at,
               updated_at: row.updated_at,
             };
-            checkups.push(rec);
+            branchCheckups[branchKey].push(rec);
           }
         });
 
-        const keyWorkOrders = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, activeBranch);
-        setLocal(keyWorkOrders, workOrders);
-
-        const keyCheckups = getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, activeBranch);
-        setLocal(keyCheckups, checkups);
+        allBranches.forEach((b) => {
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), branchWorkOrders[b] || []);
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, b), branchCheckups[b] || []);
+        });
       }
 
       // 3. Fetch Invoices & Estimations
@@ -1297,8 +1365,6 @@ export class DBService {
         .order('created_at', { ascending: false });
 
       if (!invErr && invData) {
-        const keyInvoices = getBranchKey(BASE_STORAGE_KEYS.INVOICES, activeBranch);
-        const localInvoices = getLocal<Invoice[]>(keyInvoices, []);
         const mergedInvoicesMap = new Map<string, Invoice>();
 
         invData.forEach((row: any) => {
@@ -1329,6 +1395,11 @@ export class DBService {
             estimation_time: row.estimation_time || undefined,
             vehicle_status: row.vehicle_status || undefined,
             payment_plan: row.payment_plan || undefined,
+            estimator_name: row.estimator_name || undefined,
+            estimator_signature: row.estimator_signature || row.signature_admin_url || undefined,
+            estimated_duration: row.estimated_duration || undefined,
+            customer_response: row.customer_response || undefined,
+            customer_response_note: row.customer_response_note || undefined,
             has_discount: row.has_discount,
             has_opsi2: row.has_opsi2,
             has_tax: row.has_tax,
@@ -1343,22 +1414,25 @@ export class DBService {
           mergedInvoicesMap.set(inv.invoice_number || inv.id, inv);
         });
 
-        // Merge with local invoices to preserve any rich frontend metadata
-        localInvoices.forEach((localInv) => {
-          const key = localInv.invoice_number || localInv.id;
-          if (!mergedInvoicesMap.has(key)) {
-            mergedInvoicesMap.set(key, localInv);
-          } else {
-            const remote = mergedInvoicesMap.get(key)!;
-            mergedInvoicesMap.set(key, {
-              ...remote,
-              ...localInv,
-              items: (localInv.items && localInv.items.length > 0) ? localInv.items : remote.items,
-            });
+        // Merge extra estimations found inside work orders
+        extraInvoicesFromWO.forEach((ext) => {
+          const key = ext.invoice_number || ext.id;
+          if (key && !mergedInvoicesMap.has(key)) {
+            mergedInvoicesMap.set(key, ext);
           }
         });
 
-        setLocal(keyInvoices, Array.from(mergedInvoicesMap.values()));
+        const allInvoices = Array.from(mergedInvoicesMap.values());
+        allBranches.forEach((b) => {
+          const localInvs = getLocal<Invoice[]>(getBranchKey(BASE_STORAGE_KEYS.INVOICES, b), []);
+          const bMap = new Map<string, Invoice>();
+          allInvoices.forEach((i) => bMap.set(i.invoice_number || i.id, i));
+          localInvs.forEach((l) => {
+            const k = l.invoice_number || l.id;
+            if (!bMap.has(k)) bMap.set(k, l);
+          });
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.INVOICES, b), Array.from(bMap.values()));
+        });
       }
 
       return true;
