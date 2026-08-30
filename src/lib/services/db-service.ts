@@ -30,7 +30,58 @@ const BASE_STORAGE_KEYS = {
   MOVEMENTS: 'acwms_stock_movements',
   AUDIT: 'acwms_audit_logs',
   CHECKUPS: 'acwms_checkups',
+  OFFLINE_QUEUE: 'acwms_offline_queue',
 };
+
+// ─── OFFLINE QUEUE TYPES ────────────────────────────────────────────────────
+type OfflineQueueEntry = {
+  id: string;
+  type: 'work_order' | 'invoice' | 'checkup' | 'vehicle';
+  payload: any;
+  branch: string;
+  createdAt: string;
+  retries: number;
+};
+
+// ─── SMART MERGE HELPER ──────────────────────────────────────────────────────
+/**
+ * Gabungkan array cloud (dari Supabase) dengan array lokal.
+ * Aturan: item dengan `updated_at` lebih baru yang menang.
+ * Data lokal yang belum ada di cloud (belum pernah tersync) tetap dipertahankan.
+ */
+function smartMergeById<T extends { id: string; updated_at?: string }>(
+  cloudItems: T[],
+  localItems: T[],
+  idField: keyof T = 'id'
+): T[] {
+  const merged = new Map<string, T>();
+
+  // Masukkan semua item lokal dulu
+  localItems.forEach((item) => {
+    const key = String(item[idField]);
+    merged.set(key, item);
+  });
+
+  // Gabungkan dengan cloud: cloud menang hanya jika updated_at lebih baru atau sama
+  cloudItems.forEach((cloudItem) => {
+    const key = String(cloudItem[idField]);
+    const localItem = merged.get(key);
+    if (!localItem) {
+      // Item baru dari cloud, langsung tambahkan
+      merged.set(key, cloudItem);
+    } else {
+      // Bandingkan waktu update — cloud menang jika lebih baru
+      const cloudTime = cloudItem.updated_at ? new Date(cloudItem.updated_at).getTime() : 0;
+      const localTime = localItem.updated_at ? new Date(localItem.updated_at).getTime() : 0;
+      if (cloudTime >= localTime) {
+        merged.set(key, cloudItem);
+      }
+      // Jika lokal lebih baru, pertahankan lokal (sedang dalam proses save)
+    }
+  });
+
+  return Array.from(merged.values());
+}
 
 function getBranchKey(baseKey: string, branch?: BranchId): string {
   const activeBranch = branch || DBService.getActiveBranch();
@@ -74,6 +125,83 @@ export class DBService {
       // fallback
     }
     return 'MHS 1';
+  }
+
+  // ─── OFFLINE QUEUE MANAGEMENT ────────────────────────────────────────────────
+
+  /** Ambil semua entri offline queue */
+  static getOfflineQueue(): OfflineQueueEntry[] {
+    return getLocal<OfflineQueueEntry[]>(BASE_STORAGE_KEYS.OFFLINE_QUEUE, []);
+  }
+
+  /** Tambahkan operasi yang gagal ke offline queue */
+  static addToOfflineQueue(
+    type: OfflineQueueEntry['type'],
+    payload: any,
+    branch?: BranchId
+  ): void {
+    if (typeof window === 'undefined') return;
+    const queue = this.getOfflineQueue();
+    const entry: OfflineQueueEntry = {
+      id: `q-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      type,
+      payload,
+      branch: branch || this.getActiveBranch(),
+      createdAt: new Date().toISOString(),
+      retries: 0,
+    };
+    queue.push(entry);
+    // Batasi ukuran queue maksimal 200 entri agar tidak membebani localStorage
+    setLocal(BASE_STORAGE_KEYS.OFFLINE_QUEUE, queue.slice(-200));
+  }
+
+  /** Jumlah entri yang belum tersync */
+  static getOfflineQueueCount(): number {
+    return this.getOfflineQueue().length;
+  }
+
+  /**
+   * Flush offline queue — coba simpan semua entri yang tertunda ke Supabase.
+   * Dipanggil saat koneksi tersedia atau saat user klik "Sync Sekarang".
+   * Mengembalikan jumlah entri yang berhasil di-flush.
+   */
+  static async flushOfflineQueue(): Promise<number> {
+    if (!supabase || !isSupabaseConfigured) return 0;
+    const queue = this.getOfflineQueue();
+    if (queue.length === 0) return 0;
+
+    const failed: OfflineQueueEntry[] = [];
+    let successCount = 0;
+
+    for (const entry of queue) {
+      try {
+        let ok = false;
+        if (entry.type === 'work_order') {
+          const result = await this.saveWorkOrderAsync(entry.payload, entry.branch as BranchId);
+          ok = Boolean(result?.id);
+        } else if (entry.type === 'invoice') {
+          const result = await this.saveInvoiceAsync(entry.payload, entry.branch as BranchId);
+          ok = Boolean(result?.id);
+        } else if (entry.type === 'checkup') {
+          const result = await this.saveCheckupAsync(entry.payload, entry.branch as BranchId);
+          ok = Boolean(result?.id);
+        } else if (entry.type === 'vehicle') {
+          const result = await this.saveVehicleAsync(entry.payload, entry.branch as BranchId);
+          ok = Boolean(result?.id);
+        }
+        if (ok) successCount++;
+        else failed.push({ ...entry, retries: entry.retries + 1 });
+      } catch {
+        // Jika masih gagal, kembalikan ke antrian (max 5 kali retry)
+        if (entry.retries < 5) {
+          failed.push({ ...entry, retries: entry.retries + 1 });
+        }
+        // Setelah 5 kali retry, hapus dari queue (data sudah tersimpan lokal)
+      }
+    }
+
+    setLocal(BASE_STORAGE_KEYS.OFFLINE_QUEUE, failed);
+    return successCount;
   }
 
   /**
@@ -653,7 +781,12 @@ export class DBService {
         }
       } catch (err) {
         console.warn('Supabase saveWorkOrder exception:', err);
+        // Tambahkan ke offline queue untuk retry saat koneksi tersedia
+        this.addToOfflineQueue('work_order', workOrder, branch);
       }
+    } else if (isSupabaseConfigured) {
+      // Supabase dikonfigurasi tapi client null — offline, tambahkan ke queue
+      this.addToOfflineQueue('work_order', workOrder, branch);
     }
 
     return localSaved;
@@ -694,6 +827,51 @@ export class DBService {
         await supabase.from('work_orders').update(updatePayload).eq('id', id);
       } catch (err) {
         console.warn('Supabase updateWorkOrderStatus exception:', err);
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Buka kunci pekerjaan / SPK yang telah berstatus completed (Khusus Owner)
+   */
+  static async unlockWorkOrderAsync(
+    id: string,
+    targetStatus: WorkOrderStatus = 'servicing',
+    userRole: UserRole = 'owner',
+    branch?: BranchId
+  ): Promise<boolean> {
+    const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, branch);
+    const orders = getLocal<WorkOrder[]>(key, []);
+    const idx = orders.findIndex((o) => o.id === id);
+    if (idx === -1) return false;
+
+    orders[idx].status = targetStatus;
+    orders[idx].updated_at = new Date().toISOString();
+    setLocal(key, orders);
+
+    this.logAudit(
+      'Owner',
+      userRole,
+      'UPDATE_STATUS',
+      'work_orders',
+      id,
+      { action: 'UNLOCK_WORK_ORDER', new_status: targetStatus },
+      branch
+    );
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('work_orders')
+          .update({
+            status: targetStatus,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', id);
+      } catch (err) {
+        console.warn('Supabase unlockWorkOrderAsync exception:', err);
       }
     }
 
@@ -827,7 +1005,11 @@ export class DBService {
         });
       } catch (err) {
         console.warn('Supabase saveCheckup exception:', err);
+        // Tambahkan ke offline queue untuk retry saat koneksi tersedia
+        this.addToOfflineQueue('checkup', checkup, branch);
       }
+    } else if (isSupabaseConfigured) {
+      this.addToOfflineQueue('checkup', checkup, branch);
     }
 
     return localSaved;
@@ -1010,7 +1192,11 @@ export class DBService {
         }
       } catch (err) {
         console.warn('Supabase saveInvoice exception:', err);
+        // Tambahkan ke offline queue untuk retry saat koneksi tersedia
+        this.addToOfflineQueue('invoice', invoice, branch);
       }
+    } else if (isSupabaseConfigured) {
+      this.addToOfflineQueue('invoice', invoice, branch);
     }
 
     return localSaved;
@@ -1044,7 +1230,7 @@ export class DBService {
   static async findEstimationByIdOrTokenAsync(
     idOrToken: string
   ): Promise<{ estimation: Invoice; branch: BranchId } | null> {
-    // 1. Coba cari di cache lokal
+    // 1. Coba cari di cache lokal terlebih dahulu
     const localTarget = this.findEstimationByIdOrToken(idOrToken);
     if (localTarget) {
       return localTarget;
@@ -1053,7 +1239,7 @@ export class DBService {
     // 2. Jika tidak ada di lokal (misal customer membuka link di HP pribadi), query langsung ke Supabase
     if (supabase && isSupabaseConfigured) {
       try {
-        // Cari di tabel invoices
+        // Cari di tabel invoices dengan join work_order dan vehicle
         const { data: invData, error: invErr } = await supabase
           .from('invoices')
           .select('*, vehicle:vehicles_customers(*), work_order:work_orders(*)')
@@ -1064,55 +1250,84 @@ export class DBService {
         if (!invErr && invData && invData.length > 0) {
           const row = invData[0];
           const branch: BranchId = (row.work_order?.checklist_data?.received_at_branch as BranchId) || 'MHS 1';
+          const checklist = row.work_order?.checklist_data || {};
+          
+          // Cari nested estimation di dalam checklist_data yang paling cocok
+          let nestedEst: any = checklist.estimation || null;
+          if (!nestedEst) {
+            for (const k of Object.keys(checklist)) {
+              if (k.startsWith('estimation') && checklist[k]?.invoice_number === row.invoice_number) {
+                nestedEst = checklist[k];
+                break;
+              }
+            }
+          }
+          if (!nestedEst) {
+            for (const k of Object.keys(checklist)) {
+              if (k.startsWith('estimation') && checklist[k]?.items) {
+                nestedEst = checklist[k];
+                break;
+              }
+            }
+          }
+
+          const rawItems = nestedEst?.items || (Array.isArray(row.items) ? row.items : []);
+          const hasOpsi2 = nestedEst?.has_opsi2 !== undefined 
+            ? nestedEst.has_opsi2 
+            : true;
+
           const inv: Invoice = {
             id: row.id,
             invoice_number: row.invoice_number,
             type: row.type || 'estimation',
-            work_order_id: row.work_order_id || undefined,
+            work_order_id: row.work_order_id || row.work_order?.id || undefined,
             vehicle_id: row.vehicle_id,
-            items: Array.isArray(row.items) ? row.items : [],
-            subtotal: Number(row.subtotal) || 0,
-            discount_amount: Number(row.discount_amount) || 0,
-            tax_percent: Number(row.tax_percent) || 0,
-            tax_amount: Number(row.tax_amount) || 0,
-            total_amount: Number(row.total_amount) || 0,
-            down_payment: Number(row.down_payment) || 0,
-            balance_due: Number(row.balance_due) || 0,
+            items: rawItems,
+            subtotal: Number(nestedEst?.subtotal || row.subtotal) || 0,
+            discount_amount: Number(nestedEst?.discount_amount || row.discount_amount) || 0,
+            tax_percent: Number(nestedEst?.tax_percent || row.tax_percent) || 0,
+            tax_amount: Number(nestedEst?.tax_amount || row.tax_amount) || 0,
+            total_amount: Number(nestedEst?.total_amount || row.total_amount) || 0,
+            down_payment: Number(nestedEst?.down_payment || row.down_payment) || 0,
+            balance_due: Number(nestedEst?.balance_due || row.balance_due) || 0,
             payment_status: row.payment_status || 'pending',
             payment_method: row.payment_method || undefined,
-            admin_notes: row.admin_notes || undefined,
-            signature_customer_url: row.signature_customer_url || undefined,
-            signature_admin_url: row.signature_admin_url || undefined,
-            created_at: row.created_at,
-            updated_at: row.updated_at,
-            estimation_type: row.estimation_type || undefined,
-            estimation_tab: row.estimation_tab || undefined,
-            estimation_date: row.estimation_date || undefined,
-            estimation_time: row.estimation_time || undefined,
-            vehicle_status: row.vehicle_status || undefined,
-            payment_plan: row.payment_plan || undefined,
-            estimator_name: row.estimator_name || undefined,
-            estimator_signature: row.estimator_signature || row.signature_admin_url || undefined,
-            estimated_duration: row.estimated_duration || undefined,
-            customer_response: row.customer_response || undefined,
-            customer_response_note: row.customer_response_note || undefined,
-            has_discount: row.has_discount,
-            has_opsi2: row.has_opsi2,
-            has_tax: row.has_tax,
-            total_opsi1: row.total_opsi1,
-            total_opsi2: row.total_opsi2,
-            ttd_status: row.ttd_status,
-            customer_signature: row.signature_customer_url || row.customer_signature,
-            customer_signed_at: row.customer_signed_at,
-            customer_signed_name: row.customer_signed_name,
-            customer_approved_option: row.customer_approved_option,
+            admin_notes: nestedEst?.admin_notes || row.admin_notes || undefined,
+            signature_customer_url: nestedEst?.signature_customer_url || nestedEst?.customer_signature || row.work_order?.signature_url || undefined,
+            signature_admin_url: nestedEst?.signature_admin_url || nestedEst?.estimator_signature || undefined,
+            created_at: nestedEst?.created_at || row.created_at,
+            updated_at: nestedEst?.updated_at || row.updated_at,
+            estimation_type: nestedEst?.estimation_type || undefined,
+            estimation_tab: nestedEst?.estimation_tab || nestedEst?.tab_id || undefined,
+            estimation_date: nestedEst?.estimation_date || undefined,
+            estimation_time: nestedEst?.estimation_time || undefined,
+            vehicle_status: nestedEst?.vehicle_status || undefined,
+            payment_plan: nestedEst?.payment_plan || undefined,
+            estimator_name: nestedEst?.estimator_name || undefined,
+            estimator_signature: nestedEst?.estimator_signature || nestedEst?.signature_admin_url || undefined,
+            estimated_duration: nestedEst?.estimated_duration || undefined,
+            customer_response: nestedEst?.customer_response || undefined,
+            customer_response_note: nestedEst?.customer_response_note || undefined,
+            has_discount: nestedEst?.has_discount !== undefined ? nestedEst.has_discount : (Number(row.discount_amount) > 0),
+            has_opsi2: hasOpsi2,
+            has_tax: nestedEst?.has_tax !== undefined ? nestedEst.has_tax : (Number(row.tax_percent) > 0),
+            has_range_price: nestedEst?.has_range_price || false,
+            total_opsi1: nestedEst?.total_opsi1 !== undefined ? nestedEst.total_opsi1 : Number(row.subtotal || row.total_amount),
+            total_opsi1_max: nestedEst?.total_opsi1_max,
+            total_opsi2: nestedEst?.total_opsi2 !== undefined ? nestedEst.total_opsi2 : Number(row.total_amount),
+            total_opsi2_max: nestedEst?.total_opsi2_max,
+            ttd_status: nestedEst?.ttd_status || (nestedEst?.customer_signature ? 'signed' : 'pending'),
+            customer_signature: nestedEst?.customer_signature || nestedEst?.signature_customer_url || row.work_order?.signature_url || undefined,
+            customer_signed_at: nestedEst?.customer_signed_at || undefined,
+            customer_signed_name: nestedEst?.customer_signed_name || undefined,
+            customer_approved_option: nestedEst?.customer_approved_option || undefined,
             vehicle: row.vehicle || undefined,
             work_order: row.work_order || undefined,
           };
           return { estimation: inv, branch };
         }
 
-        // Cari di tabel work_orders
+        // 3. Jika tidak ada di tabel invoices, cari langsung di tabel work_orders
         const { data: woData, error: woErr } = await supabase
           .from('work_orders')
           .select('*, vehicle:vehicles_customers(*)')
@@ -1123,12 +1338,24 @@ export class DBService {
           const wo = woData[0];
           const checklist = wo.checklist_data || {};
           const branch: BranchId = (checklist.received_at_branch as BranchId) || 'MHS 1';
-          const estData = checklist.estimation || checklist.estimation_tab_1 || checklist.estimation_tab_2 || null;
+          
+          let estData: any = checklist.estimation || null;
+          if (!estData) {
+            for (const k of Object.keys(checklist)) {
+              if (k.startsWith('estimation') && checklist[k]?.items) {
+                estData = checklist[k];
+                break;
+              }
+            }
+          }
+
           if (estData) {
             const inv: Invoice = {
               ...estData,
+              has_opsi2: estData.has_opsi2 !== undefined ? estData.has_opsi2 : true,
               work_order_id: wo.id,
               vehicle: wo.vehicle || undefined,
+              work_order: wo,
             };
             return { estimation: inv, branch };
           }
@@ -1171,7 +1398,7 @@ export class DBService {
       };
     }
 
-    // 1. Update cache lokal
+    // 1. Update cache lokal Invoices
     const key = getBranchKey(BASE_STORAGE_KEYS.INVOICES, activeBranch);
     const invoices = getLocal<Invoice[]>(key, []);
     const idx = invoices.findIndex(
@@ -1181,50 +1408,78 @@ export class DBService {
       invoices[idx] = targetInvoice;
       setLocal(key, invoices);
     } else if (targetInvoice) {
-      invoices.push(targetInvoice);
+      invoices.unshift(targetInvoice);
       setLocal(key, invoices);
     }
 
-    // 2. Update Cloud Supabase
+    // 2. Update cache lokal Work Orders
+    const woId = targetInvoice?.work_order_id || idOrToken;
+    if (woId) {
+      const woKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, activeBranch);
+      const workOrders = getLocal<WorkOrder[]>(woKey, []);
+      const woIdx = workOrders.findIndex((w) => w.id === woId || w.spk_number === woId);
+      if (woIdx !== -1 && targetInvoice) {
+        const tabKey = (targetInvoice as any).tab_id || targetInvoice.estimation_tab || 'tab_1';
+        workOrders[woIdx] = {
+          ...workOrders[woIdx],
+          status: workOrders[woIdx].status === 'completed' ? 'completed' : 'approved',
+          signature_customer_url: signatureDataUrl,
+          checklist_data: {
+            ...(workOrders[woIdx].checklist_data || {}),
+            estimation: targetInvoice,
+            [`estimation_${tabKey}`]: targetInvoice,
+            signature_customer_url: signatureDataUrl,
+          },
+          updated_at: now,
+        };
+        setLocal(woKey, workOrders);
+      }
+    }
+
+    // 3. Update Cloud Supabase (Work Orders & Invoices)
     if (supabase && isSupabaseConfigured && targetInvoice) {
       try {
-        await supabase
-          .from('invoices')
-          .update({
-            signature_customer_url: signatureDataUrl,
-            customer_signature: signatureDataUrl,
-            customer_signed_name: customerName,
-            customer_signed_at: now,
-            customer_approved_option: approvedOption,
-            customer_response: approvedOption,
-            ttd_status: 'signed',
-            updated_at: now,
-          })
-          .or(`id.eq.${targetInvoice.id},invoice_number.eq.${targetInvoice.invoice_number}`);
+        const targetWoId = targetInvoice.work_order_id || idOrToken;
 
-        // Update status work order menjadi approved / servicing
-        if (targetInvoice.work_order_id) {
-          const { data: woData } = await supabase
-            .from('work_orders')
-            .select('checklist_data')
-            .eq('id', targetInvoice.work_order_id)
-            .single();
+        // Ambil data work_orders terbaru dari Supabase
+        const { data: woData } = await supabase
+          .from('work_orders')
+          .select('*')
+          .or(`id.eq.${targetWoId},spk_number.eq.${targetWoId}`)
+          .limit(1);
 
-          const existingChecklist = woData?.checklist_data || {};
+        if (woData && woData[0]) {
+          const remoteWo = woData[0];
+          const existingChecklist = remoteWo.checklist_data || {};
           const tabKey = (targetInvoice as any).tab_id || targetInvoice.estimation_tab || 'tab_1';
 
           await supabase
             .from('work_orders')
             .update({
-              status: 'approved',
+              status: remoteWo.status === 'completed' ? 'completed' : 'approved',
+              signature_url: signatureDataUrl,
               checklist_data: {
                 ...existingChecklist,
                 estimation: targetInvoice,
                 [`estimation_${tabKey}`]: targetInvoice,
+                signature_customer_url: signatureDataUrl,
+                customer_signed_name: customerName,
+                customer_signed_at: now,
+                customer_approved_option: approvedOption,
               },
+              updated_at: now,
             })
-            .eq('id', targetInvoice.work_order_id);
+            .eq('id', remoteWo.id);
         }
+
+        // Update invoices tanpa kolom yang tidak ada di schema
+        await supabase
+          .from('invoices')
+          .update({
+            payment_status: targetInvoice.payment_status || 'pending',
+            updated_at: now,
+          })
+          .or(`id.eq.${targetInvoice.id},invoice_number.eq.${targetInvoice.invoice_number}`);
       } catch (err) {
         console.warn('Supabase approveEstimationSignature error:', err);
       }
@@ -1270,7 +1525,7 @@ export class DBService {
       };
     }
 
-    // 1. Update cache lokal
+    // 1. Update cache lokal Invoices
     const key = getBranchKey(BASE_STORAGE_KEYS.INVOICES, activeBranch);
     const invoices = getLocal<Invoice[]>(key, []);
     const idx = invoices.findIndex(
@@ -1280,32 +1535,45 @@ export class DBService {
       invoices[idx] = targetInvoice;
       setLocal(key, invoices);
     } else if (targetInvoice) {
-      invoices.push(targetInvoice);
+      invoices.unshift(targetInvoice);
       setLocal(key, invoices);
     }
 
-    // 2. Update Cloud Supabase
+    // 2. Update cache lokal Work Orders
+    const woId = targetInvoice?.work_order_id || idOrToken;
+    if (woId) {
+      const woKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, activeBranch);
+      const workOrders = getLocal<WorkOrder[]>(woKey, []);
+      const woIdx = workOrders.findIndex((w) => w.id === woId || w.spk_number === woId);
+      if (woIdx !== -1 && targetInvoice) {
+        const tabKey = (targetInvoice as any).tab_id || targetInvoice.estimation_tab || 'tab_1';
+        workOrders[woIdx] = {
+          ...workOrders[woIdx],
+          checklist_data: {
+            ...(workOrders[woIdx].checklist_data || {}),
+            estimation: targetInvoice,
+            [`estimation_${tabKey}`]: targetInvoice,
+            customer_response: 'pending',
+          },
+          updated_at: now,
+        };
+        setLocal(woKey, workOrders);
+      }
+    }
+
+    // 3. Update Cloud Supabase
     if (supabase && isSupabaseConfigured && targetInvoice) {
       try {
-        await supabase
-          .from('invoices')
-          .update({
-            customer_response: 'pending',
-            ttd_status: 'pending',
-            customer_signed_name: customerName,
-            customer_signed_at: now,
-            updated_at: now,
-          })
-          .or(`id.eq.${targetInvoice.id},invoice_number.eq.${targetInvoice.invoice_number}`);
+        const targetWoId = targetInvoice.work_order_id || idOrToken;
+        const { data: woData } = await supabase
+          .from('work_orders')
+          .select('*')
+          .or(`id.eq.${targetWoId},spk_number.eq.${targetWoId}`)
+          .limit(1);
 
-        if (targetInvoice.work_order_id) {
-          const { data: woData } = await supabase
-            .from('work_orders')
-            .select('checklist_data')
-            .eq('id', targetInvoice.work_order_id)
-            .single();
-
-          const existingChecklist = woData?.checklist_data || {};
+        if (woData && woData[0]) {
+          const remoteWo = woData[0];
+          const existingChecklist = remoteWo.checklist_data || {};
           const tabKey = (targetInvoice as any).tab_id || targetInvoice.estimation_tab || 'tab_1';
 
           await supabase
@@ -1315,9 +1583,11 @@ export class DBService {
                 ...existingChecklist,
                 estimation: targetInvoice,
                 [`estimation_${tabKey}`]: targetInvoice,
+                customer_response: 'pending',
               },
+              updated_at: now,
             })
-            .eq('id', targetInvoice.work_order_id);
+            .eq('id', remoteWo.id);
         }
       } catch (err) {
         console.warn('Supabase savePendingResponse error:', err);
@@ -1393,14 +1663,14 @@ export class DBService {
     const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
 
     try {
-      // 1. Fetch Vehicles (tersinkronisasi lintas semua cabang)
+      // 1. Fetch Vehicles (lintas semua cabang) — SMART MERGE
       const { data: vData, error: vErr } = await supabase
         .from('vehicles_customers')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (!vErr && vData) {
-        const vehicles: VehicleCustomer[] = vData.map((v) => ({
+        const cloudVehicles: VehicleCustomer[] = vData.map((v) => ({
           id: v.id,
           customer_name: v.customer_name,
           phone_number: v.phone_number,
@@ -1419,12 +1689,15 @@ export class DBService {
           updated_at: v.updated_at,
         }));
 
+        // Smart merge: gabungkan cloud dengan lokal, yang lebih baru menang
         allBranches.forEach((b) => {
-          setLocal(getBranchKey(BASE_STORAGE_KEYS.VEHICLES, b), vehicles);
+          const localVehicles = getLocal<VehicleCustomer[]>(getBranchKey(BASE_STORAGE_KEYS.VEHICLES, b), []);
+          const merged = smartMergeById(cloudVehicles, localVehicles);
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.VEHICLES, b), merged);
         });
       }
 
-      // 2. Fetch Work Orders & Checkups
+      // 2. Fetch Work Orders & Checkups — SMART MERGE
       const { data: woData, error: woErr } = await supabase
         .from('work_orders')
         .select('*, vehicle:vehicles_customers(*)')
@@ -1433,12 +1706,12 @@ export class DBService {
       const extraInvoicesFromWO: Invoice[] = [];
 
       if (!woErr && woData) {
-        const branchWorkOrders: Record<string, WorkOrder[]> = {
+        const cloudWorkOrders: Record<string, WorkOrder[]> = {
           'MHS 1': [],
           'MHS 2': [],
           'MHS 3': [],
         };
-        const branchCheckups: Record<string, CheckupRecord[]> = {
+        const cloudCheckups: Record<string, CheckupRecord[]> = {
           'MHS 1': [],
           'MHS 2': [],
           'MHS 3': [],
@@ -1446,7 +1719,7 @@ export class DBService {
 
         woData.forEach((row: any) => {
           const targetBranch: string = row.checklist_data?.received_at_branch || 'MHS 1';
-          const branchKey = branchWorkOrders[targetBranch] ? targetBranch : 'MHS 1';
+          const branchKey = cloudWorkOrders[targetBranch] ? targetBranch : 'MHS 1';
 
           const vehicle: VehicleCustomer | undefined = row.vehicle ? {
             id: row.vehicle.id,
@@ -1489,30 +1762,29 @@ export class DBService {
               updated_at: row.updated_at,
               vehicle,
             };
-            branchWorkOrders[branchKey].push(wo);
+            cloudWorkOrders[branchKey].push(wo);
 
-            // Extract nested estimations from checklist_data
-            if (checklist.estimation) {
-              extraInvoicesFromWO.push({
-                ...checklist.estimation,
-                work_order_id: row.id,
-                vehicle,
-              });
-            }
+            // FIX: Extract estimasi dari semua format tab ID
+            // Mendukung: estimation, estimation_tab_1, estimation_tab_{timestamp}
             Object.keys(checklist).forEach((k) => {
-              if (k.startsWith('estimation_tab_') && checklist[k]) {
-                extraInvoicesFromWO.push({
-                  ...checklist[k],
-                  work_order_id: row.id,
-                  vehicle,
-                });
+              if (k === 'estimation' && checklist[k]) {
+                const est = checklist[k];
+                if (est.invoice_number) {
+                  extraInvoicesFromWO.push({ ...est, work_order_id: row.id, vehicle });
+                }
+              } else if (k.startsWith('estimation_') && k !== 'estimation' && checklist[k]) {
+                // Matches: estimation_tab_1, estimation_tab_1234567890, estimation_tab_{id}
+                const est = checklist[k];
+                if (est && est.invoice_number) {
+                  extraInvoicesFromWO.push({ ...est, work_order_id: row.id, vehicle });
+                }
               }
             });
           }
 
           // Extract checkup records
           if (checklist.checkup_record) {
-            branchCheckups[branchKey].push(checklist.checkup_record);
+            cloudCheckups[branchKey].push(checklist.checkup_record);
           } else if (isStandaloneCheckup) {
             const checkupType: CheckupType = row.spk_number.startsWith('AC-')
               ? 'ac_specialist'
@@ -1533,24 +1805,30 @@ export class DBService {
               created_at: row.created_at,
               updated_at: row.updated_at,
             };
-            branchCheckups[branchKey].push(rec);
+            cloudCheckups[branchKey].push(rec);
           }
         });
 
+        // SMART MERGE: gabungkan work orders cloud dengan lokal (bukan overwrite brutal)
         allBranches.forEach((b) => {
-          setLocal(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), branchWorkOrders[b] || []);
-          setLocal(getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, b), branchCheckups[b] || []);
+          const localWOs = getLocal<WorkOrder[]>(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), []);
+          const mergedWOs = smartMergeById<WorkOrder>(cloudWorkOrders[b] || [], localWOs, 'id');
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), mergedWOs);
+
+          const localCheckups = getLocal<CheckupRecord[]>(getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, b), []);
+          const mergedCheckups = smartMergeById<CheckupRecord>(cloudCheckups[b] || [], localCheckups, 'id');
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, b), mergedCheckups);
         });
       }
 
-      // 3. Fetch Invoices & Estimations
+      // 3. Fetch Invoices & Estimations — SMART MERGE
       const { data: invData, error: invErr } = await supabase
         .from('invoices')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (!invErr && invData) {
-        const mergedInvoicesMap = new Map<string, Invoice>();
+        const cloudInvoicesMap = new Map<string, Invoice>();
 
         invData.forEach((row: any) => {
           const inv: Invoice = {
@@ -1596,27 +1874,46 @@ export class DBService {
             customer_signed_name: row.customer_signed_name,
             customer_approved_option: row.customer_approved_option,
           };
-          mergedInvoicesMap.set(inv.invoice_number || inv.id, inv);
+          cloudInvoicesMap.set(inv.invoice_number || inv.id, inv);
         });
 
-        // Merge extra estimations found inside work orders
+        // Tambahkan estimasi yang ditemukan di dalam checklist_data work_orders
         extraInvoicesFromWO.forEach((ext) => {
           const key = ext.invoice_number || ext.id;
-          if (key && !mergedInvoicesMap.has(key)) {
-            mergedInvoicesMap.set(key, ext);
+          if (key && !cloudInvoicesMap.has(key)) {
+            cloudInvoicesMap.set(key, ext);
           }
         });
 
-        const allInvoices = Array.from(mergedInvoicesMap.values());
+        const cloudInvoices = Array.from(cloudInvoicesMap.values());
+
+        // SMART MERGE: gabungkan invoices cloud dengan lokal per cabang
         allBranches.forEach((b) => {
           const localInvs = getLocal<Invoice[]>(getBranchKey(BASE_STORAGE_KEYS.INVOICES, b), []);
-          const bMap = new Map<string, Invoice>();
-          allInvoices.forEach((i) => bMap.set(i.invoice_number || i.id, i));
-          localInvs.forEach((l) => {
-            const k = l.invoice_number || l.id;
-            if (!bMap.has(k)) bMap.set(k, l);
+          // Gunakan invoice_number sebagai key merge karena lebih reliable dari id
+          const merged = new Map<string, Invoice>();
+
+          // Masukkan lokal dulu
+          localInvs.forEach((inv) => {
+            merged.set(inv.invoice_number || inv.id, inv);
           });
-          setLocal(getBranchKey(BASE_STORAGE_KEYS.INVOICES, b), Array.from(bMap.values()));
+
+          // Cloud menang jika updated_at lebih baru
+          cloudInvoices.forEach((cloudInv) => {
+            const key = cloudInv.invoice_number || cloudInv.id;
+            const localInv = merged.get(key);
+            if (!localInv) {
+              merged.set(key, cloudInv);
+            } else {
+              const cloudTime = cloudInv.updated_at ? new Date(cloudInv.updated_at).getTime() : 0;
+              const localTime = localInv.updated_at ? new Date(localInv.updated_at).getTime() : 0;
+              if (cloudTime >= localTime) {
+                merged.set(key, cloudInv);
+              }
+            }
+          });
+
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.INVOICES, b), Array.from(merged.values()));
         });
       }
 

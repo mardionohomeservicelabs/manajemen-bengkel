@@ -171,6 +171,8 @@ export function PrintableEstimation({
     popup.document.close();
   };
 
+  const hasOpsi2 = estimation.has_opsi2 !== false;
+
   const getWhatsAppMessage = () => {
     return (
       `Halo Bpk/Ibu ${vehicle?.customer_name || 'Pelanggan'},\n` +
@@ -178,7 +180,7 @@ export function PrintableEstimation({
       `No. Estimasi: ${estimation.invoice_number}\n` +
       `Kendaraan: ${vehicle?.car_brand} ${vehicle?.car_model} (${vehicle?.license_plate})\n` +
       `Total Estimasi Opsi 1: ${formatCurrency(estimation.total_opsi1 || estimation.total_amount)}\n` +
-      (estimation.has_opsi2 ? `Total Estimasi Opsi 2: ${formatCurrency(estimation.total_opsi2 || estimation.total_amount)}\n` : '') +
+      (hasOpsi2 ? `Total Estimasi Opsi 2: ${formatCurrency(estimation.total_opsi2 || estimation.total_amount)}\n` : '') +
       `Estimator: ${signerEstimator || 'Via Rizkiana'}\n\n` +
       `Mohon konfirmasi persetujuan pengerjaan dengan membalas pesan ini "SETUJU" atau klik tautan digital approval.\n` +
       `Terima kasih.`
@@ -210,6 +212,7 @@ export function PrintableEstimation({
       }
     }, 0);
   }
+
 
   const complaintsText = estimation.work_order?.complaints || 'Ketika kena lubang kerasa banget, suara bising sebelah kanan';
 
@@ -366,7 +369,7 @@ export function PrintableEstimation({
                   <th className="p-2 w-16 text-center border-r border-slate-300">Satuan</th>
                   <th className="p-2 w-28 text-right border-r border-slate-300">Hrg Sat</th>
                   <th className="p-2 w-28 text-right border-r border-slate-300">Total Opsi 1</th>
-                  {estimation.has_opsi2 && (
+                  {hasOpsi2 && (
                     <>
                       <th className="p-2 w-28 text-right border-r border-slate-300 bg-blue-50/40 text-blue-950">Hrg Opsi 2</th>
                       <th className="p-2 w-28 text-right bg-blue-50/40 text-blue-950">Total Opsi 2</th>
@@ -395,7 +398,7 @@ export function PrintableEstimation({
                       <td className="p-1.5 text-right font-mono font-black text-slate-900 border-r border-slate-300 align-middle">
                         {formatNumberOrText(tot1)}
                       </td>
-                      {estimation.has_opsi2 && (
+                      {hasOpsi2 && (
                         <>
                           <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold bg-blue-50/20 text-blue-900">
                             {formatNumberOrText(p2)}
@@ -418,7 +421,7 @@ export function PrintableEstimation({
                   <td className="p-2 text-right font-mono font-black text-slate-950 border-r border-slate-300 text-sm">
                     {formatNumberOrText(tot1)}
                   </td>
-                  {estimation.has_opsi2 && (
+                  {hasOpsi2 && (
                     <>
                       <td className="p-2 bg-blue-50/40 border-r border-slate-300"></td>
                       <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/40 text-sm">

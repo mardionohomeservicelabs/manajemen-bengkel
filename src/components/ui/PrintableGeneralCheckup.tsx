@@ -289,23 +289,19 @@ export function PrintableGeneralCheckup({
             </div>
           </div>
 
-          {/* 4. Saran Perbaikan 9 Poin & Tanda Tangan Simetris */}
+          {/* 4. Saran Perbaikan 6 Poin & Tanda Tangan Simetris */}
           <div className="grid grid-cols-12 gap-3.5 items-stretch text-xs pt-0.5">
-            {/* Saran 9 Baris (7 / 12) */}
+            {/* Saran 6 Baris (7 / 12) */}
             <div className="col-span-7 border border-slate-800 rounded-xl p-3 bg-slate-50 space-y-1">
               <h4 className="font-black text-slate-950 uppercase text-[10.5px]">
                 4. Saran &amp; Rekomendasi Teknisi:
               </h4>
-              <ol className="list-decimal pl-4 text-[9.5px] text-slate-800 space-y-0.5 font-medium leading-relaxed">
-                <li>{checkup.improvement_suggestions?.[0] || 'Pergantian oli rutin setiap 5.000 KM / 3 bulan.'}</li>
-                <li>{checkup.improvement_suggestions?.[1] || 'Perawatan berkala ke bengkel setiap 10.000 KM / 6 bulan.'}</li>
-                <li>{checkup.improvement_suggestions?.[2] || 'Bersihkan filter udara dan filter kabin secara rutin.'}</li>
-                <li>{checkup.improvement_suggestions?.[3] || 'Gunakan selalu bahan bakar dengan oktan sesuai rasio kompresi mesin.'}</li>
-                <li>{checkup.improvement_suggestions?.[4] || 'Pastikan air radiator coolant tidak dicampur air kran biasa.'}</li>
-                <li>{checkup.improvement_suggestions?.[5] || 'Cek kebocoran oli mesin, transmisi, dan minyak rem berkala.'}</li>
-                <li>{checkup.improvement_suggestions?.[6] || 'Perhatikan bunyi asing pada kaki-kaki dan sistem pengereman.'}</li>
-                <li>{checkup.improvement_suggestions?.[7] || 'Lakukan rotasi dan spooring balancing ban setiap 10.000 KM.'}</li>
-                <li>{checkup.improvement_suggestions?.[8] || 'Segera konsultasikan ke Mardiono Home Service jika indikator check engine menyala.'}</li>
+              <ol className="list-decimal pl-4 text-[9.5px] text-slate-800 space-y-1 font-medium leading-relaxed min-h-[90px]">
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <li key={idx} className="min-h-[14px]">
+                    {checkup.improvement_suggestions?.[idx] || ''}
+                  </li>
+                ))}
               </ol>
             </div>
 

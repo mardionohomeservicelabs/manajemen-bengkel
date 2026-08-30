@@ -29,6 +29,7 @@ import {
   ClipboardList,
   Sparkles,
   Lock,
+  Unlock,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Suspense } from 'react';
@@ -43,7 +44,16 @@ function NewCheckupPageContent() {
   const searchParams = useSearchParams();
   const spkIdParam = searchParams.get('spkId');
 
-  const { vehicles, workOrders, refreshData, showToast, settings, saveCheckupAsync } = useApp();
+  const {
+    vehicles,
+    workOrders,
+    refreshData,
+    showToast,
+    settings,
+    saveCheckupAsync,
+    currentRole,
+    unlockWorkOrderAsync,
+  } = useApp();
 
   const [checkupType, setCheckupType] = useState<CheckupType>('qc_general');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -52,16 +62,17 @@ function NewCheckupPageContent() {
   // Selected Active SPK
   const [selectedSpkId, setSelectedSpkId] = useState<string>(spkIdParam || '');
   const selectedSpk = workOrders.find((w) => w.id === selectedSpkId);
-  const isLocked = selectedSpk?.status === 'completed';
+  const isCompleted = selectedSpk?.status === 'completed';
+  const isLocked = isCompleted && currentRole !== 'owner';
 
   // Common Header Info
   const [customerName, setCustomerName] = useState('');
   const [licensePlate, setLicensePlate] = useState('');
   const [carModel, setCarModel] = useState('');
-  const [carBrand, setCarBrand] = useState('Toyota');
-  const [carYear, setCarYear] = useState<number | string>(2021);
-  const [carColor, setCarColor] = useState('Putih');
-  const [mileage, setMileage] = useState<number>(45000);
+  const [carBrand, setCarBrand] = useState('');
+  const [carYear, setCarYear] = useState<number | string>('');
+  const [carColor, setCarColor] = useState('');
+  const [mileage, setMileage] = useState<number | string>('');
   const [technicianName, setTechnicianName] = useState('');
   const [checkDate, setCheckDate] = useState<string>(new Date().toISOString().slice(0, 10));
 
@@ -73,11 +84,11 @@ function NewCheckupPageContent() {
         if (spk.vehicle) {
           setCustomerName(spk.vehicle.customer_name);
           setLicensePlate(spk.vehicle.license_plate);
-          setCarModel(`${spk.vehicle.car_brand} ${spk.vehicle.car_model}`);
-          setCarBrand(spk.vehicle.car_brand || 'Toyota');
-          setCarYear(spk.vehicle.car_year || 2021);
-          setCarColor((spk.vehicle as any).color || (spk.vehicle as any).car_color || 'Putih');
-          setMileage(spk.vehicle.current_mileage || 40000);
+          setCarModel(`${spk.vehicle.car_brand || ''} ${spk.vehicle.car_model || ''}`.trim().toUpperCase());
+          setCarBrand(spk.vehicle.car_brand ? spk.vehicle.car_brand.toUpperCase() : '');
+          setCarYear(spk.vehicle.car_year || '');
+          setCarColor((spk.vehicle as any).color || (spk.vehicle as any).car_color || '');
+          setMileage(spk.vehicle.current_mileage || '');
         }
         if (spk.mechanic_name) {
           setTechnicianName(spk.mechanic_name);
@@ -125,17 +136,8 @@ function NewCheckupPageContent() {
   ]);
 
   const [fuelLevelFraction, setFuelLevelFraction] = useState('3/4');
-  const [saranList, setSaranList] = useState<string[]>([
-    'Pergantian oli rutin setiap 5.000 KM / 3 bulan.',
-    'Perawatan berkala ke bengkel setiap 10.000 KM / 6 bulan.',
-    'Bersihkan filter udara dan filter kabin secara rutin.',
-    'Gunakan selalu bahan bakar dengan oktan sesuai rasio kompresi mesin.',
-    'Pastikan air radiator coolant tidak dicampur air kran biasa.',
-    'Cek kebocoran oli mesin, transmisi, dan minyak rem berkala.',
-    'Perhatikan bunyi asing pada kaki-kaki dan sistem pengereman.',
-    'Lakukan rotasi dan spooring balancing ban setiap 10.000 KM.',
-    'Segera konsultasikan ke Mardiono Home Service jika indikator check engine menyala.',
-  ]);
+  const [saranList, setSaranList] = useState<string[]>(['', '', '', '', '', '']);
+
 
   // --- FORM 2: AC CHECKUP STATES ---
   const [acCompressor, setAcCompressor] = useState<CheckConditionStatus>('baik');
@@ -149,14 +151,13 @@ function NewCheckupPageContent() {
   const [acBlower, setAcBlower] = useState<CheckConditionStatus>('baik');
   const [acSightGlass, setAcSightGlass] = useState<CheckConditionStatus>('baik');
 
-  const [acVentTemp, setAcVentTemp] = useState('6.5 °C');
-  const [acLowPsi, setAcLowPsi] = useState('30 Psi');
-  const [acHighPsi, setAcHighPsi] = useState('195 Psi');
+  const [acVentTemp, setAcVentTemp] = useState('');
+  const [acLowPsi, setAcLowPsi] = useState('');
+  const [acHighPsi, setAcHighPsi] = useState('');
   const [acCabinFilter, setAcCabinFilter] = useState<CheckConditionStatus>('baik');
   const [acDrain, setAcDrain] = useState<CheckConditionStatus>('baik');
-  const [acRecommendations, setAcRecommendations] = useState(
-    'Kondisi kompresor dan tekanan freon optimal. Lakukan servis ringan dan penggantian filter kabin berkala.'
-  );
+  const [acRecommendations, setAcRecommendations] = useState('');
+
 
   // --- FORM 3: UNDERSTEEL CHECKUP STATES ---
   const [understeelItems, setUndersteelItems] = useState<UndersteelPointItem[]>([
@@ -213,11 +214,11 @@ function NewCheckupPageContent() {
     const found = vehicles.find((v) => v.license_plate.toUpperCase().replace(/\s+/g, '') === clean);
     if (found) {
       setCustomerName(found.customer_name);
-      setCarModel(`${found.car_brand} ${found.car_model}`);
-      setCarBrand(found.car_brand || 'Toyota');
-      setCarYear(found.car_year || 2021);
-      setCarColor((found as any).color || (found as any).car_color || 'Putih');
-      setMileage(found.current_mileage || 40000);
+      setCarModel(`${found.car_brand || ''} ${found.car_model || ''}`.trim().toUpperCase());
+      setCarBrand(found.car_brand ? found.car_brand.toUpperCase() : '');
+      setCarYear(found.car_year || '');
+      setCarColor((found as any).color || (found as any).car_color || '');
+      setMileage(found.current_mileage || '');
       showToast(`Data mobil ${found.license_plate} dimuat!`, 'info');
     }
   };
@@ -576,6 +577,56 @@ function NewCheckupPageContent() {
         </button>
       </div>
 
+      {/* Lock/Unlock Banner when selected SPK is completed */}
+      {isCompleted && currentRole === 'owner' && (
+        <div className="bg-emerald-50 border-2 border-emerald-400 text-emerald-950 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs font-bold text-lg">
+              🔓
+            </div>
+            <div>
+              <h4 className="font-black text-sm text-emerald-950">
+                Akses Penuh Owner — Formulir Checkup Terbuka
+              </h4>
+              <p className="text-xs text-emerald-800 mt-0.5 leading-relaxed">
+                SPK <strong>{selectedSpk?.spk_number}</strong> telah berstatus Selesai, namun sebagai <strong>Owner</strong> Anda dapat menyimpan perubahan atau membuka kembali kunci status SPK.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              if (selectedSpk) {
+                await unlockWorkOrderAsync(selectedSpk.id, 'servicing');
+              }
+            }}
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer flex-shrink-0"
+            title="Buka status SPK kembali ke Sedang Dikerjakan"
+          >
+            <Unlock className="w-4 h-4" />
+            <span>Buka Kunci SPK (Pindah ke Dikerjakan)</span>
+          </button>
+        </div>
+      )}
+
+      {isCompleted && currentRole !== 'owner' && (
+        <div className="bg-amber-50 border-2 border-amber-400 text-amber-950 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+              <Lock className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-black text-sm text-amber-950">
+                Formulir QC Terkunci (Pekerjaan Selesai)
+              </h4>
+              <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
+                SPK <strong>{selectedSpk?.spk_number}</strong> telah berstatus Selesai. Pengisian atau perubahan formulir terkunci. <em>Kunci dapat dibuka oleh peran Owner.</em>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Common Info Header */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-4">
@@ -609,9 +660,9 @@ function NewCheckupPageContent() {
               <input
                 type="text"
                 value={carBrand}
-                onChange={(e) => setCarBrand(e.target.value)}
-                placeholder="Toyota, Honda, dll"
-                className="w-full p-2 rounded-xl border border-slate-200 font-medium"
+                onChange={(e) => setCarBrand(e.target.value.toUpperCase())}
+                placeholder="Contoh: TOYOTA / HONDA"
+                className="w-full p-2 rounded-xl border border-slate-200 font-bold uppercase text-slate-900"
               />
             </div>
             <div>
@@ -620,17 +671,18 @@ function NewCheckupPageContent() {
                 type="text"
                 required
                 value={carModel}
-                onChange={(e) => setCarModel(e.target.value)}
-                className="w-full p-2 rounded-xl border border-slate-200 font-medium"
+                onChange={(e) => setCarModel(e.target.value.toUpperCase())}
+                placeholder="Contoh: AVANZA 1.3 / CR-V 2.0"
+                className="w-full p-2 rounded-xl border border-slate-200 font-bold uppercase text-slate-900"
               />
             </div>
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Tahun Kendaraan</label>
+              <label className="block font-bold text-slate-700 mb-1">Tahun Kendaraan (Opsional)</label>
               <input
                 type="number"
                 value={carYear}
                 onChange={(e) => setCarYear(e.target.value)}
-                placeholder="2021"
+                placeholder="Contoh: 2021"
                 className="w-full p-2 rounded-xl border border-slate-200 font-medium"
               />
             </div>
@@ -640,7 +692,7 @@ function NewCheckupPageContent() {
                 type="text"
                 value={carColor}
                 onChange={(e) => setCarColor(e.target.value)}
-                placeholder="Putih, Hitam, dll"
+                placeholder="Contoh: Putih, Hitam, dll"
                 className="w-full p-2 rounded-xl border border-slate-200 font-medium"
               />
             </div>
@@ -648,9 +700,9 @@ function NewCheckupPageContent() {
               <label className="block font-bold text-slate-700 mb-1">KM / Odometer</label>
               <input
                 type="number"
-                required
+                placeholder="Contoh: 35000"
                 value={mileage}
-                onChange={(e) => setMileage(Number(e.target.value))}
+                onChange={(e) => setMileage(e.target.value)}
                 className="w-full p-2 rounded-xl border border-slate-200 font-mono font-bold"
               />
             </div>
@@ -881,10 +933,10 @@ function NewCheckupPageContent() {
               </div>
             </div>
 
-            {/* Section 4: Saran Perbaikan (Points 1 - 9) */}
+            {/* Section 4: Saran Perbaikan (6 Kotak Rekomendasi) */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-3">
               <h3 className="font-black text-xs uppercase tracking-wider text-slate-900 pb-2 border-b border-slate-100">
-                4. Saran Perbaikan (Maks. 9 Catatan Rekomendasi)
+                4. Saran Perbaikan (6 Rekomendasi)
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                 {saranList.map((saran, idx) => (
@@ -1056,6 +1108,7 @@ function NewCheckupPageContent() {
                 </label>
                 <textarea
                   rows={3}
+                  placeholder="Ketik catatan pemeriksaan / rekomendasi teknisi AC di sini..."
                   value={acRecommendations}
                   onChange={(e) => setAcRecommendations(e.target.value)}
                   className="w-full text-xs p-3 rounded-xl border border-slate-200 leading-relaxed font-medium"
@@ -1063,18 +1116,15 @@ function NewCheckupPageContent() {
               </div>
             </div>
 
-            {/* Signatures: Customer & Tech */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-2">
-                <span className="block font-bold text-xs text-slate-900 uppercase">
-                  Tanda Tangan Pelanggan
-                </span>
-                <SignatureCanvas onSave={(url) => setSignatureCustomer(url)} />
-              </div>
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-2">
-                <span className="block font-bold text-xs text-slate-900 uppercase">
-                  Tanda Tangan Teknisi
-                </span>
+            {/* Signature: Teknisi / Mekanik Only */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-3">
+              <h3 className="font-black text-xs uppercase tracking-wider text-slate-900 pb-2 border-b border-slate-100">
+                Tanda Tangan Teknisi / Mekanik AC
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                Bubuhkan tanda tangan teknisi untuk mengesahkan formulir pemeriksaan AC.
+              </p>
+              <div className="max-w-md">
                 <SignatureCanvas onSave={(url) => setSignatureTech(url)} />
               </div>
             </div>
@@ -1093,7 +1143,7 @@ function NewCheckupPageContent() {
                     <span>Daftar Order Pemeriksaan Kaki-Kaki (26 Titik Standar)</span>
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Centang "DIGANTI" jika part harus diganti baru, atau "SERVICE" jika part bisa diservis/rekondisi.
+                    Pilih salah satu status: Centang <strong>DIGANTI</strong> jika part harus diganti baru, atau <strong>SERVICE</strong> jika part bisa diservis/rekondisi.
                   </p>
                 </div>
               </div>
@@ -1126,10 +1176,14 @@ function NewCheckupPageContent() {
                               checked={item.replace}
                               onChange={(e) => {
                                 const copy = [...understeelItems];
-                                copy[idx].replace = e.target.checked;
+                                const isChecked = e.target.checked;
+                                copy[idx].replace = isChecked;
+                                if (isChecked) {
+                                  copy[idx].service = false;
+                                }
                                 setUndersteelItems(copy);
                               }}
-                              className="w-4 h-4 text-red-600 rounded border-slate-300 focus:ring-red-500"
+                              className="w-4 h-4 text-red-600 rounded border-slate-300 focus:ring-red-500 cursor-pointer"
                             />
                           </label>
                         </td>
@@ -1140,10 +1194,14 @@ function NewCheckupPageContent() {
                               checked={item.service}
                               onChange={(e) => {
                                 const copy = [...understeelItems];
-                                copy[idx].service = e.target.checked;
+                                const isChecked = e.target.checked;
+                                copy[idx].service = isChecked;
+                                if (isChecked) {
+                                  copy[idx].replace = false;
+                                }
                                 setUndersteelItems(copy);
                               }}
-                              className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                              className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
                             />
                           </label>
                         </td>
@@ -1193,10 +1251,14 @@ function NewCheckupPageContent() {
                               checked={c.replace}
                               onChange={(e) => {
                                 const copy = [...understeelCustomItems];
-                                copy[cIdx].replace = e.target.checked;
+                                const isChecked = e.target.checked;
+                                copy[cIdx].replace = isChecked;
+                                if (isChecked) {
+                                  copy[cIdx].service = false;
+                                }
                                 setUndersteelCustomItems(copy);
                               }}
-                              className="w-4 h-4 text-red-600 rounded border-slate-300 focus:ring-red-500"
+                              className="w-4 h-4 text-red-600 rounded border-slate-300 focus:ring-red-500 cursor-pointer"
                             />
                           </label>
                         </td>
@@ -1207,10 +1269,14 @@ function NewCheckupPageContent() {
                               checked={c.service}
                               onChange={(e) => {
                                 const copy = [...understeelCustomItems];
-                                copy[cIdx].service = e.target.checked;
+                                const isChecked = e.target.checked;
+                                copy[cIdx].service = isChecked;
+                                if (isChecked) {
+                                  copy[cIdx].replace = false;
+                                }
                                 setUndersteelCustomItems(copy);
                               }}
-                              className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                              className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
                             />
                           </label>
                         </td>

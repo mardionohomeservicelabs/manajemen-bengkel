@@ -263,56 +263,35 @@ export function PrintableACCheckup({
           </div>
 
           {/* Catatan Box */}
-          <div className="text-xs p-2.5 bg-slate-50 rounded-xl border border-slate-300 space-y-0.5">
-            <span className="font-black text-slate-900">Catatan: </span>
-            <span className="text-slate-800 font-medium">
-              {checkup.recommendations || 'Cek kebocoran berkala dan lakukan pembersihan filter kabin secara rutin.'}
+          <div className="text-xs p-2.5 bg-slate-50 rounded-xl border border-slate-300 space-y-1">
+            <span className="font-black text-slate-900 block text-[10.5px] uppercase">
+              Catatan / Rekomendasi Teknisi:
             </span>
+            <p className="text-slate-900 font-medium text-[11px] leading-relaxed min-h-[28px] whitespace-pre-wrap break-words">
+              {checkup.recommendations || '-'}
+            </p>
           </div>
 
-          {/* Symmetrical Dual Digital Signatures */}
-          <div className="border border-slate-800 rounded-xl p-3 bg-white">
-            <div className="grid grid-cols-2 gap-6 text-center text-xs">
-              {/* TTD Teknisi */}
-              <div className="space-y-1">
-                <p className="font-bold text-slate-700 text-[10.5px]">Teknisi</p>
-                <div className="h-14 flex items-center justify-center overflow-hidden my-0.5">
-                  {checkup.technician_signature_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={checkup.technician_signature_url}
-                      alt="TTD Teknisi"
-                      className="max-h-12 max-w-full object-contain block mx-auto"
-                    />
-                  ) : (
-                    <span className="text-[10px] text-slate-400 italic">(Tanda Tangan)</span>
-                  )}
-                </div>
-                <p className="font-bold text-slate-950 text-[11px] border-t border-slate-300 pt-1">
-                  {signerTeknisi || 'Teknisi AC'}
-                </p>
-              </div>
-
-              {/* TTD Pelanggan */}
-              <div className="space-y-1">
-                <p className="font-bold text-slate-700 text-[10.5px]">Pelanggan</p>
-                <div className="h-14 flex items-center justify-center overflow-hidden my-0.5">
-                  {checkup.customer_signature_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={checkup.customer_signature_url}
-                      alt="TTD Pelanggan"
-                      className="max-h-12 max-w-full object-contain block mx-auto"
-                    />
-                  ) : (
-                    <span className="text-[10px] text-slate-400 italic">(Tanda Tangan)</span>
-                  )}
-                </div>
-                <p className="font-bold text-slate-950 text-[11px] border-t border-slate-300 pt-1">
-                  ({checkup.customer_name || '............'})
-                </p>
-              </div>
+          {/* Tanda Tangan Teknisi / Mekanik AC */}
+          <div className="border border-slate-800 rounded-xl p-3 bg-white max-w-xs mx-auto text-center space-y-1">
+            <p className="font-black text-[#8B0000] text-[10.5px] uppercase">
+              Teknisi Pemeriksa (AC Specialist)
+            </p>
+            <div className="h-14 flex items-center justify-center overflow-hidden my-0.5">
+              {checkup.technician_signature_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={checkup.technician_signature_url}
+                  alt="TTD Teknisi"
+                  className="max-h-12 max-w-full object-contain block mx-auto"
+                />
+              ) : (
+                <span className="text-[10px] text-slate-400 italic">(Tanda Tangan)</span>
+              )}
             </div>
+            <p className="font-bold text-slate-950 text-[11px] border-t border-slate-300 pt-1">
+              ({signerTeknisi || checkup.technician_name || 'Teknisi AC'})
+            </p>
           </div>
 
           {/* Footer */}

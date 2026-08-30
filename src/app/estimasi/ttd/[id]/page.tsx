@@ -11,6 +11,25 @@ import confetti from 'canvas-confetti';
 
 type CustomerChoice = 'opsi1' | 'opsi2' | 'pending';
 
+// Helper: parse price field yang bisa berupa kisaran "150000 - 160000" atau angka biasa
+const parseRangePrice = (val: any): { min: number; max: number } => {
+  if (typeof val === 'number') return { min: isNaN(val) ? 0 : val, max: isNaN(val) ? 0 : val };
+  const str = String(val).replace(/[Rp.\s]/g, '');
+  const parts = str.split(/[-\u2013]/);
+  if (parts.length === 2) {
+    const minVal = parseInt(parts[0].replace(/\D/g, ''), 10) || 0;
+    const maxVal = parseInt(parts[1].replace(/\D/g, ''), 10) || 0;
+    return { min: Math.min(minVal, maxVal), max: Math.max(minVal, maxVal) };
+  }
+  const single = parseInt(str.replace(/\D/g, ''), 10) || 0;
+  return { min: single, max: single };
+};
+
+const formatRangeDisplay = (min: number, max: number): string => {
+  if (min === max) return formatCurrency(min);
+  return `${formatCurrency(min)} – ${formatCurrency(max)}`;
+};
+
 export default function CustomerSignatureApprovalPage() {
   const params = useParams();
   const rawId = params?.id as string;
@@ -44,6 +63,8 @@ export default function CustomerSignatureApprovalPage() {
           );
           if (result.estimation.customer_approved_option) {
             setSelectedOption(result.estimation.customer_approved_option as CustomerChoice);
+          } else if (result.estimation.customer_response === 'opsi2') {
+            setSelectedOption('opsi2');
           }
           if (result.estimation.ttd_status === 'signed' || result.estimation.customer_signature) {
             setIsSubmittedSuccess(true);
@@ -99,7 +120,6 @@ export default function CustomerSignatureApprovalPage() {
       );
 
       if (updated) {
-        // Juga update customer_response sesuai pilihan
         const finalUpdated: Invoice = {
           ...updated,
           customer_response: selectedOption as 'opsi1' | 'opsi2',
@@ -146,20 +166,55 @@ export default function CustomerSignatureApprovalPage() {
 
   const vehicle = estimation.vehicle;
   const items = estimation.items || [];
+  
+  // Opsi 2 aktif jika explicitly true atau tidak false
   const hasOpsi2 = estimation.has_opsi2 !== false;
+  const showRangePrice = estimation.has_range_price || items.some(it => {
+    const s1 = String(it.price_opsi1 || '');
+    const s2 = String(it.price_opsi2 || '');
+    return s1.includes('-') || s1.includes('–') || s2.includes('-') || s2.includes('–');
+  });
 
-  const totalOpsi1 = Math.max(0, items.reduce((s, it) => {
-    const t = typeof it.total_opsi1 === 'number' ? it.total_opsi1
-      : (typeof it.price_opsi1 === 'number' ? (it.qty || 1) * it.price_opsi1 : 0);
-    return s + (isNaN(t) ? 0 : t);
-  }, 0) - (estimation.discount_amount || 0));
+  const discount = estimation.discount_amount || 0;
+  const taxPercent = estimation.tax_percent || 0;
 
-  const totalOpsi2 = Math.max(0, items.reduce((s, it) => {
-    const t = typeof it.total_opsi2 === 'number' ? it.total_opsi2
-      : (typeof it.price_opsi2 === 'number' ? (it.qty || 1) * it.price_opsi2
-        : (typeof it.price_opsi1 === 'number' ? (it.qty || 1) * it.price_opsi1 : 0));
-    return s + (isNaN(t) ? 0 : t);
-  }, 0) - (estimation.discount_amount || 0));
+  // Kalkulasi Opsi 1
+  const subtotalOpsi1Min = items.reduce((sum, it) => {
+    const p = it.price_opsi1 !== undefined ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
+    const { min } = parseRangePrice(p);
+    return sum + min * (it.qty || 1);
+  }, 0);
+
+  const subtotalOpsi1Max = items.reduce((sum, it) => {
+    const p = it.price_opsi1 !== undefined ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
+    const { max } = parseRangePrice(p);
+    return sum + max * (it.qty || 1);
+  }, 0);
+
+  const taxAmountOpsi1Min = taxPercent > 0 ? ((subtotalOpsi1Min - discount) * (taxPercent / 100)) : 0;
+  const taxAmountOpsi1Max = taxPercent > 0 ? ((subtotalOpsi1Max - discount) * (taxPercent / 100)) : 0;
+
+  const totalFinalOpsi1Min = Math.max(0, subtotalOpsi1Min - discount + taxAmountOpsi1Min);
+  const totalFinalOpsi1Max = Math.max(0, subtotalOpsi1Max - discount + taxAmountOpsi1Max);
+
+  // Kalkulasi Opsi 2
+  const subtotalOpsi2Min = items.reduce((sum, it) => {
+    const p = it.price_opsi2 !== undefined ? it.price_opsi2 : (it.price_opsi1 !== undefined ? it.price_opsi1 : it.price || 0);
+    const { min } = parseRangePrice(p);
+    return sum + min * (it.qty || 1);
+  }, 0);
+
+  const subtotalOpsi2Max = items.reduce((sum, it) => {
+    const p = it.price_opsi2 !== undefined ? it.price_opsi2 : (it.price_opsi1 !== undefined ? it.price_opsi1 : it.price || 0);
+    const { max } = parseRangePrice(p);
+    return sum + max * (it.qty || 1);
+  }, 0);
+
+  const taxAmountOpsi2Min = taxPercent > 0 ? ((subtotalOpsi2Min - discount) * (taxPercent / 100)) : 0;
+  const taxAmountOpsi2Max = taxPercent > 0 ? ((subtotalOpsi2Max - discount) * (taxPercent / 100)) : 0;
+
+  const totalFinalOpsi2Min = Math.max(0, subtotalOpsi2Min - discount + taxAmountOpsi2Min);
+  const totalFinalOpsi2Max = Math.max(0, subtotalOpsi2Max - discount + taxAmountOpsi2Max);
 
   const workshopName = settings?.name || 'MARDIONO HOME SERVICE';
   const workshopPhone = settings?.phone || '';
@@ -315,10 +370,22 @@ export default function CustomerSignatureApprovalPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {items.map((item, idx) => {
-                  const p1 = item.price_opsi1 !== undefined ? item.price_opsi1 : item.price;
-                  const tot1 = item.total_opsi1 !== undefined ? item.total_opsi1 : (typeof p1 === 'number' ? (item.qty || 1) * p1 : p1);
-                  const p2 = item.price_opsi2 !== undefined ? item.price_opsi2 : p1;
-                  const tot2 = item.total_opsi2 !== undefined ? item.total_opsi2 : (typeof p2 === 'number' ? (item.qty || 1) * p2 : p2);
+                  const p1Raw = item.price_opsi1 !== undefined ? item.price_opsi1 : (item.price !== undefined ? item.price : 0);
+                  const p2Raw = item.price_opsi2 !== undefined ? item.price_opsi2 : (item.price_opsi1 !== undefined ? item.price_opsi1 : (item.price || 0));
+
+                  const { min: p1Min, max: p1Max } = parseRangePrice(p1Raw);
+                  const { min: p2Min, max: p2Max } = parseRangePrice(p2Raw);
+
+                  const qty = item.qty || 1;
+                  const tot1Min = p1Min * qty;
+                  const tot1Max = p1Max * qty;
+                  const tot2Min = p2Min * qty;
+                  const tot2Max = p2Max * qty;
+
+                  const p1Display = p1Min === p1Max ? formatNumberOrText(p1Min) : `${formatNumberOrText(p1Min)} – ${formatNumberOrText(p1Max)}`;
+                  const tot1Display = tot1Min === tot1Max ? formatNumberOrText(tot1Min) : `${formatNumberOrText(tot1Min)} – ${formatNumberOrText(tot1Max)}`;
+                  const p2Display = p2Min === p2Max ? formatNumberOrText(p2Min) : `${formatNumberOrText(p2Min)} – ${formatNumberOrText(p2Max)}`;
+                  const tot2Display = tot2Min === tot2Max ? formatNumberOrText(tot2Min) : `${formatNumberOrText(tot2Min)} – ${formatNumberOrText(tot2Max)}`;
 
                   return (
                     <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
@@ -326,12 +393,12 @@ export default function CustomerSignatureApprovalPage() {
                       <td className="p-2 border-r border-slate-100">
                         <div className="font-bold text-slate-900 uppercase text-[10.5px]">{item.name}</div>
                       </td>
-                      <td className="p-2 text-center font-mono font-bold text-slate-700 border-r border-slate-100">{item.qty || 1}</td>
+                      <td className="p-2 text-center font-mono font-bold text-slate-700 border-r border-slate-100">{qty}</td>
                       <td className="p-2 text-center text-[10px] font-black uppercase text-slate-600 border-r border-slate-100">{item.unit || 'PCS'}</td>
-                      <td className="p-2 text-right font-mono text-slate-700 border-r border-slate-100">{formatNumberOrText(p1)}</td>
-                      <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-100">{formatNumberOrText(tot1)}</td>
+                      <td className="p-2 text-right font-mono text-slate-700 border-r border-slate-100">{p1Display}</td>
+                      <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-100">{tot1Display}</td>
                       {hasOpsi2 && (
-                        <td className="p-2 text-right font-mono font-black text-blue-900 bg-blue-50/30">{formatNumberOrText(tot2)}</td>
+                        <td className="p-2 text-right font-mono font-black text-blue-900 bg-blue-50/30">{tot2Display}</td>
                       )}
                     </tr>
                   );
@@ -343,11 +410,11 @@ export default function CustomerSignatureApprovalPage() {
                     Total Cost
                   </td>
                   <td className="p-2 text-right font-mono text-slate-950 border-r border-slate-200">
-                    {formatNumberOrText(totalOpsi1)}
+                    {formatRangeDisplay(totalFinalOpsi1Min, totalFinalOpsi1Max)}
                   </td>
                   {hasOpsi2 && (
                     <td className="p-2 text-right font-mono text-blue-950 bg-blue-50/30">
-                      {formatNumberOrText(totalOpsi2)}
+                      {formatRangeDisplay(totalFinalOpsi2Min, totalFinalOpsi2Max)}
                     </td>
                   )}
                 </tr>
@@ -377,7 +444,9 @@ export default function CustomerSignatureApprovalPage() {
               />
               <div className="flex-1">
                 <span className="text-xs font-black text-slate-900">Setuju → Opsi 1</span>
-                <span className="block text-[11px] text-slate-500">Total: <strong className="text-slate-800 font-mono">{formatCurrency(totalOpsi1)}</strong></span>
+                <span className="block text-[11px] text-slate-500">
+                  Total: <strong className="text-slate-800 font-mono">{formatRangeDisplay(totalFinalOpsi1Min, totalFinalOpsi1Max)}</strong>
+                </span>
               </div>
               {selectedOption === 'opsi1' && <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />}
             </label>
@@ -397,7 +466,9 @@ export default function CustomerSignatureApprovalPage() {
                 />
                 <div className="flex-1">
                   <span className="text-xs font-black text-slate-900">Setuju → Opsi 2</span>
-                  <span className="block text-[11px] text-slate-500">Total: <strong className="text-slate-800 font-mono">{formatCurrency(totalOpsi2)}</strong></span>
+                  <span className="block text-[11px] text-slate-500">
+                    Total: <strong className="text-blue-900 font-mono">{formatRangeDisplay(totalFinalOpsi2Min, totalFinalOpsi2Max)}</strong>
+                  </span>
                 </div>
                 {selectedOption === 'opsi2' && <CheckCircle2 className="w-4 h-4 text-blue-600 flex-shrink-0" />}
               </label>

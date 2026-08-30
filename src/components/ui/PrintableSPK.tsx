@@ -195,7 +195,7 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
             <h4 className="font-black text-[#8B0000] uppercase text-[10.5px]">
               KELUHAN CUSTOMER :
             </h4>
-            <p className="text-slate-900 font-medium text-[11px] leading-relaxed min-h-[30px] pl-1">
+            <p className="text-slate-900 font-medium text-[11px] leading-relaxed min-h-[30px] pl-1 whitespace-pre-wrap break-words">
               {workOrder.complaints || 'Perawatan berkala / Servis rutin'}
             </p>
           </div>
@@ -205,7 +205,7 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
             <h4 className="font-black text-[#001F7A] uppercase text-[10.5px]">
               URAIAN PEKERJAAN :
             </h4>
-            <p className="text-slate-900 font-medium text-[11px] leading-relaxed min-h-[30px] pl-1">
+            <p className="text-slate-900 font-medium text-[11px] leading-relaxed min-h-[30px] pl-1 whitespace-pre-wrap break-words">
               {workOrder.notes || 'Pemeriksaan menyeluruh, tune-up, servis berkala, dan uji fungsi sistem kendaraan.'}
             </p>
           </div>

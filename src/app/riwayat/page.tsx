@@ -21,12 +21,13 @@ import {
   Calendar,
   CreditCard,
   Car,
+  Unlock,
 } from 'lucide-react';
 import { PrintableSPK } from '@/components/ui/PrintableSPK';
 import { PrintableInvoice } from '@/components/ui/PrintableInvoice';
 
 export default function HistoryArchivePage() {
-  const { workOrders, invoices, settings } = useApp();
+  const { workOrders, invoices, settings, currentRole, unlockWorkOrderAsync } = useApp();
 
   const [activeTab, setActiveTab] = useState<'spk' | 'invoices'>('spk');
   const [searchQuery, setSearchQuery] = useState('');
@@ -187,7 +188,18 @@ export default function HistoryArchivePage() {
                           {order.status}
                         </span>
                       </td>
-                      <td className="p-3.5 text-right">
+                      <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
+                        {order.status === 'completed' && currentRole === 'owner' && (
+                          <button
+                            type="button"
+                            onClick={() => unlockWorkOrderAsync(order.id, 'servicing')}
+                            className="inline-flex items-center space-x-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1.5 rounded-lg text-xs transition border border-emerald-300 shadow-xs"
+                            title="Buka Kunci SPK (Pindah kembali ke Sedang Dikerjakan)"
+                          >
+                            <Unlock className="w-3.5 h-3.5 text-emerald-700" />
+                            <span>Buka Kunci</span>
+                          </button>
+                        )}
                         <button
                           onClick={() => setSelectedWorkOrder(order)}
                           className="inline-flex items-center space-x-1 bg-slate-100 hover:bg-maroon-50 text-slate-700 hover:text-maroon-700 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"

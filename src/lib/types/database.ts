@@ -355,8 +355,12 @@ export interface Invoice {
   has_discount?: boolean;
   has_opsi2?: boolean;
   has_tax?: boolean;
+  has_range_price?: boolean;
   total_opsi1?: number;
+  total_opsi1_max?: number;
   total_opsi2?: number;
+  total_opsi2_max?: number;
+  tab_id?: string;
 
   // --- Digital Signature & Customer Approval ---
   customer_signature?: string; // Base64 data URL

@@ -27,6 +27,11 @@ import {
   LogOut,
   Building2,
   ChevronDown,
+  Wifi,
+  WifiOff,
+  RefreshCw,
+  UploadCloud,
+  CloudOff,
 } from 'lucide-react';
 
 interface NavItem {
@@ -40,10 +45,11 @@ interface NavItem {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { currentRole, workOrders, inventory, crmLogs } = useApp();
+  const { currentRole, workOrders, inventory, crmLogs, isSupabaseOnline, isSyncing, pendingCount, flushOfflineQueue, syncWithSupabase } = useApp();
   const { currentUser, activeBranch, setActiveBranch, logout } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
+  const [isFlushing, setIsFlushing] = useState(false);
 
   const checkupsCount = DBService.getCheckups().length;
 
@@ -328,6 +334,47 @@ export function Sidebar() {
               </div>
             </div>
             <Shield className="w-4 h-4 text-maroon-500 flex-shrink-0" />
+          </div>
+
+          {/* Sync Status Indicator */}
+          <div
+            className={`flex items-center justify-between px-2.5 py-2 rounded-xl border text-xs font-semibold transition-all ${
+              !isSupabaseOnline
+                ? 'bg-red-950/50 border-red-800/60 text-red-400'
+                : pendingCount > 0
+                ? 'bg-amber-950/50 border-amber-700/60 text-amber-300'
+                : 'bg-emerald-950/40 border-emerald-800/50 text-emerald-400'
+            }`}
+          >
+            <div className="flex items-center gap-1.5">
+              {!isSupabaseOnline ? (
+                <><CloudOff className="w-3.5 h-3.5" /><span>Offline</span></>
+              ) : pendingCount > 0 ? (
+                <><UploadCloud className="w-3.5 h-3.5" /><span>{pendingCount} pending</span></>
+              ) : (
+                <><Wifi className="w-3.5 h-3.5" /><span>Tersinkron</span></>
+              )}
+            </div>
+            <button
+              onClick={async () => {
+                if (isFlushing || isSyncing) return;
+                setIsFlushing(true);
+                try {
+                  if (pendingCount > 0) {
+                    await flushOfflineQueue();
+                  } else {
+                    await syncWithSupabase();
+                  }
+                } finally {
+                  setIsFlushing(false);
+                }
+              }}
+              title={pendingCount > 0 ? 'Kirim data pending ke server' : 'Sync ulang dari server'}
+              className="hover:text-white transition-colors disabled:opacity-40"
+              disabled={isFlushing || isSyncing}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${(isFlushing || isSyncing) ? 'animate-spin' : ''}`} />
+            </button>
           </div>
 
           {/* Logout Button */}

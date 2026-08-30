@@ -47,13 +47,17 @@ interface AppContextType {
     approvedOption: 'opsi1' | 'opsi2'
   ) => Promise<Invoice | null>;
   updateWorkOrderStatusAsync: (id: string, status: WorkOrderStatus) => Promise<boolean>;
+  unlockWorkOrderAsync: (id: string, targetStatus?: WorkOrderStatus) => Promise<boolean>;
   updateVehiclePlateAsync: (vehicleId: string, newPlate: string) => Promise<boolean>;
   toasts: ToastMessage[];
   showToast: (message: string, type?: ToastMessage['type'], title?: string) => void;
   removeToast: (id: string) => void;
   isSupabaseOnline: boolean;
   isSyncing: boolean;
+  pendingCount: number;
+  flushOfflineQueue: () => Promise<number>;
 }
+
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -69,6 +73,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [isSupabaseOnline, setIsSupabaseOnline] = useState<boolean>(isSupabaseConfigured);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [pendingCount, setPendingCount] = useState<number>(0);
 
   // Role diambil langsung dari user yang login
   const currentRole: UserRole = currentUser?.role ?? 'sa';
@@ -88,6 +93,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!supabase || !isSupabaseConfigured) return;
     setIsSyncing(true);
     try {
+      // Flush offline queue dulu sebelum sync dari cloud
+      const flushed = await DBService.flushOfflineQueue();
+      if (flushed > 0) {
+        console.info(`[Sync] Flushed ${flushed} offline queue entries`);
+      }
       const ok = await DBService.syncFromSupabase(activeBranch);
       if (ok) {
         setIsSupabaseOnline(true);
@@ -97,6 +107,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setIsSupabaseOnline(false);
     } finally {
       setIsSyncing(false);
+      // Update jumlah pending setelah sync
+      setPendingCount(DBService.getOfflineQueueCount());
     }
   }, [activeBranch, refreshData]);
 
@@ -104,6 +116,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     DBService.init(activeBranch);
     refreshData();
     syncWithSupabase();
+    setPendingCount(DBService.getOfflineQueueCount());
 
     // 1. Sync ketika browser/HP dibuka kembali (visibility / focus)
     const handleVisibilityOrFocus = () => {
@@ -114,16 +127,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     window.addEventListener('visibilitychange', handleVisibilityOrFocus);
     window.addEventListener('focus', handleVisibilityOrFocus);
 
-    // 2. Periodic background sync setiap 15 detik agar perangkat lain langsung dapat update
+    // 2. Auto-flush queue saat koneksi internet kembali
+    const handleOnline = async () => {
+      setIsSupabaseOnline(true);
+      console.info('[Network] Kembali online — flushing offline queue...');
+      const flushed = await DBService.flushOfflineQueue();
+      setPendingCount(DBService.getOfflineQueueCount());
+      if (flushed > 0) {
+        refreshData();
+      }
+    };
+    const handleOffline = () => {
+      setIsSupabaseOnline(false);
+    };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // 3. Background sync setiap 60 detik (dikurangi dari 15 detik)
+    // 60 detik cukup untuk menghindari overwrite data yang sedang diedit
     const syncInterval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         syncWithSupabase();
       }
-    }, 15000);
+    }, 60000);
 
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       window.removeEventListener('focus', handleVisibilityOrFocus);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
       clearInterval(syncInterval);
     };
   }, [activeBranch, refreshData, syncWithSupabase]);
@@ -189,6 +221,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return ok;
   };
 
+  const unlockWorkOrderAsync = async (id: string, targetStatus: WorkOrderStatus = 'servicing'): Promise<boolean> => {
+    const ok = await DBService.unlockWorkOrderAsync(id, targetStatus, currentRole, activeBranch);
+    refreshData();
+    if (ok) {
+      showToast('Kunci pekerjaan SPK berhasil dibuka oleh Owner!', 'success');
+    }
+    return ok;
+  };
+
   const updateVehiclePlateAsync = async (vehicleId: string, newPlate: string): Promise<boolean> => {
     const ok = await DBService.updateVehiclePlateAsync(vehicleId, newPlate, activeBranch);
     refreshData();
@@ -212,6 +253,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  const flushOfflineQueue = async (): Promise<number> => {
+    const count = await DBService.flushOfflineQueue();
+    setPendingCount(DBService.getOfflineQueueCount());
+    if (count > 0) {
+      refreshData();
+      showToast(`${count} data berhasil disinkronkan ke server`, 'success');
+    }
+    return count;
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -233,12 +284,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         saveInvoiceAsync,
         approveEstimationSignatureAsync,
         updateWorkOrderStatusAsync,
+        unlockWorkOrderAsync,
         updateVehiclePlateAsync,
         toasts,
         showToast,
         removeToast,
         isSupabaseOnline,
         isSyncing,
+        pendingCount,
+        flushOfflineQueue,
       }}
     >
       {children}

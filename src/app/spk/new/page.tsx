@@ -40,10 +40,10 @@ export default function NewSPKPage() {
   const [address, setAddress] = useState('');
 
   const [licensePlate, setLicensePlate] = useState('');
-  const [carBrand, setCarBrand] = useState('Toyota');
+  const [carBrand, setCarBrand] = useState('');
   const [carModel, setCarModel] = useState('');
-  const [carYear, setCarYear] = useState<number>(2021);
-  const [currentMileage, setCurrentMileage] = useState<number>(35000);
+  const [carYear, setCarYear] = useState<string>('');
+  const [currentMileage, setCurrentMileage] = useState<string>('');
   const [chassisNumber, setChassisNumber] = useState('');
   const [fuelLevel, setFuelLevel] = useState<number>(60);
   const [mechanicName, setMechanicName] = useState('');
@@ -82,11 +82,11 @@ export default function NewSPKPage() {
         setPhoneNumber(match.phone_number);
         setEmail(match.email || '');
         setAddress(match.address || '');
-        setCarBrand(match.car_brand);
-        setCarModel(match.car_model);
-        if (match.car_year) setCarYear(match.car_year);
+        setCarBrand(match.car_brand ? match.car_brand.toUpperCase() : '');
+        setCarModel(match.car_model ? match.car_model.toUpperCase() : '');
+        if (match.car_year) setCarYear(String(match.car_year));
         if (match.chassis_number) setChassisNumber(match.chassis_number);
-        if (match.current_mileage) setCurrentMileage(match.current_mileage);
+        if (match.current_mileage) setCurrentMileage(String(match.current_mileage));
         showToast(`Data kendaraan ${match.license_plate} ditemukan!`, 'info');
       }
     }
@@ -109,11 +109,11 @@ export default function NewSPKPage() {
         email,
         address,
         license_plate: formatPlate(licensePlate),
-        car_brand: carBrand,
-        car_model: carModel || 'Standar',
-        car_year: Number(carYear),
+        car_brand: carBrand.trim() ? carBrand.trim().toUpperCase() : 'UMUM',
+        car_model: carModel.trim() ? carModel.trim().toUpperCase() : 'STANDAR',
+        car_year: carYear ? Number(carYear) : undefined,
         chassis_number: chassisNumber,
-        current_mileage: Number(currentMileage),
+        current_mileage: currentMileage ? Number(currentMileage) : 0,
       });
 
       // Construct entry datetime with custom time
@@ -279,44 +279,43 @@ export default function NewSPKPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Merek Kendaraan <span className="text-red-500">*</span>
+                    Merek Kendaraan
                   </label>
                   <input
                     type="text"
-                    required
                     list="brand-suggestions"
-                    placeholder="Contoh: Honda / Toyota / Suzuki"
+                    placeholder="Contoh: HONDA / TOYOTA"
                     value={carBrand}
-                    onChange={(e) => setCarBrand(e.target.value)}
-                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none font-medium"
+                    onChange={(e) => setCarBrand(e.target.value.toUpperCase())}
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none font-bold uppercase text-slate-900"
                   />
                   <datalist id="brand-suggestions">
-                    <option value="Honda" />
-                    <option value="Toyota" />
-                    <option value="Mitsubishi" />
-                    <option value="Suzuki" />
-                    <option value="Daihatsu" />
-                    <option value="Nissan" />
-                    <option value="Mazda" />
-                    <option value="Hyundai" />
-                    <option value="Wuling" />
-                    <option value="Isuzu" />
-                    <option value="Ford" />
-                    <option value="Chevrolet" />
+                    <option value="HONDA" />
+                    <option value="TOYOTA" />
+                    <option value="MITSUBISHI" />
+                    <option value="SUZUKI" />
+                    <option value="DAIHATSU" />
+                    <option value="NISSAN" />
+                    <option value="MAZDA" />
+                    <option value="HYUNDAI" />
+                    <option value="WULING" />
+                    <option value="ISUZU" />
+                    <option value="FORD" />
+                    <option value="CHEVROLET" />
                   </datalist>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Unit / Model & Tipe <span className="text-red-500">*</span>
+                    Nama Unit / Model & Tipe <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="Contoh: CR-V 2013 / Avanza 1.3"
+                    placeholder="Contoh: CR-V 2.0 / AVANZA 1.3"
                     value={carModel}
-                    onChange={(e) => setCarModel(e.target.value)}
-                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none font-medium"
+                    onChange={(e) => setCarModel(e.target.value.toUpperCase())}
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none font-bold uppercase text-slate-900"
                   />
                 </div>
 
@@ -324,8 +323,9 @@ export default function NewSPKPage() {
                   <label className="block text-xs font-medium text-slate-700 mb-1">Tahun Unit</label>
                   <input
                     type="number"
+                    placeholder="Contoh: 2021"
                     value={carYear}
-                    onChange={(e) => setCarYear(Number(e.target.value))}
+                    onChange={(e) => setCarYear(e.target.value)}
                     className="w-full text-xs p-2.5 rounded-xl border border-slate-200 font-mono"
                   />
                 </div>
@@ -339,8 +339,9 @@ export default function NewSPKPage() {
                   <input
                     type="number"
                     required
+                    placeholder="Contoh: 35000"
                     value={currentMileage}
-                    onChange={(e) => setCurrentMileage(Number(e.target.value))}
+                    onChange={(e) => setCurrentMileage(e.target.value)}
                     className="w-full text-xs p-2.5 rounded-xl border border-slate-200 font-mono font-bold"
                   />
                 </div>

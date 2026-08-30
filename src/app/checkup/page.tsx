@@ -22,7 +22,7 @@ import { PrintableUndersteelCheckup } from '@/components/ui/PrintableUndersteelC
 import { EditLicensePlateModal } from '@/components/ui/EditLicensePlateModal';
 
 export default function CheckupPage() {
-  const { checkups, workOrders, settings, deleteCheckupAsync, showToast } = useApp();
+  const { checkups, workOrders, settings, deleteCheckupAsync, showToast, currentRole } = useApp();
   const [activeTab, setActiveTab] = useState<'all' | 'qc_general' | 'ac_specialist' | 'understeel'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<CheckupRecord | null>(null);
@@ -146,7 +146,8 @@ export default function CheckupPage() {
                 ) : (
                   filteredCheckups.map((rec) => {
                     const linkedWo = workOrders.find((w) => w.id === rec.work_order_id);
-                    const isLocked = linkedWo?.status === 'completed';
+                    const isCompleted = linkedWo?.status === 'completed';
+                    const isLocked = isCompleted && currentRole !== 'owner';
 
                     return (
                       <tr key={rec.id} onClick={() => setSelectedRecord(rec)} className="hover:bg-maroon-50/30 transition cursor-pointer">
@@ -160,10 +161,15 @@ export default function CheckupPage() {
                               }`}>
                               {rec.type === 'qc_general' ? 'QC Tune Up' : rec.type === 'understeel' ? 'Understeel' : 'QC AC'}
                             </span>
-                            {isLocked && (
+                            {isCompleted && isLocked && (
                               <span className="inline-flex items-center space-x-0.5 text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
                                 <Lock className="w-2.5 h-2.5 text-amber-700" />
                                 <span>Terkunci</span>
+                              </span>
+                            )}
+                            {isCompleted && !isLocked && (
+                              <span className="inline-flex items-center space-x-0.5 text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                <span>🔓 Owner</span>
                               </span>
                             )}
                           </div>

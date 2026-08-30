@@ -30,7 +30,10 @@ import {
   ChevronDown,
   Car,
   Lock,
+  Unlock,
   ShieldCheck,
+  ChevronUp,
+  ArrowUpDown,
 } from 'lucide-react';
 import { PrintableEstimation } from '@/components/ui/PrintableEstimation';
 import { EditLicensePlateModal } from '@/components/ui/EditLicensePlateModal';
@@ -39,6 +42,20 @@ import { formatNumberOrText } from '@/lib/utils';
 
 // Satuan item options (Sesuai permintaan: SET, PCS, JASA)
 const UNIT_OPTIONS = ['SET', 'PCS', 'JASA'] as const;
+
+// Helper: parse price field yang bisa berupa kisaran "150000 - 160000" atau angka biasa
+const parseRangePrice = (val: any): { min: number; max: number } => {
+  if (typeof val === 'number') return { min: val, max: val };
+  const str = String(val).replace(/[Rp.\s]/g, '');
+  const parts = str.split(/[-\u2013]/);
+  if (parts.length === 2) {
+    const minVal = parseInt(parts[0].replace(/\D/g, ''), 10) || 0;
+    const maxVal = parseInt(parts[1].replace(/\D/g, ''), 10) || 0;
+    return { min: Math.min(minVal, maxVal), max: Math.max(minVal, maxVal) };
+  }
+  const single = parseInt(str.replace(/\D/g, ''), 10) || 0;
+  return { min: single, max: single };
+};
 
 // Estimasi baru selalu mulai kosong (1 baris kosong)
 const EMPTY_ESTIMATION_ROW: InvoiceItem[] = [
@@ -55,7 +72,18 @@ function EstimationBuilderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const spkIdParam = searchParams.get('spkId');
-  const { workOrders, inventory, invoices, refreshData, showToast, settings, currentRole, saveInvoiceAsync } = useApp();
+  const {
+    workOrders,
+    inventory,
+    invoices,
+    refreshData,
+    showToast,
+    settings,
+    currentRole,
+    saveInvoiceAsync,
+    syncWithSupabase,
+    unlockWorkOrderAsync,
+  } = useApp();
 
   // Selected SPK & Tab (tab berbentuk {id, name} agar bisa rename bebas)
   const [selectedSpkId, setSelectedSpkId] = useState<string>(spkIdParam || '');
@@ -95,6 +123,7 @@ function EstimationBuilderContent() {
   const [showDiscount, setShowDiscount] = useState<boolean>(false);
   const [showOpsi2, setShowOpsi2] = useState<boolean>(true);
   const [showTax, setShowTax] = useState<boolean>(false);
+  const [showRangePrice, setShowRangePrice] = useState<boolean>(false);
 
   // Items & Values
   const [items, setItems] = useState<InvoiceItem[]>(EMPTY_ESTIMATION_ROW);
@@ -224,6 +253,7 @@ function EstimationBuilderContent() {
       setShowDiscount(sourceData.has_discount || (sourceData.discount_amount || 0) > 0);
       setShowOpsi2(sourceData.has_opsi2 !== undefined ? sourceData.has_opsi2 : true);
       setShowTax(sourceData.has_tax || (sourceData.tax_percent || 0) > 0);
+      setShowRangePrice(sourceData.has_range_price || false);
       setDiscountAmount(sourceData.discount_amount || 0);
       setTaxPercent(sourceData.tax_percent || 11);
       setAdminNotes(sourceData.admin_notes || '');
@@ -279,14 +309,67 @@ function EstimationBuilderContent() {
           if (lastLoadedSpkId.current !== found.id) {
             lastLoadedSpkId.current = found.id;
             loadEstimationForSpk(found);
+          } else {
+            // SPK sama tapi workOrders/invoices terupdate (misal customer baru saja TTD dari link)
+            const tabKey = activeTabId;
+            const checklist = found.checklist_data || {};
+            const estInChecklist = checklist[`estimation_${tabKey}`] || (tabKey === 'tab_1' ? checklist.estimation : null);
+            const matchingInvoice = invoices.find(
+              (i) => (i.work_order_id === found.id || i.id === found.id) &&
+                     (i.estimation_tab === tabKey || (i as any).tab_id === tabKey)
+            );
+
+            const latestEst = estInChecklist || matchingInvoice;
+            if (latestEst) {
+              if (latestEst.customer_signature && latestEst.customer_signature !== customerSignature) {
+                setCustomerSignature(latestEst.customer_signature);
+                setCustomerSignedName(latestEst.customer_signed_name || found.vehicle?.customer_name || '');
+                if (latestEst.customer_response) setCustomerResponse(latestEst.customer_response);
+                if (latestEst.customer_approved_option) setCustomerResponse(latestEst.customer_approved_option);
+                setCurrentEstimationRecord(latestEst);
+              } else if (latestEst.customer_response && latestEst.customer_response !== customerResponse) {
+                setCustomerResponse(latestEst.customer_response);
+                setCurrentEstimationRecord(latestEst);
+              }
+            }
           }
         }
       }
     }
-  }, [selectedSpkId, spkIdParam, workOrders, loadEstimationForSpk]);
+  }, [selectedSpkId, spkIdParam, workOrders, invoices, activeTabId, customerSignature, customerResponse, loadEstimationForSpk]);
 
-  // Check whether work order is completed and locked
-  const isLocked = selectedSpk?.status === 'completed';
+  // Polling sync real-time saat menunggu TTD customer dari link
+  useEffect(() => {
+    if (!selectedSpkId) return;
+    // Jika belum ada TTD customer, lakukan sync cepat setiap 4 detik agar update langsung masuk
+    const isWaitingTtd = !customerSignature || currentEstimationRecord?.ttd_status === 'pending';
+    
+    let interval: NodeJS.Timeout | null = null;
+    if (isWaitingTtd) {
+      interval = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+          syncWithSupabase();
+        }
+      }, 4000);
+    }
+
+    // Listener jika TTD disimpan dari tab browser lain
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key?.startsWith('acwms_invoices') || e.key?.startsWith('acwms_work_orders')) {
+        refreshData();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      if (interval) clearInterval(interval);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [selectedSpkId, customerSignature, currentEstimationRecord, syncWithSupabase, refreshData]);
+
+  // Check whether work order is completed and locked (Owner can always edit / unlock)
+  const isCompleted = selectedSpk?.status === 'completed';
+  const isLocked = isCompleted && currentRole !== 'owner';
 
   // Handler: ganti tab aktif (save current, load next)
   const handleSwitchTab = useCallback((tab: EstimationTab) => {
@@ -301,6 +384,7 @@ function EstimationBuilderContent() {
         estimated_duration: estimatedDuration,
         customer_response: customerResponse, customer_response_note: customerResponseNote,
         has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
+        has_range_price: showRangePrice,
         discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
       };
       try { localStorage.setItem(`mhs_est_draft_${selectedSpkId}_${activeTabId}`, JSON.stringify(draftPayload)); } catch {}
@@ -325,6 +409,7 @@ function EstimationBuilderContent() {
       setShowDiscount(sourceData.has_discount || (sourceData.discount_amount || 0) > 0);
       setShowOpsi2(sourceData.has_opsi2 !== undefined ? sourceData.has_opsi2 : true);
       setShowTax(sourceData.has_tax || (sourceData.tax_percent || 0) > 0);
+      setShowRangePrice(sourceData.has_range_price || false);
       setDiscountAmount(sourceData.discount_amount || 0);
       setTaxPercent(sourceData.tax_percent || 11);
       setAdminNotes(sourceData.admin_notes || '');
@@ -367,6 +452,7 @@ function EstimationBuilderContent() {
       estimated_duration: estimatedDuration,
       customer_response: customerResponse, customer_response_note: customerResponseNote,
       has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
+      has_range_price: showRangePrice,
       discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
     };
     try {
@@ -378,18 +464,41 @@ function EstimationBuilderContent() {
     estimationDate, estimationTime, vehicleStatus, paymentPlan,
     estimatorName, estimatorSignature, customerSignature, customerSignedName,
     estimatedDuration, customerResponse, customerResponseNote,
-    showDiscount, showOpsi2, showTax, discountAmount, taxPercent, adminNotes, tabList,
+    showDiscount, showOpsi2, showTax, showRangePrice, discountAmount, taxPercent, adminNotes, tabList,
   ]);
 
   // Calculations (handles string/text prices like CEK cleanly)
-  const subtotalOpsi1 = items.reduce((sum, it) => {
+  // Range price calculations
+  const subtotalOpsi1Min = items.reduce((sum, it) => {
+    if (showRangePrice) {
+      const { min } = parseRangePrice(it.price_opsi1 !== undefined ? it.price_opsi1 : 0);
+      return sum + min * (it.qty || 1);
+    }
     const tot = typeof it.total_opsi1 === 'number'
       ? it.total_opsi1
       : (typeof it.price_opsi1 === 'number' ? (it.qty || 1) * it.price_opsi1 : 0);
     return sum + (Number.isNaN(tot) ? 0 : tot);
   }, 0);
 
-  const subtotalOpsi2 = items.reduce((sum, it) => {
+  const subtotalOpsi1Max = items.reduce((sum, it) => {
+    if (showRangePrice) {
+      const { max } = parseRangePrice(it.price_opsi1 !== undefined ? it.price_opsi1 : 0);
+      return sum + max * (it.qty || 1);
+    }
+    const tot = typeof it.total_opsi1 === 'number'
+      ? it.total_opsi1
+      : (typeof it.price_opsi1 === 'number' ? (it.qty || 1) * it.price_opsi1 : 0);
+    return sum + (Number.isNaN(tot) ? 0 : tot);
+  }, 0);
+
+  const subtotalOpsi1 = subtotalOpsi1Min; // backward compat
+
+  const subtotalOpsi2Min = items.reduce((sum, it) => {
+    if (showRangePrice) {
+      const val = it.price_opsi2 !== undefined ? it.price_opsi2 : (it.price_opsi1 !== undefined ? it.price_opsi1 : 0);
+      const { min } = parseRangePrice(val);
+      return sum + min * (it.qty || 1);
+    }
     const tot = typeof it.total_opsi2 === 'number'
       ? it.total_opsi2
       : (typeof it.price_opsi2 === 'number'
@@ -398,12 +507,32 @@ function EstimationBuilderContent() {
     return sum + (Number.isNaN(tot) ? 0 : tot);
   }, 0);
 
+  const subtotalOpsi2Max = items.reduce((sum, it) => {
+    if (showRangePrice) {
+      const val = it.price_opsi2 !== undefined ? it.price_opsi2 : (it.price_opsi1 !== undefined ? it.price_opsi1 : 0);
+      const { max } = parseRangePrice(val);
+      return sum + max * (it.qty || 1);
+    }
+    const tot = typeof it.total_opsi2 === 'number'
+      ? it.total_opsi2
+      : (typeof it.price_opsi2 === 'number'
+        ? (it.qty || 1) * it.price_opsi2
+        : (typeof it.price_opsi1 === 'number' ? (it.qty || 1) * it.price_opsi1 : 0));
+    return sum + (Number.isNaN(tot) ? 0 : tot);
+  }, 0);
+
+  const subtotalOpsi2 = subtotalOpsi2Min; // backward compat
+
   const effectiveDiscount = showDiscount ? discountAmount : 0;
   const taxAmountOpsi1 = showTax ? ((subtotalOpsi1 - effectiveDiscount) * (taxPercent / 100)) : 0;
+  const taxAmountOpsi1Max = showTax ? ((subtotalOpsi1Max - effectiveDiscount) * (taxPercent / 100)) : 0;
   const taxAmountOpsi2 = showTax ? ((subtotalOpsi2 - effectiveDiscount) * (taxPercent / 100)) : 0;
+  const taxAmountOpsi2Max = showTax ? ((subtotalOpsi2Max - effectiveDiscount) * (taxPercent / 100)) : 0;
 
-  const totalFinalOpsi1 = Math.max(0, subtotalOpsi1 - effectiveDiscount + taxAmountOpsi1);
-  const totalFinalOpsi2 = Math.max(0, subtotalOpsi2 - effectiveDiscount + taxAmountOpsi2);
+  const totalFinalOpsi1 = Math.max(0, subtotalOpsi1Min - effectiveDiscount + taxAmountOpsi1);
+  const totalFinalOpsi1Max = Math.max(0, subtotalOpsi1Max - effectiveDiscount + taxAmountOpsi1Max);
+  const totalFinalOpsi2 = Math.max(0, subtotalOpsi2Min - effectiveDiscount + taxAmountOpsi2);
+  const totalFinalOpsi2Max = Math.max(0, subtotalOpsi2Max - effectiveDiscount + taxAmountOpsi2Max);
 
   // Row update handlers
   const handleUpdateItemField = (index: number, field: keyof InvoiceItem, value: any) => {
@@ -490,6 +619,20 @@ function EstimationBuilderContent() {
     setItems(items.filter((_, i) => i !== index));
   };
 
+  const handleMoveRowUp = (index: number) => {
+    if (isLocked || index === 0) return;
+    const updated = [...items];
+    [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]];
+    setItems(updated);
+  };
+
+  const handleMoveRowDown = (index: number) => {
+    if (isLocked || index === items.length - 1) return;
+    const updated = [...items];
+    [updated[index], updated[index + 1]] = [updated[index + 1], updated[index]];
+    setItems(updated);
+  };
+
   const handleAddFromCatalog = (inventoryItem: InventoryItem) => {
     if (isLocked) return;
     const p = inventoryItem.sell_price;
@@ -530,6 +673,7 @@ function EstimationBuilderContent() {
       estimated_duration: estimatedDuration,
       customer_response: customerResponse, customer_response_note: customerResponseNote,
       has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
+      has_range_price: showRangePrice,
       discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
     };
     if (selectedSpkId) {
@@ -630,8 +774,11 @@ function EstimationBuilderContent() {
         has_discount: showDiscount,
         has_opsi2: showOpsi2,
         has_tax: showTax,
+        has_range_price: showRangePrice,
         total_opsi1: totalFinalOpsi1,
+        total_opsi1_max: totalFinalOpsi1Max,
         total_opsi2: totalFinalOpsi2,
+        total_opsi2_max: totalFinalOpsi2Max,
         tab_id: activeTabId,
         ttd_status: customerSignature ? 'signed' : (currentEstimationRecord?.ttd_status || 'pending'),
         customer_signature: customerSignature || currentEstimationRecord?.customer_signature,
@@ -836,7 +983,50 @@ function EstimationBuilderContent() {
         </div>
 
         {/* PROMINENT LOCKING BANNER WHEN JOB IS COMPLETED */}
-        {isLocked && (
+        {isCompleted && currentRole === 'owner' && (
+          <div className="bg-emerald-50 border-2 border-emerald-400 text-emerald-950 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in duration-150">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+                <Unlock className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-black text-sm text-emerald-950 flex items-center space-x-1.5">
+                  <span>Akses Penuh Owner — Data Dibuka untuk Pengeditan</span>
+                </h4>
+                <p className="text-xs text-emerald-800 mt-0.5 leading-relaxed">
+                  Pekerjaan untuk SPK <strong>{selectedSpk?.spk_number}</strong> telah berstatus Selesai, namun sebagai <strong>Owner</strong> Anda dapat merevisi estimasi secara langsung atau membuka kunci status pekerjaan.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2 flex-shrink-0 flex-wrap">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (selectedSpk) {
+                    await unlockWorkOrderAsync(selectedSpk.id, 'servicing');
+                  }
+                }}
+                className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+                title="Buka status SPK kembali ke Sedang Dikerjakan"
+              >
+                <Unlock className="w-4 h-4" />
+                <span>Buka Kunci SPK (Pindah ke Dikerjakan)</span>
+              </button>
+              {selectedSpk?.vehicle && (
+                <button
+                  type="button"
+                  onClick={() => setShowEditPlateModal(true)}
+                  className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-emerald-300 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  <Car className="w-4 h-4 text-blue-600" />
+                  <span>Ubah Plat</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {isCompleted && currentRole !== 'owner' && (
           <div className="bg-amber-50 border-2 border-amber-400 text-amber-950 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in duration-150">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
@@ -847,7 +1037,7 @@ function EstimationBuilderContent() {
                   <span>Data Estimasi Terkunci (Pekerjaan Selesai)</span>
                 </h4>
                 <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
-                  Pekerjaan untuk SPK <strong>{selectedSpk?.spk_number}</strong> telah diselesaikan. Rincian item, jasa, harga, dan opsi telah terkunci permanen. <em>Data plat nomor kendaraan tetap dapat diubah jika diperlukan.</em>
+                  Pekerjaan untuk SPK <strong>{selectedSpk?.spk_number}</strong> telah diselesaikan. Rincian item, jasa, harga, dan opsi telah terkunci permanen. <em>Kunci data ini dapat dibuka oleh peran Owner.</em>
                 </p>
               </div>
             </div>
@@ -1162,8 +1352,8 @@ function EstimationBuilderContent() {
           )}
         </div>
 
-        {/* Switch Toggles Row (Diskon, Opsi 2, Pajak) */}
-        <div className="flex flex-wrap items-center gap-6 pt-2 pb-2">
+        {/* Switch Toggles Row (Diskon, Opsi 2, Pajak, Kisaran Harga) */}
+        <div className="flex flex-wrap items-center gap-4 pt-2 pb-2">
           {/* Toggle Diskon */}
           <label className={`flex items-center space-x-2.5 select-none ${isLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
             <div
@@ -1214,26 +1404,70 @@ function EstimationBuilderContent() {
             </div>
             <span className="text-xs font-bold text-slate-700">Pajak (PPN 11%)</span>
           </label>
+
+          {/* Toggle Kisaran Harga */}
+          <label className={`flex items-center space-x-2.5 select-none ${isLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+            <div
+              onClick={() => { if (!isLocked) setShowRangePrice(!showRangePrice); }}
+              className={`w-11 h-6 rounded-full transition-colors p-0.5 flex items-center ${
+                showRangePrice ? 'bg-orange-500' : 'bg-slate-300'
+              }`}
+            >
+              <div
+                className={`w-5 h-5 rounded-full bg-white shadow-sm transform transition-transform ${
+                  showRangePrice ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </div>
+            <span className="text-xs font-bold text-slate-700">Kisaran Harga</span>
+            {showRangePrice && (
+              <span className="text-[10px] font-black text-orange-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full">
+                ~Min – Max
+              </span>
+            )}
+          </label>
         </div>
+
+        {/* Info banner when range mode is active */}
+        {showRangePrice && !isLocked && (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 flex items-start space-x-2.5 text-xs">
+            <ArrowUpDown className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <span className="font-black text-orange-800">Mode Kisaran Harga Aktif — </span>
+              <span className="text-orange-700">
+                Masukkan harga dalam format <strong>150000 - 160000</strong> (min - maks) atau angka tunggal.
+                Total biaya akan otomatis ditampilkan sebagai kisaran, contoh: <strong>Rp 1.500.000 – Rp 1.700.000</strong>.
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* 3. ITEMS ESTIMASI TABLE (Exact Match to Screenshot!) */}
         <div className="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-2xs">
-          <table className="w-full text-left text-xs border-collapse min-w-[780px]">
+          <table className="w-full text-left text-xs border-collapse min-w-[820px]">
             <thead>
               <tr className="bg-slate-50 border-b-2 border-slate-300 text-slate-800 font-black text-[10.5px] uppercase">
                 <th className="p-3 w-10 text-center border-r border-slate-200">No</th>
                 <th className="p-3 border-r border-slate-200">Saran/Perbaikan/Ganti Sparepart</th>
                 <th className="p-3 w-16 text-center border-r border-slate-200">QTY</th>
                 <th className="p-3 w-24 text-center border-r border-slate-200">Satuan</th>
-                <th className="p-3 w-32 text-center border-r border-slate-200">Hrg Sat</th>
-                <th className="p-3 w-36 text-right border-r border-slate-200">Total Opsi 1</th>
+                <th className={`p-3 text-center border-r border-slate-200 ${showRangePrice ? 'w-52 bg-orange-50/60 text-orange-900' : 'w-32'}`}>
+                  {showRangePrice ? 'Harga (Min – Maks)' : 'Hrg Sat'}
+                </th>
+                <th className={`p-3 text-right border-r border-slate-200 ${showRangePrice ? 'w-52 bg-orange-50/30 text-orange-900' : 'w-36'}`}>
+                  {showRangePrice ? 'Total Opsi 1 (Kisaran)' : 'Total Opsi 1'}
+                </th>
                 {showOpsi2 && (
                   <>
-                    <th className="p-3 w-32 text-center border-r border-slate-200 bg-blue-50/40 text-blue-950">Hrg Opsi 2</th>
-                    <th className="p-3 w-36 text-right bg-blue-50/40 text-blue-950">Total Opsi 2</th>
+                    <th className={`p-3 text-center border-r border-slate-200 bg-blue-50/40 text-blue-950 ${showRangePrice ? 'w-52' : 'w-32'}`}>
+                      {showRangePrice ? 'Harga Opsi 2 (Min – Maks)' : 'Hrg Opsi 2'}
+                    </th>
+                    <th className={`p-3 text-right bg-blue-50/40 text-blue-950 ${showRangePrice ? 'w-52' : 'w-36'}`}>
+                      {showRangePrice ? 'Total Opsi 2 (Kisaran)' : 'Total Opsi 2'}
+                    </th>
                   </>
                 )}
-                {!isLocked && <th className="p-3 w-10 text-center"></th>}
+                {!isLocked && <th className="p-3 w-20 text-center">Aksi</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -1241,8 +1475,16 @@ function EstimationBuilderContent() {
                 const tot1 = item.total_opsi1 !== undefined ? item.total_opsi1 : (typeof item.price_opsi1 === 'number' ? (item.qty || 1) * item.price_opsi1 : 0);
                 const tot2 = item.total_opsi2 !== undefined ? item.total_opsi2 : (typeof item.price_opsi2 === 'number' ? (item.qty || 1) * item.price_opsi2 : tot1);
 
+                // Range calculations per row
+                const rowRange1 = showRangePrice ? parseRangePrice(item.price_opsi1 !== undefined ? item.price_opsi1 : 0) : null;
+                const rowRange2 = showRangePrice ? parseRangePrice(item.price_opsi2 !== undefined ? item.price_opsi2 : (item.price_opsi1 !== undefined ? item.price_opsi1 : 0)) : null;
+                const rowTot1Min = rowRange1 ? rowRange1.min * (item.qty || 1) : 0;
+                const rowTot1Max = rowRange1 ? rowRange1.max * (item.qty || 1) : 0;
+                const rowTot2Min = rowRange2 ? rowRange2.min * (item.qty || 1) : 0;
+                const rowTot2Max = rowRange2 ? rowRange2.max * (item.qty || 1) : 0;
+
                 return (
-                  <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                  <tr key={idx} className="hover:bg-slate-50/70 transition-colors group/row">
                     {/* Index */}
                     <td className="p-3 text-center text-slate-500 font-bold border-r border-slate-200">{idx + 1}</td>
 
@@ -1286,57 +1528,101 @@ function EstimationBuilderContent() {
                       </select>
                     </td>
 
-                    {/* Hrg Sat (Harga Opsi 1) */}
-                    <td className="p-2 text-center border-r border-slate-200">
+                    {/* Hrg Sat / Harga Kisaran (Harga Opsi 1) */}
+                    <td className={`p-2 text-center border-r border-slate-200 ${showRangePrice ? 'bg-orange-50/30' : ''}`}>
                       <input
                         type="text"
                         disabled={isLocked}
                         value={item.price_opsi1 !== undefined ? item.price_opsi1 : ''}
                         onChange={(e) => handleUpdateItemField(idx, 'price_opsi1', e.target.value)}
-                        placeholder="0 / CEK"
-                        className="w-28 text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
+                        placeholder={showRangePrice ? '150000 - 160000' : '0 / CEK'}
+                        className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:ring-1 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
+                          showRangePrice
+                            ? 'w-44 focus:border-orange-400 focus:ring-orange-300 border-orange-200'
+                            : 'w-28 focus:border-blue-500 focus:ring-blue-500'
+                        }`}
                       />
                     </td>
 
                     {/* Total Opsi 1 */}
-                    <td className="p-3 text-right border-r border-slate-200">
-                      <span className="font-mono font-black text-sm text-slate-900 whitespace-nowrap">
-                        {formatNumberOrText(tot1)}
-                      </span>
+                    <td className={`p-3 text-right border-r border-slate-200 ${showRangePrice ? 'bg-orange-50/20' : ''}`}>
+                      {showRangePrice ? (
+                        <span className="font-mono font-black text-xs text-orange-900 whitespace-nowrap">
+                          {rowTot1Min === rowTot1Max
+                            ? formatCurrency(rowTot1Min)
+                            : <>{formatCurrency(rowTot1Min)}<br /><span className="text-[10px] font-bold text-orange-500">s/d {formatCurrency(rowTot1Max)}</span></>}
+                        </span>
+                      ) : (
+                        <span className="font-mono font-black text-sm text-slate-900 whitespace-nowrap">
+                          {formatNumberOrText(tot1)}
+                        </span>
+                      )}
                     </td>
 
                     {/* Opsi 2 (if enabled) */}
                     {showOpsi2 && (
                       <>
-                        <td className="p-2 text-center border-r border-slate-200 bg-blue-50/20">
+                        <td className={`p-2 text-center border-r border-slate-200 ${showRangePrice ? 'bg-blue-50/30' : 'bg-blue-50/20'}`}>
                           <input
                             type="text"
                             disabled={isLocked}
                             value={item.price_opsi2 !== undefined ? item.price_opsi2 : ''}
                             onChange={(e) => handleUpdateItemField(idx, 'price_opsi2', e.target.value)}
-                            placeholder="0 / CEK"
-                            className="w-28 text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
+                            placeholder={showRangePrice ? '150000 - 160000' : '0 / CEK'}
+                            className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:ring-1 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
+                              showRangePrice
+                                ? 'w-44 focus:border-blue-400 focus:ring-blue-300'
+                                : 'w-28 focus:border-blue-500 focus:ring-blue-500'
+                            }`}
                           />
                         </td>
-                        <td className="p-3 text-right bg-blue-50/20">
-                          <span className="font-mono font-black text-sm text-slate-900 whitespace-nowrap">
-                            {formatNumberOrText(tot2)}
-                          </span>
+                        <td className={`p-3 text-right ${showRangePrice ? 'bg-blue-50/20' : 'bg-blue-50/20'}`}>
+                          {showRangePrice ? (
+                            <span className="font-mono font-black text-xs text-blue-900 whitespace-nowrap">
+                              {rowTot2Min === rowTot2Max
+                                ? formatCurrency(rowTot2Min)
+                                : <>{formatCurrency(rowTot2Min)}<br /><span className="text-[10px] font-bold text-blue-500">s/d {formatCurrency(rowTot2Max)}</span></>}
+                            </span>
+                          ) : (
+                            <span className="font-mono font-black text-sm text-slate-900 whitespace-nowrap">
+                              {formatNumberOrText(tot2)}
+                            </span>
+                          )}
                         </td>
                       </>
                     )}
 
-                    {/* Trash Delete */}
+                    {/* Aksi: Move Up, Move Down, Delete */}
                     {!isLocked && (
-                      <td className="p-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveRow(idx)}
-                          className="text-slate-300 hover:text-red-600 transition p-1 cursor-pointer"
-                          title="Hapus Baris"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                      <td className="p-2 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleMoveRowUp(idx)}
+                            disabled={idx === 0}
+                            className="p-1.5 rounded-lg text-slate-300 hover:text-blue-600 hover:bg-blue-50 transition disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
+                            title="Pindah ke Atas"
+                          >
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveRowDown(idx)}
+                            disabled={idx === items.length - 1}
+                            className="p-1.5 rounded-lg text-slate-300 hover:text-blue-600 hover:bg-blue-50 transition disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
+                            title="Pindah ke Bawah"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveRow(idx)}
+                            className="p-1.5 rounded-lg text-slate-300 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+                            title="Hapus Baris"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -1349,14 +1635,30 @@ function EstimationBuilderContent() {
                 <td colSpan={5} className="p-3 text-center uppercase tracking-wider text-slate-800 text-xs">
                   JUMLAH KESELURUHAN
                 </td>
-                <td className="p-3 text-right font-mono font-black text-sm text-slate-950 border-r border-slate-200">
-                  {formatNumberOrText(totalFinalOpsi1)}
+                <td className={`p-3 text-right font-mono font-black border-r border-slate-200 ${showRangePrice ? 'bg-orange-50/40' : ''}`}>
+                  {showRangePrice ? (
+                    <span className="text-orange-900 text-xs leading-snug">
+                      {totalFinalOpsi1 === totalFinalOpsi1Max
+                        ? formatCurrency(totalFinalOpsi1)
+                        : <>{formatCurrency(totalFinalOpsi1)}<br /><span className="text-[10px] font-bold text-orange-500">s/d {formatCurrency(totalFinalOpsi1Max)}</span></>}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-slate-950">{formatNumberOrText(totalFinalOpsi1)}</span>
+                  )}
                 </td>
                 {showOpsi2 && (
                   <>
                     <td className="p-3 bg-blue-50/30 border-r border-slate-200"></td>
-                    <td className="p-3 text-right font-mono font-black text-sm text-slate-950 bg-blue-50/30">
-                      {formatNumberOrText(totalFinalOpsi2)}
+                    <td className={`p-3 text-right font-mono font-black bg-blue-50/30 ${showRangePrice ? '' : ''}`}>
+                      {showRangePrice ? (
+                        <span className="text-blue-900 text-xs leading-snug">
+                          {totalFinalOpsi2 === totalFinalOpsi2Max
+                            ? formatCurrency(totalFinalOpsi2)
+                            : <>{formatCurrency(totalFinalOpsi2)}<br /><span className="text-[10px] font-bold text-blue-500">s/d {formatCurrency(totalFinalOpsi2Max)}</span></>}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-slate-950">{formatNumberOrText(totalFinalOpsi2)}</span>
+                      )}
                     </td>
                   </>
                 )}
@@ -1413,24 +1715,58 @@ function EstimationBuilderContent() {
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-1">
-              <div className="text-[11px] font-black uppercase tracking-wider text-blue-900">
-                TOTAL AKHIR OPSI 1
+            <div className={`bg-white p-4 rounded-xl border shadow-2xs space-y-1 ${
+              showRangePrice ? 'border-orange-200 bg-orange-50/20' : 'border-slate-200'
+            }`}>
+              <div className={`text-[11px] font-black uppercase tracking-wider ${
+                showRangePrice ? 'text-orange-900' : 'text-blue-900'
+              }`}>
+                TOTAL AKHIR OPSI 1{showRangePrice && ' (KISARAN)'}
               </div>
-              <div className="font-mono font-black text-xl text-slate-900">
-                {formatCurrency(totalFinalOpsi1)}
-              </div>
+              {showRangePrice ? (
+                <div className="space-y-0.5">
+                  <div className="font-mono font-black text-lg text-orange-900">
+                    {formatCurrency(totalFinalOpsi1)}
+                  </div>
+                  {totalFinalOpsi1 !== totalFinalOpsi1Max && (
+                    <div className="text-xs text-orange-500 font-bold">
+                      s/d {formatCurrency(totalFinalOpsi1Max)}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="font-mono font-black text-xl text-slate-900">
+                  {formatCurrency(totalFinalOpsi1)}
+                </div>
+              )}
               <p className="text-[10px] text-slate-400">Rekomendasi pengerjaan utama / standar</p>
             </div>
 
             {showOpsi2 && (
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-1">
-                <div className="text-[11px] font-black uppercase tracking-wider text-purple-900">
-                  TOTAL AKHIR OPSI 2
+              <div className={`bg-white p-4 rounded-xl border shadow-2xs space-y-1 ${
+                showRangePrice ? 'border-blue-200 bg-blue-50/20' : 'border-slate-200'
+              }`}>
+                <div className={`text-[11px] font-black uppercase tracking-wider ${
+                  showRangePrice ? 'text-blue-900' : 'text-purple-900'
+                }`}>
+                  TOTAL AKHIR OPSI 2{showRangePrice && ' (KISARAN)'}
                 </div>
-                <div className="font-mono font-black text-xl text-slate-900">
-                  {formatCurrency(totalFinalOpsi2)}
-                </div>
+                {showRangePrice ? (
+                  <div className="space-y-0.5">
+                    <div className="font-mono font-black text-lg text-blue-900">
+                      {formatCurrency(totalFinalOpsi2)}
+                    </div>
+                    {totalFinalOpsi2 !== totalFinalOpsi2Max && (
+                      <div className="text-xs text-blue-500 font-bold">
+                        s/d {formatCurrency(totalFinalOpsi2Max)}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="font-mono font-black text-xl text-slate-900">
+                    {formatCurrency(totalFinalOpsi2)}
+                  </div>
+                )}
                 <p className="text-[10px] text-slate-400">Pilihan alternatif suku cadang / penanganan</p>
               </div>
             )}

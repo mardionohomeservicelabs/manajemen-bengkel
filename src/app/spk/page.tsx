@@ -26,13 +26,22 @@ import {
   User,
   Wrench,
   Lock,
+  Unlock,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PrintableSPK } from '@/components/ui/PrintableSPK';
 import { EditLicensePlateModal } from '@/components/ui/EditLicensePlateModal';
 
 function SPKListContent() {
-  const { workOrders, refreshData, showToast, settings, currentRole, updateWorkOrderStatusAsync } = useApp();
+  const {
+    workOrders,
+    refreshData,
+    showToast,
+    settings,
+    currentRole,
+    updateWorkOrderStatusAsync,
+    unlockWorkOrderAsync,
+  } = useApp();
   const searchParams = useSearchParams();
   const targetId = searchParams.get('id');
 
@@ -216,8 +225,12 @@ function SPKListContent() {
                       <td className="p-3.5 align-top text-center">
                         <select
                           value={order.status}
+                          disabled={order.status === 'completed' && currentRole !== 'owner'}
                           onChange={(e) => handleUpdateStatus(order.id, e.target.value as WorkOrderStatus)}
-                          className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border cursor-pointer ${badge.class}`}
+                          className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
+                            order.status === 'completed' && currentRole !== 'owner' ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'
+                          } ${badge.class}`}
+                          title={order.status === 'completed' && currentRole !== 'owner' ? 'Pekerjaan Selesai (Hanya Owner yang dapat mengubah status)' : 'Ubah Status'}
                         >
                           <option value="queue">Antrean Masuk</option>
                           <option value="estimating">Estimasi</option>
@@ -230,6 +243,17 @@ function SPKListContent() {
                       </td>
 
                       <td className="p-3.5 align-top text-right space-x-1.5 whitespace-nowrap">
+                        {order.status === 'completed' && currentRole === 'owner' && (
+                          <button
+                            type="button"
+                            onClick={() => unlockWorkOrderAsync(order.id, 'servicing')}
+                            className="inline-flex items-center space-x-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1.5 rounded-lg text-xs transition border border-emerald-300 shadow-xs"
+                            title="Buka Kunci SPK (Pindah kembali ke Sedang Dikerjakan)"
+                          >
+                            <Unlock className="w-3.5 h-3.5 text-emerald-700" />
+                            <span>Buka Kunci</span>
+                          </button>
+                        )}
                         {order.vehicle && (
                           <button
                             type="button"
