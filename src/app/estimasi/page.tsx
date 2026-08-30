@@ -45,12 +45,13 @@ const UNIT_OPTIONS = ['SET', 'PCS', 'JASA'] as const;
 
 // Helper: parse price field yang bisa berupa kisaran "150000 - 160000" atau angka biasa
 const parseRangePrice = (val: any): { min: number; max: number } => {
-  if (typeof val === 'number') return { min: val, max: val };
-  const str = String(val).replace(/[Rp.\s]/g, '');
+  if (typeof val === 'number') return { min: isNaN(val) ? 0 : val, max: isNaN(val) ? 0 : val };
+  if (!val) return { min: 0, max: 0 };
+  const str = String(val).replace(/[Rp\s]/g, '');
   const parts = str.split(/[-\u2013]/);
-  if (parts.length === 2) {
+  if (parts.length >= 2) {
     const minVal = parseInt(parts[0].replace(/\D/g, ''), 10) || 0;
-    const maxVal = parseInt(parts[1].replace(/\D/g, ''), 10) || 0;
+    const maxVal = parseInt(parts[1].replace(/\D/g, ''), 10) || minVal;
     return { min: Math.min(minVal, maxVal), max: Math.max(minVal, maxVal) };
   }
   const single = parseInt(str.replace(/\D/g, ''), 10) || 0;
@@ -553,7 +554,7 @@ function EstimationBuilderContent() {
         row.subtotal = qty * row.price;
       }
     } else if (field === 'price_opsi1') {
-      const valStr = String(value).trim();
+      const valStr = String(value);
       if (/[a-zA-Z]/.test(valStr)) {
         // User typed text like CEK, FREE, GRATIS, TERMASUK
         const upper = valStr.toUpperCase();
@@ -561,27 +562,58 @@ function EstimationBuilderContent() {
         row.total_opsi1 = upper;
         row.price = upper;
         row.subtotal = upper;
-      } else {
-        const num = valStr.length > 0 ? parseInt(valStr.replace(/\D/g, ''), 10) || 0 : 0;
-        row.price_opsi1 = num;
-        row.total_opsi1 = (row.qty || 1) * num;
-        row.price = num;
+      } else if (valStr.includes('-') || valStr.includes('–')) {
+        // User typed range like 150000 - 160000
+        row.price_opsi1 = valStr;
+        row.price = valStr;
+        const { min, max } = parseRangePrice(valStr);
+        const qty = row.qty || 1;
+        row.total_opsi1 = min === max ? min * qty : `${min * qty} - ${max * qty}`;
         row.subtotal = row.total_opsi1;
-        if (row.price_opsi2 === undefined) {
-          row.price_opsi2 = num;
-          row.total_opsi2 = (row.qty || 1) * num;
+        if (row.price_opsi2 === undefined || row.price_opsi2 === 0) {
+          row.price_opsi2 = valStr;
+          row.total_opsi2 = row.total_opsi1;
+        }
+      } else {
+        const trimmed = valStr.trim();
+        if (trimmed === '') {
+          row.price_opsi1 = '';
+          row.total_opsi1 = 0;
+          row.price = 0;
+          row.subtotal = 0;
+        } else {
+          const num = parseInt(trimmed.replace(/\D/g, ''), 10) || 0;
+          row.price_opsi1 = num;
+          row.total_opsi1 = (row.qty || 1) * num;
+          row.price = num;
+          row.subtotal = row.total_opsi1;
+          if (row.price_opsi2 === undefined || row.price_opsi2 === 0) {
+            row.price_opsi2 = num;
+            row.total_opsi2 = (row.qty || 1) * num;
+          }
         }
       }
     } else if (field === 'price_opsi2') {
-      const valStr = String(value).trim();
+      const valStr = String(value);
       if (/[a-zA-Z]/.test(valStr)) {
         const upper = valStr.toUpperCase();
         row.price_opsi2 = upper;
         row.total_opsi2 = upper;
+      } else if (valStr.includes('-') || valStr.includes('–')) {
+        row.price_opsi2 = valStr;
+        const { min, max } = parseRangePrice(valStr);
+        const qty = row.qty || 1;
+        row.total_opsi2 = min === max ? min * qty : `${min * qty} - ${max * qty}`;
       } else {
-        const num = valStr.length > 0 ? parseInt(valStr.replace(/\D/g, ''), 10) || 0 : 0;
-        row.price_opsi2 = num;
-        row.total_opsi2 = (row.qty || 1) * num;
+        const trimmed = valStr.trim();
+        if (trimmed === '') {
+          row.price_opsi2 = '';
+          row.total_opsi2 = 0;
+        } else {
+          const num = parseInt(trimmed.replace(/\D/g, ''), 10) || 0;
+          row.price_opsi2 = num;
+          row.total_opsi2 = (row.qty || 1) * num;
+        }
       }
     } else if (field === 'name') {
       row.name = String(value);

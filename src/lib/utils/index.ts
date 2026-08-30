@@ -28,7 +28,21 @@ export function formatNumberOrText(val: number | string | undefined): string {
   if (val === undefined || val === null || val === '') return '0';
   if (typeof val === 'string') {
     if (/[a-zA-Z]/.test(val)) return val.toUpperCase();
-    const num = Number(val.replace(/[^0-9.-]/g, ''));
+    if (val.includes('-') || val.includes('–')) {
+      const parts = val.split(/[-\u2013]/);
+      if (parts.length >= 2) {
+        const p1 = parseInt(parts[0].replace(/\D/g, ''), 10);
+        const p2 = parseInt(parts[1].replace(/\D/g, ''), 10);
+        if (!isNaN(p1) && !isNaN(p2) && p2 > 0) {
+          return `${new Intl.NumberFormat('id-ID').format(p1)} – ${new Intl.NumberFormat('id-ID').format(p2)}`;
+        }
+        if (!isNaN(p1)) {
+          return `${new Intl.NumberFormat('id-ID').format(p1)} –`;
+        }
+      }
+      return val;
+    }
+    const num = Number(val.replace(/[^0-9]/g, ''));
     if (isNaN(num)) return val;
     return new Intl.NumberFormat('id-ID').format(num);
   }
