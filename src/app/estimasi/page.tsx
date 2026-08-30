@@ -48,7 +48,7 @@ const parseRangePrice = (val: any): { min: number; max: number } => {
   if (typeof val === 'number') return { min: isNaN(val) ? 0 : val, max: isNaN(val) ? 0 : val };
   if (!val) return { min: 0, max: 0 };
   const str = String(val).replace(/[Rp\s]/g, '');
-  const parts = str.split(/[-\u2013]/);
+  const parts = str.split(/[-\u2012\u2013\u2014\u2212~]/);
   if (parts.length >= 2) {
     const minVal = parseInt(parts[0].replace(/\D/g, ''), 10) || 0;
     const maxVal = parseInt(parts[1].replace(/\D/g, ''), 10) || minVal;
@@ -266,15 +266,21 @@ function EstimationBuilderContent() {
           const qty = it.qty || 1;
           const isP1Text = typeof p1 === 'string' && /[a-zA-Z]/.test(p1);
           const isP2Text = typeof p2 === 'string' && /[a-zA-Z]/.test(p2);
+          const isP1Range = typeof p1 === 'string' && /[-\u2012\u2013\u2014\u2212~]/.test(p1);
+          const isP2Range = typeof p2 === 'string' && /[-\u2012\u2013\u2014\u2212~]/.test(p2);
+          const r1 = isP1Range ? parseRangePrice(p1) : null;
+          const r2 = isP2Range ? parseRangePrice(p2) : null;
+          const tot1 = isP1Text ? p1 : (r1 ? (r1.min === r1.max ? r1.min * qty : `${r1.min * qty} - ${r1.max * qty}`) : qty * (Number(p1) || 0));
+          const tot2 = isP2Text ? p2 : (r2 ? (r2.min === r2.max ? r2.min * qty : `${r2.min * qty} - ${r2.max * qty}`) : qty * (Number(p2) || 0));
           return {
             ...it,
             unit: it.unit || (it.is_service ? 'JASA' : 'PCS'),
             price_opsi1: p1,
-            total_opsi1: isP1Text ? p1 : qty * (Number(p1) || 0),
+            total_opsi1: tot1,
             price_opsi2: p2,
-            total_opsi2: isP2Text ? p2 : qty * (Number(p2) || 0),
+            total_opsi2: tot2,
             price: p1,
-            subtotal: isP1Text ? p1 : qty * (Number(p1) || 0),
+            subtotal: tot1,
           };
         });
         setItems(mappedItems);
@@ -421,10 +427,22 @@ function EstimationBuilderContent() {
           const qty = it.qty || 1;
           const isP1Text = typeof p1 === 'string' && /[a-zA-Z]/.test(p1);
           const isP2Text = typeof p2 === 'string' && /[a-zA-Z]/.test(p2);
-          return { ...it, unit: it.unit || (it.is_service ? 'JASA' : 'PCS'),
-            price_opsi1: p1, total_opsi1: isP1Text ? p1 : qty * (Number(p1) || 0),
-            price_opsi2: p2, total_opsi2: isP2Text ? p2 : qty * (Number(p2) || 0),
-            price: p1, subtotal: isP1Text ? p1 : qty * (Number(p1) || 0) };
+          const isP1Range = typeof p1 === 'string' && /[-\u2012\u2013\u2014\u2212~]/.test(p1);
+          const isP2Range = typeof p2 === 'string' && /[-\u2012\u2013\u2014\u2212~]/.test(p2);
+          const r1 = isP1Range ? parseRangePrice(p1) : null;
+          const r2 = isP2Range ? parseRangePrice(p2) : null;
+          const tot1 = isP1Text ? p1 : (r1 ? (r1.min === r1.max ? r1.min * qty : `${r1.min * qty} - ${r1.max * qty}`) : qty * (Number(p1) || 0));
+          const tot2 = isP2Text ? p2 : (r2 ? (r2.min === r2.max ? r2.min * qty : `${r2.min * qty} - ${r2.max * qty}`) : qty * (Number(p2) || 0));
+          return {
+            ...it,
+            unit: it.unit || (it.is_service ? 'JASA' : 'PCS'),
+            price_opsi1: p1,
+            total_opsi1: tot1,
+            price_opsi2: p2,
+            total_opsi2: tot2,
+            price: p1,
+            subtotal: tot1,
+          };
         });
         setItems(mapped);
       } else { setItems(EMPTY_ESTIMATION_ROW); }
@@ -555,6 +573,8 @@ function EstimationBuilderContent() {
       }
     } else if (field === 'price_opsi1') {
       const valStr = String(value);
+      row.price_opsi1 = valStr;
+      row.price = valStr;
       if (/[a-zA-Z]/.test(valStr)) {
         // User typed text like CEK, FREE, GRATIS, TERMASUK
         const upper = valStr.toUpperCase();
@@ -562,56 +582,44 @@ function EstimationBuilderContent() {
         row.total_opsi1 = upper;
         row.price = upper;
         row.subtotal = upper;
-      } else if (valStr.includes('-') || valStr.includes('–')) {
+      } else if (/[-\u2012\u2013\u2014\u2212~]/.test(valStr)) {
         // User typed range like 150000 - 160000
-        row.price_opsi1 = valStr;
-        row.price = valStr;
         const { min, max } = parseRangePrice(valStr);
         const qty = row.qty || 1;
         row.total_opsi1 = min === max ? min * qty : `${min * qty} - ${max * qty}`;
         row.subtotal = row.total_opsi1;
-        if (row.price_opsi2 === undefined || row.price_opsi2 === 0) {
-          row.price_opsi2 = valStr;
-          row.total_opsi2 = row.total_opsi1;
-        }
       } else {
         const trimmed = valStr.trim();
         if (trimmed === '') {
-          row.price_opsi1 = '';
           row.total_opsi1 = 0;
-          row.price = 0;
           row.subtotal = 0;
         } else {
           const num = parseInt(trimmed.replace(/\D/g, ''), 10) || 0;
-          row.price_opsi1 = num;
           row.total_opsi1 = (row.qty || 1) * num;
-          row.price = num;
           row.subtotal = row.total_opsi1;
-          if (row.price_opsi2 === undefined || row.price_opsi2 === 0) {
-            row.price_opsi2 = num;
-            row.total_opsi2 = (row.qty || 1) * num;
-          }
         }
+      }
+      if (row.price_opsi2 === undefined || row.price_opsi2 === 0 || row.price_opsi2 === '' || row.price_opsi2 === '0') {
+        row.price_opsi2 = row.price_opsi1;
+        row.total_opsi2 = row.total_opsi1;
       }
     } else if (field === 'price_opsi2') {
       const valStr = String(value);
+      row.price_opsi2 = valStr;
       if (/[a-zA-Z]/.test(valStr)) {
         const upper = valStr.toUpperCase();
         row.price_opsi2 = upper;
         row.total_opsi2 = upper;
-      } else if (valStr.includes('-') || valStr.includes('–')) {
-        row.price_opsi2 = valStr;
+      } else if (/[-\u2012\u2013\u2014\u2212~]/.test(valStr)) {
         const { min, max } = parseRangePrice(valStr);
         const qty = row.qty || 1;
         row.total_opsi2 = min === max ? min * qty : `${min * qty} - ${max * qty}`;
       } else {
         const trimmed = valStr.trim();
         if (trimmed === '') {
-          row.price_opsi2 = '';
           row.total_opsi2 = 0;
         } else {
           const num = parseInt(trimmed.replace(/\D/g, ''), 10) || 0;
-          row.price_opsi2 = num;
           row.total_opsi2 = (row.qty || 1) * num;
         }
       }

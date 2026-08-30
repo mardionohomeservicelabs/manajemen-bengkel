@@ -11,7 +11,21 @@ export function formatCurrency(amount: number | string | undefined): string {
     if (/[a-zA-Z]/.test(amount)) {
       return amount;
     }
-    const num = Number(amount.replace(/[^0-9.-]/g, ''));
+    if (/[-\u2012\u2013\u2014\u2212~]/.test(amount)) {
+      const parts = amount.split(/[-\u2012\u2013\u2014\u2212~]/);
+      if (parts.length >= 2) {
+        const p1 = parseInt(parts[0].replace(/\D/g, ''), 10);
+        const p2 = parseInt(parts[1].replace(/\D/g, ''), 10);
+        if (!isNaN(p1) && !isNaN(p2) && p2 > 0) {
+          return `${formatCurrency(p1)} – ${formatCurrency(p2)}`;
+        }
+        if (!isNaN(p1)) {
+          return `${formatCurrency(p1)} –`;
+        }
+      }
+      return amount;
+    }
+    const num = Number(amount.replace(/[^0-9]/g, ''));
     if (isNaN(num)) return amount;
     amount = num;
   }
