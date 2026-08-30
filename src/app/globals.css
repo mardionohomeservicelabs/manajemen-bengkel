@@ -75,61 +75,72 @@ body {
   /* Default: A4 portrait untuk semua dokumen */
   @page {
     size: A4 portrait;
-    margin: 6mm 8mm;
+    margin: 4mm 6mm;
   }
 
-  /* Untuk estimasi: kertas A4 lebar dengan tinggi otomatis mengikuti konten */
-  @page estimation-long {
-    size: 210mm auto;
-    margin: 6mm 8mm;
-  }
-
-  /* Step 1: Hide all body content by default using visibility (preserves layout flow) */
+  /* Reset body */
   html, body {
     background: #FFFFFF !important;
     margin: 0 !important;
     padding: 0 !important;
+    width: 100% !important;
     height: auto !important;
+    min-height: auto !important;
     overflow: visible !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  html body * {
-    visibility: hidden !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    color-adjust: exact !important;
-  }
-
-  /* Step 2: Make ONLY doc-sheet and ALL its descendants visible */
-  .doc-sheet,
-  .doc-sheet * {
-    visibility: visible !important;
-  }
-
-  /* Step 3: CRITICAL — Remove UI control bars from layout entirely (not just hidden).
-     Using display:none removes them from the flow, preventing empty top-gap
-     that would push the document down and waste precious page space. */
-  .no-print {
+  /* Sembunyikan elemen navigasi, sidebar, header, dan UI non-cetak */
+  header, nav, aside, footer, .no-print, [role="navigation"] {
     display: none !important;
-    visibility: hidden !important;
   }
 
-  /* Step 4: doc-preview-wrapper — transparent passthrough container */
+  /* Sembunyikan background app jika modal cetak sedang terbuka */
+  body:has(.doc-sheet) > *:not(:has(.doc-sheet)) {
+    display: none !important;
+  }
+
+  /* Jika modal preview aktif, posisikan secara static dan hilangkan backdrop */
+  .fixed:has(.doc-sheet) {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .fixed:has(.doc-sheet) > div {
+    max-width: 100% !important;
+    max-height: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  /* doc-preview-wrapper — container cetak transparan passthrough */
   .doc-preview-wrapper {
     position: static !important;
     background: transparent !important;
     padding: 0 !important;
     margin: 0 !important;
     display: block !important;
+    width: 100% !important;
     height: auto !important;
     overflow: visible !important;
     page-break-after: avoid !important;
     break-after: avoid !important;
   }
 
-  /* Step 5: doc-sheet — the ONLY printed element (natural multi-page block flow) */
+  /* doc-sheet — 1 lembar dokumen murni */
   .doc-sheet {
     position: static !important;
     top: auto !important;
@@ -146,17 +157,15 @@ body {
     border-radius: 0 !important;
     overflow: visible !important;
     box-sizing: border-box !important;
-    display: block !important;            /* Override flex — block enables natural multi-page flow */
-    page-break-inside: auto !important;
-    break-inside: auto !important;
+    display: block !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     color-adjust: exact !important;
   }
 
-  /* Step 6: CRITICAL — Override overflow:hidden within doc-sheet.
-     The overflow:hidden on table-wrapper divs is the PRIMARY cause of tables
-     being clipped at the first page boundary and not flowing to page 2+. */
+  /* Override overflow:hidden dalam doc-sheet */
   .doc-sheet .overflow-hidden {
     overflow: visible !important;
   }

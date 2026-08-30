@@ -1,16 +1,13 @@
 /**
  * Helper untuk mencetak dokumen (SPK, Checkup, Estimasi, Invoice) secara bersih
- * tanpa margin/padding berlebih di bagian atas, tanpa terpotong di bagian bawah,
- * dan menjaga agar format warna serta pemisahan halaman (page break) rapi.
+ * Menghilangkan halaman ganda/kosong, tanpa margin berlebih, dan memastikan
+ * dokumen dicetak tepat 1 lembar (atau halaman sesuai isi tanpa duplikasi).
  */
 export function printCleanDocument(element: HTMLElement | null, documentTitle: string) {
   if (!element) return;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
-  const inlineStyles = Array.from(document.querySelectorAll('style'))
-    .map((el) => `<style>${el.textContent}</style>`)
-    .join('\n');
-
+  // Kumpulkan link stylesheets (Tailwind + Google Fonts)
   const linkStyles = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
     .map((el) => {
       const href = (el as HTMLLinkElement).href;
@@ -18,6 +15,7 @@ export function printCleanDocument(element: HTMLElement | null, documentTitle: s
     })
     .join('\n');
 
+  // Ambil HTML murni dari elemen dokumen
   let docHtml = element.innerHTML;
   docHtml = docHtml.replace(/src="\/([^"]+)"/g, `src="${origin}/$1"`);
   docHtml = docHtml.replace(/href="\/([^"]+)"/g, `href="${origin}/$1"`);
@@ -31,24 +29,28 @@ export function printCleanDocument(element: HTMLElement | null, documentTitle: s
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   ${linkStyles}
-  ${inlineStyles}
   <style>
     @page {
       size: A4 portrait;
-      margin: 6mm 8mm;
+      margin: 4mm 6mm;
     }
     *, *::before, *::after {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
       color-adjust: exact !important;
-      box-sizing: border-box;
+      box-sizing: border-box !important;
     }
     html, body {
       margin: 0 !important;
       padding: 0 !important;
       background: #ffffff !important;
-      font-family: 'Montserrat', system-ui, sans-serif !important;
+      font-family: 'Montserrat', system-ui, -apple-system, sans-serif !important;
       width: 100% !important;
+      height: auto !important;
+      overflow: visible !important;
+    }
+    body * {
+      visibility: visible !important;
     }
     .doc-preview-wrapper {
       background: #ffffff !important;
@@ -56,46 +58,48 @@ export function printCleanDocument(element: HTMLElement | null, documentTitle: s
       margin: 0 !important;
       display: block !important;
       width: 100% !important;
+      height: auto !important;
     }
     .doc-sheet {
       width: 100% !important;
       max-width: 100% !important;
       margin: 0 !important;
-      padding: 0 !important;
+      padding: 4px 8px !important;
       box-shadow: none !important;
       border: none !important;
       border-radius: 0 !important;
       background: #ffffff !important;
       display: block !important;
+      height: auto !important;
     }
     .avoid-break, .break-avoid, .page-break-avoid, tr, table {
       page-break-inside: avoid !important;
       break-inside: avoid !important;
     }
-    .page-break-before {
-      page-break-before: always !important;
-      break-before: page !important;
+    .no-print {
+      display: none !important;
     }
-    .no-print { display: none !important; }
     @media print {
       @page {
         size: A4 portrait;
-        margin: 6mm 8mm;
+        margin: 4mm 6mm;
       }
-      * {
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-      }
-      body {
+      html, body {
         margin: 0 !important;
         padding: 0 !important;
+        background: #ffffff !important;
+        width: 100% !important;
+        height: auto !important;
+      }
+      .no-print {
+        display: none !important;
       }
     }
   </style>
 </head>
 <body>
   <div class="doc-preview-wrapper">
-    <div class="doc-sheet space-y-2.5">
+    <div class="doc-sheet">
       ${docHtml}
     </div>
   </div>
@@ -104,7 +108,7 @@ export function printCleanDocument(element: HTMLElement | null, documentTitle: s
       setTimeout(function() {
         window.print();
         setTimeout(function() { window.close(); }, 1200);
-      }, 500);
+      }, 400);
     });
   <\/script>
 </body>
@@ -119,3 +123,4 @@ export function printCleanDocument(element: HTMLElement | null, documentTitle: s
   popup.document.write(popupHtml);
   popup.document.close();
 }
+

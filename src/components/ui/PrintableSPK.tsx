@@ -144,21 +144,21 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
 
       {/* DYNAMIC AUTO-HEIGHT DOCUMENT PREVIEW CONTAINER */}
       <div className="doc-preview-wrapper rounded-2xl">
-        <div ref={documentRef} className="doc-sheet space-y-2.5">
+        <div ref={documentRef} className="doc-sheet space-y-1.5">
           {/* Header */}
           <OfficialDocumentHeader settings={settings} />
 
           {/* Title Header: PERINTAH KERJA BENGKEL */}
-          <div className="text-center pb-1">
-            <h2 className="text-sm font-black tracking-wider uppercase text-slate-900 border-b-2 border-slate-900 inline-block pb-0.5">
+          <div className="text-center pb-0.5">
+            <h2 className="text-xs sm:text-sm font-black tracking-wider uppercase text-slate-900 border-b-2 border-slate-900 inline-block pb-0.5">
               PERINTAH KERJA BENGKEL — BARU
             </h2>
           </div>
 
           {/* Symmetrical Grid: Data Pelanggan & Kendaraan */}
-          <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50/70 p-3 rounded-xl border border-slate-800 font-medium">
+          <div className="grid grid-cols-2 gap-3 text-[11px] bg-slate-50/70 p-2 rounded-xl border border-slate-800 font-medium">
             {/* Kolom Kiri */}
-            <div className="space-y-1.5 border-r border-slate-300 pr-3">
+            <div className="space-y-1 border-r border-slate-300 pr-2">
               <div className="grid grid-cols-12 gap-1">
                 <span className="col-span-4 text-slate-600 font-bold">Jam Datang</span>
                 <span className="col-span-8 font-bold text-slate-950">: {jamDatang}</span>
@@ -168,7 +168,7 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
                 <span className="col-span-8 font-bold text-slate-950">: {vehicle?.customer_name || 'Pelanggan'}</span>
               </div>
               <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 text-slate-600 font-bold">Alamat Customer</span>
+                <span className="col-span-4 text-slate-600 font-bold">Alamat</span>
                 <span className="col-span-8 text-slate-800 leading-tight">: {vehicle?.address || 'Surabaya / Sidoarjo'}</span>
               </div>
               <div className="grid grid-cols-12 gap-1">
@@ -178,10 +178,10 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
             </div>
 
             {/* Kolom Kanan */}
-            <div className="space-y-1.5 pl-1">
+            <div className="space-y-1 pl-1">
               <div className="grid grid-cols-12 gap-1">
                 <span className="col-span-4 text-slate-600 font-bold">No Pol</span>
-                <span className="col-span-8 font-mono font-black text-[#8B0000] text-sm">: {vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'}</span>
+                <span className="col-span-8 font-mono font-black text-[#8B0000] text-xs sm:text-sm">: {vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'}</span>
               </div>
               <div className="grid grid-cols-12 gap-1">
                 <span className="col-span-4 text-slate-600 font-bold">No PKB</span>
@@ -199,31 +199,31 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
           </div>
 
           {/* Box 1: KELUHAN CUSTOMER */}
-          <div className="border border-slate-800 rounded-xl p-2.5 bg-white text-xs space-y-1">
-            <h4 className="font-black text-[#8B0000] uppercase text-[10.5px]">
+          <div className="border border-slate-800 rounded-xl p-2 bg-white text-[11px] space-y-0.5">
+            <h4 className="font-black text-[#8B0000] uppercase text-[10px]">
               KELUHAN CUSTOMER :
             </h4>
-            <p className="text-slate-900 font-medium text-[11px] leading-relaxed min-h-[30px] pl-1 whitespace-pre-wrap break-words">
+            <p className="text-slate-900 font-medium text-[10.5px] leading-relaxed min-h-[22px] pl-1 whitespace-pre-wrap break-words">
               {workOrder.complaints || 'Perawatan berkala / Servis rutin'}
             </p>
           </div>
 
           {/* Box 2: URAIAN PEKERJAAN */}
-          <div className="border border-slate-800 rounded-xl p-2.5 bg-white text-xs space-y-1">
-            <h4 className="font-black text-[#001F7A] uppercase text-[10.5px]">
+          <div className="border border-slate-800 rounded-xl p-2 bg-white text-[11px] space-y-0.5">
+            <h4 className="font-black text-[#001F7A] uppercase text-[10px]">
               URAIAN PEKERJAAN :
             </h4>
-            <p className="text-slate-900 font-medium text-[11px] leading-relaxed min-h-[30px] pl-1 whitespace-pre-wrap break-words">
+            <p className="text-slate-900 font-medium text-[10.5px] leading-relaxed min-h-[22px] pl-1 whitespace-pre-wrap break-words">
               {workOrder.notes || 'Pemeriksaan menyeluruh, tune-up, servis berkala, dan uji fungsi sistem kendaraan.'}
             </p>
           </div>
 
           {/* KETENTUAN 10 POIN RESMI VERBATIM */}
-          <div className="border border-slate-800 rounded-xl p-2.5 bg-slate-50 text-[9.5px] space-y-1 text-slate-800 leading-snug">
-            <h4 className="font-black text-slate-950 uppercase text-[10px]">
+          <div className="border border-slate-800 rounded-xl p-2 bg-slate-50 text-[8.5px] space-y-0.5 text-slate-800 leading-tight">
+            <h4 className="font-black text-slate-950 uppercase text-[9px]">
               KETENTUAN:
             </h4>
-            <ol className="list-decimal pl-4 space-y-0.5 font-medium">
+            <ol className="list-decimal pl-3.5 space-y-0.5 font-medium">
               <li>PKB ini merupakan <strong>SURAT KUASA</strong> dari pelanggan kepada bengkel untuk mengerjakan pekerjaan seperti yang tertulis.</li>
               <li>Jaminan Pekerjaan Berlaku: <strong>General repair 100 KM dalam waktu 3 hari</strong>.</li>
               <li>Apabila dalam waktu 2 hari part bekas tidak diambil, kami berhak melakukan pemusnahan.</li>
@@ -238,87 +238,87 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
           </div>
 
           {/* Symmetrical Two Bottom Info Boxes: Sumber Informasi & Status Kendaraan + Di Terima Di */}
-          <div className="grid grid-cols-3 gap-3 text-xs">
-            <div className="border border-slate-800 rounded-xl p-2 bg-white flex items-center justify-between">
-              <span className="font-bold text-slate-700">Sumber Informasi:</span>
-              <span className="font-black text-[#001F7A] uppercase">{workOrder.source_info || 'REFERENSI'}</span>
+          <div className="grid grid-cols-3 gap-2 text-[11px]">
+            <div className="border border-slate-800 rounded-xl p-1.5 bg-white flex items-center justify-between">
+              <span className="font-bold text-slate-700">Sumber Info:</span>
+              <span className="font-black text-[#001F7A] uppercase text-[10px]">{workOrder.source_info || 'REFERENSI'}</span>
             </div>
-            <div className="border border-slate-800 rounded-xl p-2 bg-white flex items-center justify-between">
-              <span className="font-bold text-slate-700">Status Kendaraan:</span>
-              <span className="font-black text-[#8B0000] uppercase">{workOrder.vehicle_status || 'Ditunggu'}</span>
+            <div className="border border-slate-800 rounded-xl p-1.5 bg-white flex items-center justify-between">
+              <span className="font-bold text-slate-700">Status Mobil:</span>
+              <span className="font-black text-[#8B0000] uppercase text-[10px]">{workOrder.vehicle_status || 'Ditunggu'}</span>
             </div>
-            <div className="border border-slate-800 rounded-xl p-2 bg-white flex items-center justify-between">
+            <div className="border border-slate-800 rounded-xl p-1.5 bg-white flex items-center justify-between">
               <span className="font-bold text-slate-700">Di Terima Di:</span>
-              <span className="font-black text-emerald-800 uppercase">{workOrder.received_at_branch || '-'}</span>
+              <span className="font-black text-emerald-800 uppercase text-[10px]">{workOrder.received_at_branch || '-'}</span>
             </div>
           </div>
 
           {/* Agreement Title */}
-          <div className="text-center pt-1">
-            <p className="text-xs font-bold italic text-slate-900">
+          <div className="text-center pt-0.5">
+            <p className="text-[10px] font-bold italic text-slate-900">
               "Saya Telah Membaca dan Menyetujui Ketentuan Di Atas"
             </p>
           </div>
 
           {/* 3 BAGIAN TANDA TANGAN DIGITAL RESMI (Symmetrical 3 Columns) */}
-          <div className="border border-slate-800 rounded-xl p-2.5 bg-white">
-            <div className="grid grid-cols-3 gap-3 text-center text-xs">
+          <div className="border border-slate-800 rounded-xl p-2 bg-white">
+            <div className="grid grid-cols-3 gap-2.5 text-center text-xs">
               {/* TTD 1: Petugas Bengkel */}
-              <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between h-[110px]">
-                <p className="font-black text-[#8B0000] text-[10px] uppercase">Petugas Bengkel</p>
-                <div className="h-12 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white overflow-hidden my-0.5">
+              <div className="border border-slate-300 rounded-lg p-1.5 bg-slate-50 flex flex-col justify-between h-[88px]">
+                <p className="font-black text-[#8B0000] text-[9.5px] uppercase">Petugas Bengkel</p>
+                <div className="h-9 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white overflow-hidden my-0.5">
                   {workOrder.signature_sa_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={workOrder.signature_sa_url}
                       alt="TTD Petugas"
-                      className="max-h-11 max-w-full object-contain block mx-auto"
+                      className="max-h-8 max-w-full object-contain block mx-auto"
                     />
                   ) : (
-                    <span className="text-[9px] text-slate-400 italic">(Tanda Tangan)</span>
+                    <span className="text-[8.5px] text-slate-400 italic">(Tanda Tangan)</span>
                   )}
                 </div>
-                <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate">
+                <p className="font-bold text-slate-950 text-[9.5px] border-t border-slate-300 pt-0.5 truncate">
                   ({signerSA || 'Petugas Bengkel'})
                 </p>
               </div>
 
               {/* TTD 2: Teknisi / Mekanik */}
-              <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between h-[110px]">
-                <p className="font-black text-[#001F7A] text-[10px] uppercase">Teknisi / Mekanik</p>
-                <div className="h-12 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white overflow-hidden my-0.5">
+              <div className="border border-slate-300 rounded-lg p-1.5 bg-slate-50 flex flex-col justify-between h-[88px]">
+                <p className="font-black text-[#001F7A] text-[9.5px] uppercase">Teknisi / Mekanik</p>
+                <div className="h-9 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white overflow-hidden my-0.5">
                   {workOrder.signature_mechanic_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={workOrder.signature_mechanic_url}
                       alt="TTD Mekanik"
-                      className="max-h-11 max-w-full object-contain block mx-auto"
+                      className="max-h-8 max-w-full object-contain block mx-auto"
                     />
                   ) : (
-                    <span className="text-[9px] text-slate-400 italic">(Tanda Tangan)</span>
+                    <span className="text-[8.5px] text-slate-400 italic">(Tanda Tangan)</span>
                   )}
                 </div>
-                <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate">
+                <p className="font-bold text-slate-950 text-[9.5px] border-t border-slate-300 pt-0.5 truncate">
                   ({signerMechanic || 'Teknisi / Mekanik'})
                 </p>
               </div>
 
               {/* TTD 3: Pemilik Kendaraan */}
-              <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between h-[110px]">
-                <p className="font-black text-[#8B0000] text-[10px] uppercase">Pemilik Kendaraan</p>
-                <div className="h-12 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white overflow-hidden my-0.5">
+              <div className="border border-slate-300 rounded-lg p-1.5 bg-slate-50 flex flex-col justify-between h-[88px]">
+                <p className="font-black text-[#8B0000] text-[9.5px] uppercase">Pemilik Kendaraan</p>
+                <div className="h-9 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white overflow-hidden my-0.5">
                   {workOrder.signature_customer_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={workOrder.signature_customer_url}
                       alt="TTD Pemilik"
-                      className="max-h-11 max-w-full object-contain block mx-auto"
+                      className="max-h-8 max-w-full object-contain block mx-auto"
                     />
                   ) : (
-                    <span className="text-[9px] text-slate-400 italic">(Tanda Tangan)</span>
+                    <span className="text-[8.5px] text-slate-400 italic">(Tanda Tangan)</span>
                   )}
                 </div>
-                <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate">
+                <p className="font-bold text-slate-950 text-[9.5px] border-t border-slate-300 pt-0.5 truncate">
                   ({vehicle?.customer_name || 'Pelanggan'})
                 </p>
               </div>
