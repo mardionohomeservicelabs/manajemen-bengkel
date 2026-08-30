@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ACCheckupData, WorkshopSettings, CheckConditionStatus } from '@/lib/types/database';
 import { formatDate, formatPlate, createWhatsAppLink } from '@/lib/utils';
+import { printCleanDocument } from '@/lib/utils/print-helper';
 import { Printer, Share2, X, ThermometerSnowflake } from 'lucide-react';
 import {
   OfficialDocumentHeader,
   OfficialDocumentFooter,
 } from './OfficialDocumentLayout';
+import { DocumentImageModal } from './DocumentImageModal';
 
 interface PrintableACCheckupProps {
   checkup: ACCheckupData;
@@ -20,13 +22,15 @@ export function PrintableACCheckup({
   settings,
   onClose,
 }: PrintableACCheckupProps) {
+  const documentRef = useRef<HTMLDivElement>(null);
+
   // State untuk nama teknisi yang bisa diketik manual
   const [signerTeknisi, setSignerTeknisi] = useState<string>(
     checkup.technician_name || ''
   );
 
   const handlePrint = () => {
-    window.print();
+    printCleanDocument(documentRef.current, `QC AC - ${checkup.document_number}`);
   };
 
   const getWhatsAppMessage = () => {
@@ -84,14 +88,19 @@ export function PrintableACCheckup({
           />
         </div>
 
-        <div className="flex items-center space-x-2.5">
+        <div className="flex items-center space-x-2.5 flex-wrap gap-2">
           <button
             onClick={handlePrint}
-            className="inline-flex items-center space-x-1.5 bg-[#8B0000] hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-md"
+            className="inline-flex items-center space-x-1.5 bg-[#8B0000] hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-md cursor-pointer"
           >
             <Printer className="w-4 h-4" />
             <span>Cetak / Simpan PDF</span>
           </button>
+          <DocumentImageModal
+            documentRef={documentRef}
+            label="Lihat sebagai Gambar"
+            filename={`QC-AC-${checkup.document_number}`}
+          />
           <a
             href={waLink}
             target="_blank"
@@ -104,7 +113,7 @@ export function PrintableACCheckup({
           {onClose && (
             <button
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition"
+              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition cursor-pointer"
               aria-label="Tutup"
             >
               <X className="w-5 h-5" />
@@ -115,7 +124,7 @@ export function PrintableACCheckup({
 
       {/* DYNAMIC AUTO-HEIGHT DOCUMENT PREVIEW CONTAINER */}
       <div className="doc-preview-wrapper rounded-2xl">
-        <div className="doc-sheet space-y-2.5">
+        <div ref={documentRef} className="doc-sheet printable-ac-sheet space-y-2 text-slate-900">
           {/* Header */}
           <OfficialDocumentHeader settings={settings} />
 

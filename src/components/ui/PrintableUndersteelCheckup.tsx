@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { UndersteelCheckupData, WorkshopSettings } from '@/lib/types/database';
 import { formatDate, formatPlate, createWhatsAppLink } from '@/lib/utils';
+import { printCleanDocument } from '@/lib/utils/print-helper';
 import { Printer, Share2, X, Wrench, ShieldCheck } from 'lucide-react';
 import {
   OfficialDocumentHeader,
   OfficialDocumentFooter,
 } from './OfficialDocumentLayout';
+import { DocumentImageModal } from './DocumentImageModal';
 
 interface PrintableUndersteelCheckupProps {
   checkup: UndersteelCheckupData;
@@ -20,12 +22,14 @@ export function PrintableUndersteelCheckup({
   settings,
   onClose,
 }: PrintableUndersteelCheckupProps) {
+  const documentRef = useRef<HTMLDivElement>(null);
+
   const [signerTeknisi, setSignerTeknisi] = useState<string>(
     checkup.technician_name || 'Mekanik Understeel'
   );
 
   const handlePrint = () => {
-    window.print();
+    printCleanDocument(documentRef.current, `Understeel - ${checkup.document_number}`);
   };
 
   const getWhatsAppMessage = () => {
@@ -90,7 +94,7 @@ export function PrintableUndersteelCheckup({
           />
         </div>
 
-        <div className="flex items-center space-x-2.5">
+        <div className="flex items-center space-x-2.5 flex-wrap gap-2">
           <button
             onClick={handlePrint}
             className="inline-flex items-center space-x-1.5 bg-[#8B0000] hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-md cursor-pointer"
@@ -98,6 +102,11 @@ export function PrintableUndersteelCheckup({
             <Printer className="w-4 h-4" />
             <span>Cetak / Simpan PDF</span>
           </button>
+          <DocumentImageModal
+            documentRef={documentRef}
+            label="Lihat sebagai Gambar"
+            filename={`Understeel-${checkup.document_number}`}
+          />
           <a
             href={waLink}
             target="_blank"
@@ -121,7 +130,7 @@ export function PrintableUndersteelCheckup({
 
       {/* DYNAMIC AUTO-HEIGHT DOCUMENT PREVIEW CONTAINER */}
       <div className="doc-preview-wrapper rounded-2xl">
-        <div className="doc-sheet printable-understeel-sheet space-y-2 text-slate-900 font-sans">
+        <div ref={documentRef} className="doc-sheet printable-understeel-sheet space-y-2 text-slate-900 font-sans">
           {/* Header */}
           <OfficialDocumentHeader settings={settings} />
 

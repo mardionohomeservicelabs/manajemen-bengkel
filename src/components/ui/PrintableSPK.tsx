@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { WorkOrder, WorkshopSettings } from '@/lib/types/database';
 import {
   formatDate,
@@ -8,6 +8,7 @@ import {
   formatPlate,
   createWhatsAppLink,
 } from '@/lib/utils';
+import { printCleanDocument } from '@/lib/utils/print-helper';
 import {
   Printer,
   Share2,
@@ -18,6 +19,7 @@ import {
   OfficialDocumentHeader,
   OfficialDocumentFooter,
 } from './OfficialDocumentLayout';
+import { DocumentImageModal } from './DocumentImageModal';
 
 interface PrintableSPKProps {
   workOrder: WorkOrder;
@@ -27,6 +29,7 @@ interface PrintableSPKProps {
 
 export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps) {
   const vehicle = workOrder.vehicle;
+  const documentRef = useRef<HTMLDivElement>(null);
 
   // State untuk nama yang bisa diketik manual di dokumen
   const [signerSA, setSignerSA] = useState<string>(
@@ -37,7 +40,7 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
   );
 
   const handlePrint = () => {
-    window.print();
+    printCleanDocument(documentRef.current, `SPK - ${workOrder.spk_number}`);
   };
 
   // Format Jam Datang (HH:mm)
@@ -103,7 +106,7 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
           </div>
         </div>
 
-        <div className="flex items-center space-x-2.5">
+        <div className="flex items-center space-x-2.5 flex-wrap gap-2">
           <button
             onClick={handlePrint}
             className="inline-flex items-center space-x-1.5 bg-[#8B0000] hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-md"
@@ -111,6 +114,11 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
             <Printer className="w-4 h-4" />
             <span>Cetak / Simpan PDF</span>
           </button>
+          <DocumentImageModal
+            documentRef={documentRef}
+            label="Lihat sebagai Gambar"
+            filename={`SPK-${workOrder.spk_number}`}
+          />
           {vehicle?.phone_number && (
             <a
               href={waLink}
@@ -136,7 +144,7 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
 
       {/* DYNAMIC AUTO-HEIGHT DOCUMENT PREVIEW CONTAINER */}
       <div className="doc-preview-wrapper rounded-2xl">
-        <div className="doc-sheet space-y-2.5">
+        <div ref={documentRef} className="doc-sheet space-y-2.5">
           {/* Header */}
           <OfficialDocumentHeader settings={settings} />
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Invoice, WorkshopSettings } from '@/lib/types/database';
 import {
   formatCurrency,
@@ -9,6 +9,7 @@ import {
   formatPlate,
   createWhatsAppLink,
 } from '@/lib/utils';
+import { printCleanDocument } from '@/lib/utils/print-helper';
 import {
   Printer,
   Share2,
@@ -21,6 +22,7 @@ import {
   OfficialDocumentHeader,
   OfficialDocumentFooter,
 } from './OfficialDocumentLayout';
+import { DocumentImageModal } from './DocumentImageModal';
 
 interface PrintableInvoiceProps {
   invoice: Invoice;
@@ -33,13 +35,18 @@ export function PrintableInvoice({
   settings,
   onClose,
 }: PrintableInvoiceProps) {
+  const documentRef = useRef<HTMLDivElement>(null);
   const [printMode, setPrintMode] = useState<'sheet' | 'thermal'>('sheet');
   const [signerKasir, setSignerKasir] = useState<string>('');
   const vehicle = invoice.vehicle;
   const isPaid = invoice.payment_status === 'paid';
 
   const handlePrint = () => {
-    window.print();
+    if (printMode === 'sheet') {
+      printCleanDocument(documentRef.current, `Nota - ${invoice.invoice_number}`);
+    } else {
+      window.print();
+    }
   };
 
   const getPaymentMethodLabel = (method?: string) => {
@@ -124,14 +131,21 @@ export function PrintableInvoice({
           </div>
         )}
 
-        <div className="flex items-center space-x-2.5">
+        <div className="flex items-center space-x-2.5 flex-wrap gap-2">
           <button
             onClick={handlePrint}
-            className="inline-flex items-center space-x-1.5 bg-[#8B0000] hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-md"
+            className="inline-flex items-center space-x-1.5 bg-[#8B0000] hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-md cursor-pointer"
           >
             <Printer className="w-4 h-4" />
             <span>Cetak {printMode === 'sheet' ? 'Nota' : 'Struk (80mm)'}</span>
           </button>
+          {printMode === 'sheet' && (
+            <DocumentImageModal
+              documentRef={documentRef}
+              label="Lihat sebagai Gambar"
+              filename={`Nota-${invoice.invoice_number}`}
+            />
+          )}
           {vehicle?.phone_number && (
             <a
               href={waLink}
@@ -146,7 +160,7 @@ export function PrintableInvoice({
           {onClose && (
             <button
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition"
+              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition cursor-pointer"
               aria-label="Tutup"
             >
               <X className="w-5 h-5" />
@@ -158,7 +172,7 @@ export function PrintableInvoice({
       {/* RENDER MODE 1: DOKUMEN RESMI AUTO-HEIGHT */}
       {printMode === 'sheet' && (
         <div className="doc-preview-wrapper rounded-2xl">
-          <div className="doc-sheet space-y-3">
+          <div ref={documentRef} className="doc-sheet space-y-3">
             {/* Header */}
             <OfficialDocumentHeader settings={settings} />
 
