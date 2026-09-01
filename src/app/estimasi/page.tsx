@@ -80,6 +80,105 @@ const parseNumericPriceValue = (val: any): { isText: boolean; isRange: boolean; 
   return { isText: false, isRange: false, num: n, min: n, max: n, text: str };
 };
 
+// Helper: Temukan dan pulihkan seluruh tab estimasi untuk SPK dari semua sumber (localStorage, checklist_data, invoices)
+const discoverTabsForSpk = (found: WorkOrder, allInvoices: Invoice[]): EstimationTab[] => {
+  const tabsMap = new Map<string, EstimationTab>();
+
+  // 1. Cek localStorage tabs
+  if (typeof window !== 'undefined') {
+    try {
+      const tabsRaw = localStorage.getItem(`mhs_est_tabs_${found.id}`);
+      if (tabsRaw) {
+        const parsed: EstimationTab[] = JSON.parse(tabsRaw);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((t) => {
+            if (t && t.id) tabsMap.set(t.id, { id: t.id, name: t.name || 'Estimasi' });
+          });
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Cek work_order.checklist_data.tabs
+  const clData = found.checklist_data as any;
+  if (clData?.tabs && Array.isArray(clData.tabs)) {
+    clData.tabs.forEach((t: EstimationTab) => {
+      if (t && t.id) {
+        if (!tabsMap.has(t.id)) {
+          tabsMap.set(t.id, { id: t.id, name: t.name || 'Estimasi' });
+        } else {
+          const existing = tabsMap.get(t.id)!;
+          if ((!existing.name || existing.name.startsWith('Estimasi ')) && t.name && !t.name.startsWith('Estimasi ')) {
+            existing.name = t.name;
+          }
+        }
+      }
+    });
+  }
+
+  // 3. Cek invoices (database Supabase / local) untuk SPK ini
+  const spkInvoices = allInvoices.filter(
+    (inv) => inv.type === 'estimation' && (inv.work_order_id === found.id || inv.id === found.id)
+  );
+  spkInvoices.forEach((inv: any, idx) => {
+    const tabId = inv.tab_id || inv.estimation_tab || (idx === 0 ? 'tab_1' : `tab_inv_${inv.id}`);
+    const tabName = inv.estimation_type || (tabId === 'tab_1' ? 'Estimasi 1' : `Estimasi ${idx + 1}`);
+    if (!tabsMap.has(tabId)) {
+      tabsMap.set(tabId, { id: tabId, name: tabName });
+    } else {
+      const current = tabsMap.get(tabId)!;
+      if ((!current.name || current.name.startsWith('Estimasi ')) && inv.estimation_type) {
+        current.name = inv.estimation_type;
+      }
+    }
+  });
+
+  // 4. Cek checklist_data format (estimation_tab_*, estimation)
+  if (clData) {
+    Object.keys(clData).forEach((key) => {
+      if (key.startsWith('estimation_tab_')) {
+        const tabId = key.replace('estimation_', '');
+        const estData = clData[key];
+        const tabName = estData?.estimation_type || 'Estimasi';
+        if (!tabsMap.has(tabId)) {
+          tabsMap.set(tabId, { id: tabId, name: tabName });
+        }
+      } else if (key === 'estimation' && !tabsMap.has('tab_1')) {
+        const estData = clData[key];
+        const tabName = estData?.estimation_type || 'Estimasi 1';
+        tabsMap.set('tab_1', { id: 'tab_1', name: tabName });
+      }
+    });
+  }
+
+  // 5. Cek localStorage draft keys
+  if (typeof window !== 'undefined') {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(`mhs_est_draft_${found.id}_`)) {
+          const tabId = k.replace(`mhs_est_draft_${found.id}_`, '');
+          if (!tabsMap.has(tabId)) {
+            try {
+              const draft = JSON.parse(localStorage.getItem(k) || '{}');
+              tabsMap.set(tabId, { id: tabId, name: draft.estimation_type || 'Estimasi' });
+            } catch {
+              tabsMap.set(tabId, { id: tabId, name: 'Estimasi' });
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // Default jika belum ada tab sama sekali
+  if (tabsMap.size === 0) {
+    tabsMap.set('tab_1', { id: 'tab_1', name: 'Estimasi 1' });
+  }
+
+  return Array.from(tabsMap.values());
+};
+
 // Estimasi baru selalu mulai kosong (1 baris kosong)
 const EMPTY_ESTIMATION_ROW: InvoiceItem[] = [
   { name: '', is_service: false, qty: 1, unit: 'PCS', price_opsi1: 0, total_opsi1: 0, price_opsi2: 0, total_opsi2: 0, price: 0, subtotal: 0 },
@@ -111,8 +210,8 @@ function EstimationBuilderContent() {
   // Selected SPK & Tab (tab berbentuk {id, name} agar bisa rename bebas)
   const [selectedSpkId, setSelectedSpkId] = useState<string>(spkIdParam || '');
   const [selectedSpk, setSelectedSpk] = useState<WorkOrder | null>(null);
-  const [activeTabId, setActiveTabId] = useState<string>('tab_1');
   const [tabList, setTabList] = useState<EstimationTab[]>([{ id: 'tab_1', name: 'Estimasi 1' }]);
+  const [activeTabId, setActiveTabId] = useState<string>('tab_1');
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState<string>('');
 
@@ -427,7 +526,10 @@ function EstimationBuilderContent() {
     // Load data for the new tab
     const { sourceData, existingEst } = loadTabData(selectedSpkId, tab.id, invoices);
     setCurrentEstimationRecord(existingEst || null);
-    setEstimationType(tab.name);
+
+    const resolvedName = sourceData?.estimation_type || tab.name || 'Estimasi';
+    setEstimationType(resolvedName);
+
     if (sourceData) {
       if (sourceData.estimation_date) setEstimationDate(sourceData.estimation_date);
       if (sourceData.estimation_time) setEstimationTime(sourceData.estimation_time);
@@ -440,9 +542,9 @@ function EstimationBuilderContent() {
       setEstimatedDuration(sourceData.estimated_duration || '');
       setCustomerResponse(sourceData.customer_response || '');
       setCustomerResponseNote(sourceData.customer_response_note || '');
-      setShowDiscount(Boolean(sourceData.has_discount || (sourceData.discount_amount || 0) > 0));
+      setShowDiscount(Boolean(sourceData.has_discount));
       setShowOpsi2(Boolean(sourceData.has_opsi2));
-      setShowTax(Boolean(sourceData.has_tax || (sourceData.tax_percent || 0) > 0));
+      setShowTax(Boolean(sourceData.has_tax));
       setShowRangePrice(Boolean(sourceData.has_range_price));
       setDiscountAmount(sourceData.discount_amount || 0);
       setTaxPercent(sourceData.tax_percent || 11);
@@ -485,7 +587,7 @@ function EstimationBuilderContent() {
   }, [selectedSpkId, selectedSpk, isLocked, activeTabId, items, estimationType, estimationDate, estimationTime,
       vehicleStatus, paymentPlan, estimatorName, estimatorSignature, customerSignature, customerSignedName,
       estimatedDuration, customerResponse, customerResponseNote,
-      showDiscount, showOpsi2, showTax, discountAmount, taxPercent, adminNotes, loadTabData, invoices]);
+      showDiscount, showOpsi2, showTax, showRangePrice, discountAmount, taxPercent, adminNotes, loadTabData, invoices]);
 
   // Auto-save draft in LocalStorage so edits are never lost when navigating away
   useEffect(() => {
@@ -746,22 +848,24 @@ function EstimationBuilderContent() {
     const newTabId = `tab_${Date.now()}`;
     const tabName = `Estimasi ${nextNum}`;
     const newTab: EstimationTab = { id: newTabId, name: tabName };
+    
     // Save current tab before switching
-    const draftPayload = {
-      items, estimation_type: estimationType, estimation_tab: activeTabId,
-      estimation_date: estimationDate, estimation_time: estimationTime,
-      vehicle_status: vehicleStatus, payment_plan: paymentPlan,
-      estimator_name: estimatorName, estimator_signature: estimatorSignature,
-      customer_signature: customerSignature, customer_signed_name: customerSignedName,
-      estimated_duration: estimatedDuration,
-      customer_response: customerResponse, customer_response_note: customerResponseNote,
-      has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
-      has_range_price: showRangePrice,
-      discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
-    };
     if (selectedSpkId) {
+      const draftPayload = {
+        items, estimation_type: estimationType, estimation_tab: activeTabId,
+        estimation_date: estimationDate, estimation_time: estimationTime,
+        vehicle_status: vehicleStatus, payment_plan: paymentPlan,
+        estimator_name: estimatorName, estimator_signature: estimatorSignature,
+        customer_signature: customerSignature, customer_signed_name: customerSignedName,
+        estimated_duration: estimatedDuration,
+        customer_response: customerResponse, customer_response_note: customerResponseNote,
+        has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
+        has_range_price: showRangePrice,
+        discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
+      };
       try { localStorage.setItem(`mhs_est_draft_${selectedSpkId}_${activeTabId}`, JSON.stringify(draftPayload)); } catch {}
     }
+    
     const newTabs = [...tabList, newTab];
     setTabList(newTabs);
     setActiveTabId(newTabId);
@@ -773,10 +877,18 @@ function EstimationBuilderContent() {
     setCustomerResponse(''); setCustomerResponseNote('');
     setAdminNotes(''); setCurrentEstimationRecord(null);
     setShowDiscount(false); setShowOpsi2(false); setShowTax(false); setShowRangePrice(false); setDiscountAmount(0);
+    
     if (selectedSpkId) {
-      try { localStorage.setItem(`mhs_est_tabs_${selectedSpkId}`, JSON.stringify(newTabs)); } catch {}
+      try {
+        localStorage.setItem(`mhs_est_tabs_${selectedSpkId}`, JSON.stringify(newTabs));
+        const initDraft = {
+          items: EMPTY_ESTIMATION_ROW, estimation_type: tabName, estimation_tab: newTabId,
+          has_discount: false, has_opsi2: false, has_tax: false, has_range_price: false,
+        };
+        localStorage.setItem(`mhs_est_draft_${selectedSpkId}_${newTabId}`, JSON.stringify(initDraft));
+      } catch {}
     }
-    showToast(`Tab '${tabName}' dibuat. Klik nama tab untuk rename.`, 'info');
+    showToast(`Tab '${tabName}' dibuat.`, 'info');
   };
 
   // Rename tab inline
@@ -791,12 +903,35 @@ function EstimationBuilderContent() {
     const trimmed = renameValue.trim() || 'Estimasi';
     const newTabs = tabList.map((t) => t.id === renamingTabId ? { ...t, name: trimmed } : t);
     setTabList(newTabs);
-    if (renamingTabId === activeTabId) setEstimationType(trimmed);
+    if (renamingTabId === activeTabId) {
+      setEstimationType(trimmed);
+    }
     if (selectedSpkId) {
       try { localStorage.setItem(`mhs_est_tabs_${selectedSpkId}`, JSON.stringify(newTabs)); } catch {}
     }
     setRenamingTabId(null);
     showToast(`Tab diganti menjadi "${trimmed}"`, 'success');
+  };
+
+  // Remove extra tab
+  const handleRemoveTab = (tabId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isLocked || tabList.length <= 1) return;
+    const tabToRemove = tabList.find((t) => t.id === tabId);
+    if (!window.confirm(`Hapus tab estimasi "${tabToRemove?.name || 'ini'}"?`)) return;
+
+    const newTabs = tabList.filter((t) => t.id !== tabId);
+    setTabList(newTabs);
+    if (selectedSpkId) {
+      try {
+        localStorage.setItem(`mhs_est_tabs_${selectedSpkId}`, JSON.stringify(newTabs));
+        localStorage.removeItem(`mhs_est_draft_${selectedSpkId}_${tabId}`);
+      } catch {}
+    }
+    if (activeTabId === tabId) {
+      handleSwitchTab(newTabs[0]);
+    }
+    showToast(`Tab "${tabToRemove?.name}" dihapus.`, 'info');
   };
 
   // Save Estimation (untuk tab aktif)
@@ -823,8 +958,13 @@ function EstimationBuilderContent() {
       );
       const estNumber = existingEst ? existingEst.invoice_number : generateInvoiceNumber('estimation');
       const activeTabObj = tabList.find((t) => t.id === activeTabId) || tabList[0];
+      const activeName = (estimationType || '').trim() || activeTabObj?.name || 'Estimasi';
 
-      const invoicePayload: Omit<Invoice, 'id'> & { id?: string; tab_id?: string } = {
+      // Pastikan nama di tabList dan state tersinkronisasi
+      const updatedTabList = tabList.map((t) => t.id === activeTabId ? { ...t, name: activeName } : t);
+      setTabList(updatedTabList);
+
+      const invoicePayload: Omit<Invoice, 'id'> & { id?: string; tab_id?: string; tabs?: any } = {
         id: existingEst?.id,
         invoice_number: estNumber,
         type: 'estimation',
@@ -843,7 +983,7 @@ function EstimationBuilderContent() {
         created_at: existingEst?.created_at || new Date().toISOString(),
 
         // Metadata
-        estimation_type: activeTabObj?.name || estimationType,
+        estimation_type: activeName,
         estimation_tab: activeTabId,
         estimation_date: estimationDate,
         estimation_time: estimationTime,
@@ -864,6 +1004,7 @@ function EstimationBuilderContent() {
         total_opsi2: totalFinalOpsi2,
         total_opsi2_max: totalFinalOpsi2Max,
         tab_id: activeTabId,
+        tabs: updatedTabList,
         ttd_status: customerSignature ? 'signed' : (currentEstimationRecord?.ttd_status || 'pending'),
         customer_signature: customerSignature || currentEstimationRecord?.customer_signature,
         signature_customer_url: customerSignature || currentEstimationRecord?.signature_customer_url,
@@ -875,12 +1016,13 @@ function EstimationBuilderContent() {
       // 1. Save to Invoices (LocalStorage + Supabase)
       const saved = await saveInvoiceAsync(invoicePayload as any);
 
-      // 2. Update Work Order status
+      // 2. Update Work Order status and store all tabs in checklist_data
       const updatedWorkOrder: WorkOrder = {
         ...selectedSpk,
         status: selectedSpk.status === 'queue' ? 'estimating' : selectedSpk.status,
         checklist_data: {
           ...(selectedSpk.checklist_data || {}),
+          tabs: updatedTabList,
           [`estimation_${activeTabId}`]: saved,
         } as any,
       };
@@ -890,12 +1032,12 @@ function EstimationBuilderContent() {
       if (typeof window !== 'undefined') {
         localStorage.setItem(`mhs_est_saved_${selectedSpk.id}_${activeTabId}`, JSON.stringify(saved));
         localStorage.removeItem(`mhs_est_draft_${selectedSpk.id}_${activeTabId}`);
-        localStorage.setItem(`mhs_est_tabs_${selectedSpk.id}`, JSON.stringify(tabList));
+        localStorage.setItem(`mhs_est_tabs_${selectedSpk.id}`, JSON.stringify(updatedTabList));
       }
 
       refreshData();
       setCurrentEstimationRecord(saved);
-      showToast(`Estimasi "${activeTabObj?.name}" (${estNumber}) berhasil disimpan!`, 'success');
+      showToast(`Estimasi "${activeName}" (${estNumber}) berhasil disimpan!`, 'success');
       return saved;
     } catch (err) {
       console.error(err);
@@ -1169,9 +1311,22 @@ function EstimationBuilderContent() {
                 <button
                   onClick={() => handleStartRename(tab)}
                   title="Rename tab"
-                  className="pr-2 text-slate-400 hover:text-white transition cursor-pointer"
+                  className="pr-1.5 text-slate-400 hover:text-white transition cursor-pointer"
                 >
                   <span className="text-[9px]">✏</span>
+                </button>
+              )}
+              {/* Delete tab icon if more than 1 tab */}
+              {!isLocked && tabList.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => handleRemoveTab(tab.id, e)}
+                  title="Hapus tab estimasi ini"
+                  className={`pr-2 text-xs font-bold transition cursor-pointer ${
+                    activeTabId === tab.id ? 'text-slate-400 hover:text-red-400' : 'text-slate-400 hover:text-red-600'
+                  }`}
+                >
+                  ✕
                 </button>
               )}
             </div>
@@ -1221,9 +1376,19 @@ function EstimationBuilderContent() {
               type="text"
               disabled={isLocked}
               value={estimationType}
-              onChange={(e) => setEstimationType(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setEstimationType(val);
+                setTabList((prev) => {
+                  const nextTabs = prev.map((t) => (t.id === activeTabId ? { ...t, name: val || 'Estimasi' } : t));
+                  if (selectedSpkId) {
+                    try { localStorage.setItem(`mhs_est_tabs_${selectedSpkId}`, JSON.stringify(nextTabs)); } catch {}
+                  }
+                  return nextTabs;
+                });
+              }}
               className="w-full text-xs font-bold p-3 rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-              placeholder="Contoh: Umum, Understeel, AC..."
+              placeholder="Contoh: Umum, Understeel, AC, Mesin..."
             />
           </div>
 
