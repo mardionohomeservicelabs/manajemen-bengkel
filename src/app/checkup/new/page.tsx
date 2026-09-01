@@ -103,7 +103,7 @@ function NewCheckupPageContent() {
   const [batteryCondition, setBatteryCondition] = useState<'baik' | 'buruk'>('baik');
   const [batteryHealth, setBatteryHealth] = useState<number>(85);
   const [batterySuggestReplace, setBatterySuggestReplace] = useState<boolean>(false);
-  const [batteryNotes, setBatteryNotes] = useState('Aki kering 12.6V normal');
+  const [batteryNotes, setBatteryNotes] = useState('');
 
   // Sensor Cleanings — 3 options: 'wajib_clean' | 'rusak' | 'saran_ganti' (single-select radio)
   type SensorStatus = 'wajib_clean' | 'rusak' | 'saran_ganti';
@@ -117,22 +117,22 @@ function NewCheckupPageContent() {
   // 16 Checklist Points — 2 options: 'checklist' | 'saran_ganti' (single-select radio)
   type ChecklistItemStatus = 'checklist' | 'saran_ganti';
   const [checklistItems, setChecklistItems] = useState([
-    { no: 8, label: 'Cek Filter Udara', status: 'checklist' as ChecklistItemStatus, notes: 'Dibersihkan' },
-    { no: 9, label: 'Cek Volume Oli Engine', status: 'checklist' as ChecklistItemStatus, notes: 'Level MAX' },
-    { no: 10, label: 'Cek Minyak Rem', status: 'checklist' as ChecklistItemStatus, notes: 'Normal' },
-    { no: 11, label: 'Cek Minyak Kopling / Level Transmisi Matic', status: 'checklist' as ChecklistItemStatus, notes: 'Normal' },
-    { no: 12, label: 'Cek Minyak Power Steering', status: 'checklist' as ChecklistItemStatus, notes: 'Normal' },
-    { no: 13, label: 'Cek Air Radiator Coolant', status: 'checklist' as ChecklistItemStatus, notes: 'Jernih' },
-    { no: 14, label: 'Cek Vanbelt Engine / AC', status: 'checklist' as ChecklistItemStatus, notes: 'Ketegangan baik' },
-    { no: 15, label: 'Cek Kekencangan Mur Ban Roda', status: 'checklist' as ChecklistItemStatus, notes: '110 Nm' },
-    { no: 16, label: 'Cek Fungsi Lampu All', status: 'checklist' as ChecklistItemStatus, notes: 'Semua nyala' },
-    { no: 17, label: 'Cek Fungsi Tape / Audio', status: 'checklist' as ChecklistItemStatus, notes: 'Normal' },
-    { no: 18, label: 'Cek Klakson Horn', status: 'checklist' as ChecklistItemStatus, notes: 'Normal' },
-    { no: 19, label: 'Cek Wheldop Velg', status: 'checklist' as ChecklistItemStatus, notes: 'Kencang' },
-    { no: 20, label: 'Kebersihan Filter Cabin', status: 'checklist' as ChecklistItemStatus, notes: 'Bersih' },
-    { no: 21, label: 'Cek Tekanan Freon AC (Teknisi AC)', status: 'checklist' as ChecklistItemStatus, notes: '28 Psi' },
-    { no: 22, label: 'Cek Kebersihan Plafon, Doortrim, Stir', status: 'checklist' as ChecklistItemStatus, notes: 'Bersih' },
-    { no: 23, label: 'Riset Kilometer Oli Engine', status: 'checklist' as ChecklistItemStatus, notes: 'Sudah direset' },
+    { no: 8, label: 'Cek Filter Udara', status: 'checklist' as ChecklistItemStatus, notes: '' },
+    { no: 9, label: 'Cek Volume Oli Engine', status: 'checklist' as ChecklistItemStatus, notes: '' },
+    { no: 10, label: 'Cek Minyak Rem', status: 'checklist' as ChecklistItemStatus, notes: '' },
+    { no: 11, label: 'Cek Minyak Kopling / Level Transmisi Matic', status: 'checklist' as ChecklistItemStatus, notes: '' },
+    { no: 12, label: 'Cek Minyak Power Steering', status: 'checklist' as ChecklistItemStatus, notes: '' },
+    { no: 13, label: 'Cek Air Radiator Coolant', status: 'checklist' as ChecklistItemStatus, notes: '' },
+    { no: 14, label: 'Cek Vanbelt Engine / AC', status: 'checklist' as ChecklistItemStatus, notes: '' },
+    { no: 15, label: 'Cek Kekencangan Mur Ban Roda', status: 'checklist' as ChecklistItemStatus, notes: '' },
+    { no: 16, label: 'Cek Fungsi Lampu All', status: 'checklist' as ChecklistItemStatus, notes: '' },
+    { no: 17, label: 'Cek Fungsi Tape / Audio', status: 'checklist' as ChecklistItemStatus, notes: '' },
+    { no: 18, label: 'Cek Klakson Horn', status: 'checklist' as ChecklistItemStatus, notes: '' },
+    { no: 19, label: 'Cek Wheldop Velg', status: 'checklist' as ChecklistItemStatus, notes: '' },
+    { no: 20, label: 'Kebersihan Filter Cabin', status: 'checklist' as ChecklistItemStatus, notes: '' },
+    { no: 21, label: 'Cek Tekanan Freon AC (Teknisi AC)', status: 'checklist' as ChecklistItemStatus, notes: '' },
+    { no: 22, label: 'Cek Kebersihan Plafon, Doortrim, Stir', status: 'checklist' as ChecklistItemStatus, notes: '' },
+    { no: 23, label: 'Riset Kilometer Oli Engine', status: 'checklist' as ChecklistItemStatus, notes: '' },
   ]);
 
   const [fuelLevelFraction, setFuelLevelFraction] = useState('3/4');
@@ -449,12 +449,14 @@ function NewCheckupPageContent() {
           className="w-full text-xs p-3 rounded-xl border border-maroon-300 bg-white focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none font-bold text-slate-900 shadow-xs"
         >
           <option value="">-- Atau Input Manual / Tanpa SPK --</option>
-          {workOrders.map((wo) => (
-            <option key={wo.id} value={wo.id}>
-              {wo.spk_number} • {wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''} •{' '}
-              {wo.vehicle?.customer_name} ({wo.vehicle?.car_brand} {wo.vehicle?.car_model}) - Status: {wo.status.toUpperCase()}
-            </option>
-          ))}
+          {workOrders
+            .filter((wo) => wo.status !== 'completed' && wo.status !== 'cancelled')
+            .map((wo) => (
+              <option key={wo.id} value={wo.id}>
+                {wo.spk_number} • {wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''} •{' '}
+                {wo.vehicle?.customer_name} ({wo.vehicle?.car_brand} {wo.vehicle?.car_model}) - Status: {wo.status.toUpperCase()}
+              </option>
+            ))}
         </select>
 
         {selectedSpkId && (

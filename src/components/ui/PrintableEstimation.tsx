@@ -48,7 +48,7 @@ export function PrintableEstimation({
     printCleanDocument(documentRef.current, `Estimasi Biaya - ${estimation.invoice_number}`);
   };
 
-  const hasOpsi2 = estimation.has_opsi2 !== false;
+  const hasOpsi2 = Boolean(estimation.has_opsi2);
 
   const getWhatsAppMessage = () => {
     return (
@@ -270,23 +270,23 @@ export function PrintableEstimation({
                     <tr key={idx} className="hover:bg-slate-50 estimation-item-row">
                       <td className="p-1.5 text-center font-bold border-r border-slate-300 align-middle">{idx + 1}</td>
                       <td className="p-1.5 border-r border-slate-300 align-middle">
-                        <div className="font-bold text-slate-900 uppercase">{item.name}</div>
+                        <div className="font-bold text-slate-900 uppercase break-words whitespace-normal leading-snug">{item.name}</div>
                       </td>
                       <td className="p-1.5 text-center font-mono font-bold border-r border-slate-300 align-middle">{item.qty || 1}</td>
                       <td className="p-1.5 text-center text-[10px] font-black uppercase text-slate-700 border-r border-slate-300 align-middle">{item.unit || 'PCS'}</td>
                       <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold">
-                        {formatNumberOrText(p1)}
+                        {formatCurrency(p1)}
                       </td>
                       <td className="p-1.5 text-right font-mono font-black text-slate-900 border-r border-slate-300 align-middle">
-                        {formatNumberOrText(tot1)}
+                        {formatCurrency(tot1)}
                       </td>
                       {hasOpsi2 && (
                         <>
                           <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold bg-blue-50/20 text-blue-900">
-                            {formatNumberOrText(p2)}
+                            {formatCurrency(p2)}
                           </td>
                           <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
-                            {formatNumberOrText(tot2)}
+                            {formatCurrency(tot2)}
                           </td>
                         </>
                       )}
@@ -301,13 +301,13 @@ export function PrintableEstimation({
                     JUMLAH KESELURUHAN
                   </td>
                   <td className="p-2 text-right font-mono font-black text-slate-950 border-r border-slate-300 text-sm">
-                    {formatNumberOrText(tot1)}
+                    {formatCurrency(tot1)}
                   </td>
                   {hasOpsi2 && (
                     <>
                       <td className="p-2 bg-blue-50/40 border-r border-slate-300"></td>
                       <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/40 text-sm">
-                        {formatNumberOrText(tot2)}
+                        {formatCurrency(tot2)}
                       </td>
                     </>
                   )}
