@@ -288,8 +288,15 @@ function EstimationBuilderContent() {
     return () => clearInterval(interval);
   }, []);
 
+  // Check whether work order is completed and locked (Owner can always edit / unlock)
+  const isCompleted = selectedSpk?.status === 'completed';
+  const isLocked = isCompleted && currentRole !== 'owner';
+
   // Helper: load estimasi for a specific tab from saved/draft
-  const loadTabData = useCallback((spkId: string, tabId: string, allInvoices: Invoice[]) => {
+  const loadTabData = useCallback((spkOrWo: WorkOrder | string, tabId: string, allInvoices: Invoice[]) => {
+    const spkId = typeof spkOrWo === 'string' ? spkOrWo : spkOrWo.id;
+    const woObj = typeof spkOrWo === 'object' ? spkOrWo : workOrders.find((w) => w.id === spkId);
+
     // 1. Cek invoices state (sudah tersimpan di server/Supabase)
     let existingEst = allInvoices.find(
       (inv) => inv.type === 'estimation' && inv.work_order_id === spkId && ((inv as any).tab_id === tabId || inv.estimation_tab === tabId)
@@ -302,8 +309,8 @@ function EstimationBuilderContent() {
     }
 
     // Fallback 2: cek dari work_order checklist_data yang tersinkronisasi dari Supabase
-    if (!existingEst && selectedSpk?.checklist_data) {
-      existingEst = (selectedSpk.checklist_data as any)[`estimation_${tabId}`] || (tabId === 'tab_1' ? (selectedSpk.checklist_data as any).estimation : undefined);
+    if (!existingEst && woObj?.checklist_data) {
+      existingEst = (woObj.checklist_data as any)[`estimation_${tabId}`] || (tabId === 'tab_1' ? (woObj.checklist_data as any).estimation : undefined);
     }
 
     // 2. Cek localStorage draft
@@ -315,31 +322,21 @@ function EstimationBuilderContent() {
       } catch {}
     }
 
-    const sourceData = draftData || existingEst;
+    // Prioritaskan draft jika memiliki items bermakna
+    const isDraftValid = draftData && (draftData.items?.length > 0 && draftData.items.some((i: any) => i.name?.trim() || (i.price_opsi1 !== undefined && i.price_opsi1 !== 0)));
+    const sourceData = isDraftValid ? draftData : (existingEst || draftData);
     return { sourceData, existingEst };
-  }, [selectedSpk]);
+  }, [workOrders]);
 
   // Helper function to load and populate estimation data for a work order (first tab)
   const loadEstimationForSpk = useCallback((found: WorkOrder) => {
-    // Load tabs yang sudah tersimpan dari localStorage atau Supabase checklist_data
-    let savedTabs: EstimationTab[] = [];
-    if (typeof window !== 'undefined') {
-      try {
-        const tabsRaw = localStorage.getItem(`mhs_est_tabs_${found.id}`);
-        if (tabsRaw) savedTabs = JSON.parse(tabsRaw);
-      } catch {}
-    }
-    if (savedTabs.length === 0 && (found.checklist_data as any)?.tabs) {
-      savedTabs = (found.checklist_data as any).tabs;
-    }
-
-    const tabs = savedTabs.length > 0 ? savedTabs : [{ id: 'tab_1', name: 'Estimasi 1' }];
+    const tabs = discoverTabsForSpk(found, invoices);
     setTabList(tabs);
     const firstTabId = tabs[0].id;
     setActiveTabId(firstTabId);
 
-    // Load data untuk tab pertama
-    const { sourceData, existingEst } = loadTabData(found.id, firstTabId, invoices);
+    // Load data untuk tab pertama dari found (SPK target)
+    const { sourceData, existingEst } = loadTabData(found, firstTabId, invoices);
 
     if (existingEst) {
       setCurrentEstimationRecord(existingEst);
@@ -351,30 +348,18 @@ function EstimationBuilderContent() {
       setEstimationType(sourceData.estimation_type || tabs[0].name || 'Estimasi 1');
       if (sourceData.estimation_date) setEstimationDate(sourceData.estimation_date);
       if (sourceData.estimation_time) setEstimationTime(sourceData.estimation_time);
-      if (sourceData.vehicle_status) setVehicleStatus(sourceData.vehicle_status);
+      if (sourceData.vehicle_status) setVehicleStatus(sourceData.vehicle_status); else setVehicleStatus('Di Tinggal');
       if (sourceData.payment_plan) setPaymentPlan(sourceData.payment_plan);
-      if (sourceData.estimator_name) setEstimatorName(sourceData.estimator_name);
-      if (sourceData.estimator_signature || sourceData.signature_admin_url) {
-        setEstimatorSignature(sourceData.estimator_signature || sourceData.signature_admin_url);
-      } else {
-        setEstimatorSignature('');
-      }
-      if (sourceData.customer_signature || sourceData.signature_customer_url) {
-        setCustomerSignature(sourceData.customer_signature || sourceData.signature_customer_url);
-      } else {
-        setCustomerSignature('');
-      }
-      if (sourceData.customer_signed_name) {
-        setCustomerSignedName(sourceData.customer_signed_name);
-      } else {
-        setCustomerSignedName(found.vehicle?.customer_name || '');
-      }
-      if (sourceData.estimated_duration) setEstimatedDuration(sourceData.estimated_duration);
-      if (sourceData.customer_response) setCustomerResponse(sourceData.customer_response);
-      if (sourceData.customer_response_note) setCustomerResponseNote(sourceData.customer_response_note);
-      setShowDiscount(Boolean(sourceData.has_discount || (sourceData.discount_amount || 0) > 0));
+      setEstimatorName(sourceData.estimator_name || '');
+      setEstimatorSignature(sourceData.estimator_signature || sourceData.signature_admin_url || '');
+      setCustomerSignature(sourceData.customer_signature || sourceData.signature_customer_url || '');
+      setCustomerSignedName(sourceData.customer_signed_name || found.vehicle?.customer_name || '');
+      setEstimatedDuration(sourceData.estimated_duration || '');
+      setCustomerResponse(sourceData.customer_response || '');
+      setCustomerResponseNote(sourceData.customer_response_note || '');
+      setShowDiscount(Boolean(sourceData.has_discount));
       setShowOpsi2(Boolean(sourceData.has_opsi2));
-      setShowTax(Boolean(sourceData.has_tax || (sourceData.tax_percent || 0) > 0));
+      setShowTax(Boolean(sourceData.has_tax));
       setShowRangePrice(Boolean(sourceData.has_range_price));
       setDiscountAmount(sourceData.discount_amount || 0);
       setTaxPercent(sourceData.tax_percent || 11);
@@ -409,7 +394,8 @@ function EstimationBuilderContent() {
         setItems(EMPTY_ESTIMATION_ROW);
       }
     } else {
-      // SPK baru: mulai dengan 1 baris kosong (BUKAN sample data)
+      // SPK baru: MULAI DENGAN 1 BARIS KOSONG & RESET SEMUA STATE BERSIH
+      setEstimationType(tabs[0]?.name || 'Estimasi 1');
       setItems(EMPTY_ESTIMATION_ROW);
       setEstimatorName('');
       setEstimatorSignature('');
@@ -428,6 +414,49 @@ function EstimationBuilderContent() {
     }
   }, [invoices, loadTabData]);
 
+  // Handler pergantian SPK dari dropdown dengan penyimpanan draft sebelumnya secara aman
+  const handleSelectSpk = useCallback((newSpkId: string) => {
+    if (!newSpkId) return;
+
+    // 1. Simpan draft untuk SPK sebelumnya terlebih dahulu sebelum pindah
+    if (selectedSpkId && selectedSpk && !isLocked && lastLoadedSpkId.current === selectedSpkId) {
+      const prevDraftPayload = {
+        items, estimation_type: estimationType, estimation_tab: activeTabId,
+        estimation_date: estimationDate, estimation_time: estimationTime,
+        vehicle_status: vehicleStatus, payment_plan: paymentPlan,
+        estimator_name: estimatorName, estimator_signature: estimatorSignature,
+        customer_signature: customerSignature, customer_signed_name: customerSignedName,
+        estimated_duration: estimatedDuration,
+        customer_response: customerResponse, customer_response_note: customerResponseNote,
+        has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
+        has_range_price: showRangePrice,
+        discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
+      };
+      try {
+        localStorage.setItem(`mhs_est_draft_${selectedSpkId}_${activeTabId}`, JSON.stringify(prevDraftPayload));
+        localStorage.setItem(`mhs_est_tabs_${selectedSpkId}`, JSON.stringify(tabList));
+      } catch {}
+    }
+
+    const targetWo = workOrders.find((w) => w.id === newSpkId);
+    if (!targetWo) return;
+
+    // 2. Tandai SPK yang sedang dimuat
+    lastLoadedSpkId.current = targetWo.id;
+    setSelectedSpkId(targetWo.id);
+    setSelectedSpk(targetWo);
+
+    // 3. Muat data estimasi SPK yang baru dipilih
+    loadEstimationForSpk(targetWo);
+  }, [
+    selectedSpkId, selectedSpk, isLocked, items, estimationType, activeTabId,
+    estimationDate, estimationTime, vehicleStatus, paymentPlan,
+    estimatorName, estimatorSignature, customerSignature, customerSignedName,
+    estimatedDuration, customerResponse, customerResponseNote,
+    showDiscount, showOpsi2, showTax, showRangePrice, discountAmount, taxPercent, adminNotes, tabList,
+    workOrders, loadEstimationForSpk
+  ]);
+
   // Initialize selected SPK and load estimation only on target SPK change
   useEffect(() => {
     if (workOrders.length > 0) {
@@ -436,11 +465,10 @@ function EstimationBuilderContent() {
       if (targetId) {
         const found = workOrders.find((w) => w.id === targetId);
         if (found) {
-          setSelectedSpk(found);
-          if (!selectedSpkId) setSelectedSpkId(found.id);
-
           if (lastLoadedSpkId.current !== found.id) {
             lastLoadedSpkId.current = found.id;
+            setSelectedSpk(found);
+            setSelectedSpkId(found.id);
             loadEstimationForSpk(found);
           } else {
             // SPK sama tapi workOrders/invoices terupdate (misal customer baru saja TTD dari link)
@@ -499,10 +527,6 @@ function EstimationBuilderContent() {
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [selectedSpkId, customerSignature, currentEstimationRecord, syncWithSupabase, refreshData]);
-
-  // Check whether work order is completed and locked (Owner can always edit / unlock)
-  const isCompleted = selectedSpk?.status === 'completed';
-  const isLocked = isCompleted && currentRole !== 'owner';
 
   // Handler: ganti tab aktif (save current, load next)
   const handleSwitchTab = useCallback((tab: EstimationTab) => {
@@ -592,6 +616,9 @@ function EstimationBuilderContent() {
   // Auto-save draft in LocalStorage so edits are never lost when navigating away
   useEffect(() => {
     if (!selectedSpk || !selectedSpkId || isLocked) return;
+    // Cegah draft lama bocor ke SPK baru saat proses pergantian SPK sedang berlangsung
+    if (lastLoadedSpkId.current !== selectedSpkId || selectedSpk.id !== selectedSpkId) return;
+
     const draftPayload = {
       items, estimation_type: estimationType, estimation_tab: activeTabId,
       estimation_date: estimationDate, estimation_time: estimationTime,
@@ -1126,7 +1153,7 @@ function EstimationBuilderContent() {
                 <div className="relative inline-block">
                   <select
                     value={selectedSpkId}
-                    onChange={(e) => setSelectedSpkId(e.target.value)}
+                    onChange={(e) => handleSelectSpk(e.target.value)}
                     className="text-xs font-mono font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1 rounded-lg border border-slate-300 outline-none cursor-pointer"
                   >
                     {workOrders.filter((wo) => wo.status !== 'completed' && wo.status !== 'cancelled').length === 0 ? (
