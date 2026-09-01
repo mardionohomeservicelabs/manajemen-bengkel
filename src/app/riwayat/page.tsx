@@ -38,24 +38,36 @@ export default function HistoryArchivePage() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
   // Filtered SPK
-  const filteredWorkOrders = workOrders.filter((wo) => {
-    const matchesSearch =
-      wo.spk_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (wo.vehicle?.customer_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (wo.vehicle?.license_plate || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || wo.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredWorkOrders = workOrders
+    .filter((wo) => {
+      const matchesSearch =
+        wo.spk_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (wo.vehicle?.customer_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (wo.vehicle?.license_plate || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || wo.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      const timeA = new Date(a.created_at || a.entry_date || 0).getTime() || 0;
+      const timeB = new Date(b.created_at || b.entry_date || 0).getTime() || 0;
+      return timeB - timeA;
+    });
 
   // Filtered Invoices
-  const filteredInvoices = invoices.filter((inv) => {
-    const matchesSearch =
-      inv.invoice_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (inv.vehicle?.customer_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (inv.vehicle?.license_plate || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || inv.payment_status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredInvoices = invoices
+    .filter((inv) => {
+      const matchesSearch =
+        inv.invoice_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (inv.vehicle?.customer_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (inv.vehicle?.license_plate || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || inv.payment_status === statusFilter;
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      const timeA = new Date(a.created_at || 0).getTime() || 0;
+      const timeB = new Date(b.created_at || 0).getTime() || 0;
+      return timeB - timeA;
+    });
 
   return (
     <div>

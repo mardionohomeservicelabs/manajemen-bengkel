@@ -59,17 +59,23 @@ function SPKListContent() {
     }
   }, [targetId, workOrders]);
 
-  const filteredOrders = workOrders.filter((order) => {
-    const vehicle = order.vehicle;
-    const matchesSearch =
-      order.spk_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (vehicle?.customer_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (vehicle?.license_plate || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (vehicle?.car_model || '').toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredOrders = workOrders
+    .filter((order) => {
+      const vehicle = order.vehicle;
+      const matchesSearch =
+        order.spk_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (vehicle?.customer_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (vehicle?.license_plate || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (vehicle?.car_model || '').toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+      const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      const timeA = new Date(a.created_at || a.entry_date || 0).getTime() || 0;
+      const timeB = new Date(b.created_at || b.entry_date || 0).getTime() || 0;
+      return timeB - timeA;
+    });
 
   const handleUpdateStatus = async (id: string, newStatus: WorkOrderStatus) => {
     const success = await updateWorkOrderStatusAsync(id, newStatus);

@@ -646,10 +646,16 @@ export class DBService {
     const orders = getLocal<WorkOrder[]>(key, []);
     const vehicles = this.getVehicles(branch);
 
-    return orders.map((order) => ({
-      ...order,
-      vehicle: vehicles.find((v) => v.id === order.vehicle_id),
-    }));
+    return orders
+      .map((order) => ({
+        ...order,
+        vehicle: vehicles.find((v) => v.id === order.vehicle_id),
+      }))
+      .sort((a, b) => {
+        const timeA = new Date(a.created_at || a.entry_date || 0).getTime() || 0;
+        const timeB = new Date(b.created_at || b.entry_date || 0).getTime() || 0;
+        return timeB - timeA;
+      });
   }
 
   static getWorkOrderById(id: string, branch?: BranchId): WorkOrder | undefined {
@@ -678,7 +684,7 @@ export class DBService {
           ...workOrder,
           id: workOrder.id,
           spk_number: workOrder.spk_number || `SPK-${Date.now().toString().slice(-6)}`,
-          created_at: new Date().toISOString(),
+          created_at: workOrder.created_at || new Date().toISOString(),
           updated_at: new Date().toISOString(),
         } as WorkOrder;
         orders.unshift(saved);
@@ -697,6 +703,12 @@ export class DBService {
       } as WorkOrder;
       orders.unshift(saved);
     }
+
+    orders.sort((a, b) => {
+      const timeA = new Date(a.created_at || a.entry_date || 0).getTime() || 0;
+      const timeB = new Date(b.created_at || b.entry_date || 0).getTime() || 0;
+      return timeB - timeA;
+    });
 
     setLocal(key, orders);
     return this.getWorkOrderById(saved.id, branch) || saved;
@@ -881,7 +893,12 @@ export class DBService {
   // --- GENERAL CHECKUPS (PER CABANG) ---
   static getCheckups(branch?: BranchId): CheckupRecord[] {
     const key = getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, branch);
-    return getLocal<CheckupRecord[]>(key, []);
+    const checkups = getLocal<CheckupRecord[]>(key, []);
+    return checkups.sort((a, b) => {
+      const timeA = new Date(a.created_at || a.check_date || 0).getTime() || 0;
+      const timeB = new Date(b.created_at || b.check_date || 0).getTime() || 0;
+      return timeB - timeA;
+    });
   }
 
   static getCheckupById(id: string, branch?: BranchId): CheckupRecord | undefined {
@@ -899,7 +916,7 @@ export class DBService {
         saved = { ...checkups[idx], ...checkup, updated_at: new Date().toISOString() };
         checkups[idx] = saved;
       } else {
-        saved = { ...checkup, id: checkup.id, created_at: new Date().toISOString() } as CheckupRecord;
+        saved = { ...checkup, id: checkup.id, created_at: checkup.created_at || new Date().toISOString() } as CheckupRecord;
         checkups.unshift(saved);
       }
     } else {
@@ -911,6 +928,12 @@ export class DBService {
       } as CheckupRecord;
       checkups.unshift(saved);
     }
+
+    checkups.sort((a, b) => {
+      const timeA = new Date(a.created_at || a.check_date || 0).getTime() || 0;
+      const timeB = new Date(b.created_at || b.check_date || 0).getTime() || 0;
+      return timeB - timeA;
+    });
 
     setLocal(key, checkups);
     return saved;
@@ -1812,11 +1835,19 @@ export class DBService {
         // SMART MERGE: gabungkan work orders cloud dengan lokal (bukan overwrite brutal)
         allBranches.forEach((b) => {
           const localWOs = getLocal<WorkOrder[]>(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), []);
-          const mergedWOs = smartMergeById<WorkOrder>(cloudWorkOrders[b] || [], localWOs, 'id');
+          const mergedWOs = smartMergeById<WorkOrder>(cloudWorkOrders[b] || [], localWOs, 'id').sort((x, y) => {
+            const timeX = new Date(x.created_at || x.entry_date || 0).getTime() || 0;
+            const timeY = new Date(y.created_at || y.entry_date || 0).getTime() || 0;
+            return timeY - timeX;
+          });
           setLocal(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), mergedWOs);
 
           const localCheckups = getLocal<CheckupRecord[]>(getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, b), []);
-          const mergedCheckups = smartMergeById<CheckupRecord>(cloudCheckups[b] || [], localCheckups, 'id');
+          const mergedCheckups = smartMergeById<CheckupRecord>(cloudCheckups[b] || [], localCheckups, 'id').sort((x, y) => {
+            const timeX = new Date(x.created_at || x.check_date || 0).getTime() || 0;
+            const timeY = new Date(y.created_at || y.check_date || 0).getTime() || 0;
+            return timeY - timeX;
+          });
           setLocal(getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, b), mergedCheckups);
         });
       }

@@ -28,15 +28,21 @@ export default function CheckupPage() {
   const [selectedRecord, setSelectedRecord] = useState<CheckupRecord | null>(null);
   const [editingPlateRecord, setEditingPlateRecord] = useState<CheckupRecord | null>(null);
 
-  const filteredCheckups = checkups.filter((c) => {
-    const matchesTab = activeTab === 'all' || c.type === activeTab;
-    const matchesSearch =
-      c.license_plate.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.document_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.car_model.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesTab && matchesSearch;
-  });
+  const filteredCheckups = checkups
+    .filter((c) => {
+      const matchesTab = activeTab === 'all' || c.type === activeTab;
+      const matchesSearch =
+        c.license_plate.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.document_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.car_model.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesTab && matchesSearch;
+    })
+    .sort((a, b) => {
+      const timeA = new Date(a.created_at || a.check_date || 0).getTime() || 0;
+      const timeB = new Date(b.created_at || b.check_date || 0).getTime() || 0;
+      return timeB - timeA;
+    });
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
