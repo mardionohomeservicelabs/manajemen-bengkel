@@ -160,6 +160,18 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! ðŸ
     setSelectedLog(null);
   };
 
+  const handleQuickMarkFollowup = (log: CRMLog, newStatus: CRMStatus = 'contacted') => {
+    DBService.updateCRMStatus(log.id, newStatus, log.notes, log.scheduled_date, activeBranch);
+    refreshData();
+    const vehicle = log.vehicle || vehicles.find((v) => v.id === log.vehicle_id);
+    const plate = vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '';
+    if (newStatus === 'contacted') {
+      showToast(`Kendaraan ${plate} berhasil ditandai "Sudah Follow-up"!`, 'success');
+    } else {
+      showToast(`Status kendaraan ${plate} dikembalikan ke "${newStatus.toUpperCase()}"`, 'info');
+    }
+  };
+
   const periodLabels: Record<string, { label: string; badgeClass: string; desc: string }> = {
     '1_week': { label: '1 Minggu', badgeClass: 'bg-indigo-100 text-indigo-900 border-indigo-300', desc: 'Kepuasan Servis Awal' },
     '2_weeks': { label: '2 Minggu', badgeClass: 'bg-blue-100 text-blue-900 border-blue-300', desc: 'Performa Mesin & AC' },
@@ -493,7 +505,29 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! ðŸ
                       </td>
 
                       {/* 6. Aksi */}
-                      <td className="p-3.5 text-right whitespace-nowrap">
+                      <td className="p-3.5 text-right whitespace-nowrap space-x-1.5">
+                        {log.status !== 'contacted' && log.status !== 'scheduled' ? (
+                          <button
+                            type="button"
+                            onClick={() => handleQuickMarkFollowup(log, 'contacted')}
+                            className="inline-flex items-center space-x-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-bold text-xs px-3 py-2 rounded-xl transition shadow-xs cursor-pointer"
+                            title="Tandai customer ini sudah di-follow up secara langsung"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Tandai Sudah Follow-up</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleQuickMarkFollowup(log, 'pending')}
+                            className="inline-flex items-center space-x-1 bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 font-medium text-xs px-2.5 py-2 rounded-xl transition cursor-pointer"
+                            title="Klik untuk mereset status kembali ke Belum Dihubungi"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Reset</span>
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           onClick={() => handleOpenContactModal(log)}
@@ -597,20 +631,29 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! ðŸ
                   <span>Kirim WhatsApp &amp; Tandai Sudah Dihubungi</span>
                 </button>
 
-                <div className="flex gap-2 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateStatus('contacted')}
+                    className="py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl font-bold text-[11px] transition inline-flex items-center justify-center space-x-1"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+                    <span>âœ“ Sudah Follow-up</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleUpdateStatus('scheduled')}
-                    className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl font-bold text-[11px] transition"
+                    className="py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl font-bold text-[11px] transition inline-flex items-center justify-center space-x-1"
                   >
-                    Set: Booking Dibuat
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Booking Dibuat</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleUpdateStatus('declined')}
-                    className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-800 border border-red-200 rounded-xl font-bold text-[11px] transition"
+                    className="py-2 bg-red-50 hover:bg-red-100 text-red-800 border border-red-200 rounded-xl font-bold text-[11px] transition inline-flex items-center justify-center space-x-1"
                   >
-                    Set: Ditolak / Tunda
+                    <span>Ditolak / Tunda</span>
                   </button>
                 </div>
               </div>
