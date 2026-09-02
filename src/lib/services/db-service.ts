@@ -4,6 +4,7 @@ import {
   WorkOrder,
   Invoice,
   CRMLog,
+  CRMReminderPeriod,
   WorkshopSettings,
   StockMovement,
   AuditLog,
@@ -1807,26 +1808,95 @@ export class DBService {
   // --- CRM & SERVICE REMINDERS (PER CABANG) ---
   static getCRMLogs(branch?: BranchId): CRMLog[] {
     const key = getBranchKey(BASE_STORAGE_KEYS.CRM_LOGS, branch);
-    const logs = getLocal<CRMLog[]>(key, []);
+    const manualLogs = getLocal<CRMLog[]>(key, []);
     const vehicles = this.getVehicles(branch);
-    return logs.map((log) => ({
+    const workOrders = this.getWorkOrders(branch).filter((w) => w.status === 'completed');
+
+    // Buat map log manual/tersimpan agar status update (contacted/scheduled/notes) tidak hilang
+    const logsMap = new Map<string, CRMLog>();
+    manualLogs.forEach((l) => {
+      logsMap.set(l.id, l);
+    });
+
+    // Otomatis generate 4 milestone follow-up untuk setiap SPK yang sudah selesai
+    workOrders.forEach((wo) => {
+      const v = wo.vehicle || vehicles.find((veh) => veh.id === wo.vehicle_id);
+      const finishDateStr = wo.finish_date || wo.updated_at || wo.entry_date || new Date().toISOString();
+      const finishTime = new Date(finishDateStr).getTime();
+
+      const milestones: { period: CRMReminderPeriod; days: number }[] = [
+        { period: '1_week', days: 7 },
+        { period: '2_weeks', days: 14 },
+        { period: '1_month', days: 30 },
+        { period: '3_months', days: 90 },
+      ];
+
+      milestones.forEach(({ period, days }) => {
+        const logId = `crm-${wo.id}-${period}`;
+        const dueDate = new Date(finishTime + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+        if (!logsMap.has(logId)) {
+          const newLog: CRMLog = {
+            id: logId,
+            vehicle_id: wo.vehicle_id,
+            work_order_id: wo.id,
+            spk_number: wo.spk_number,
+            service_date: finishDateStr,
+            due_date: dueDate,
+            reminder_type: period,
+            status: 'pending',
+            created_at: wo.created_at || new Date().toISOString(),
+            updated_at: wo.updated_at || new Date().toISOString(),
+          };
+          logsMap.set(logId, newLog);
+        } else {
+          const existing = logsMap.get(logId)!;
+          if (!existing.spk_number) existing.spk_number = wo.spk_number;
+          if (!existing.work_order_id) existing.work_order_id = wo.id;
+          if (!existing.service_date) existing.service_date = finishDateStr;
+          if (!existing.due_date) existing.due_date = dueDate;
+        }
+      });
+    });
+
+    const allLogs = Array.from(logsMap.values()).map((log) => ({
       ...log,
       vehicle: vehicles.find((v) => v.id === log.vehicle_id),
+      work_order: workOrders.find((w) => w.id === log.work_order_id || w.spk_number === log.spk_number),
     }));
+
+    // Urutkan berdasarkan due_date (yang paling dekat/overdue di paling atas)
+    return allLogs.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
   }
 
-  static updateCRMStatus(id: string, status: CRMLog['status'], notes?: string, branch?: BranchId): boolean {
+  static updateCRMStatus(id: string, status: CRMLog['status'], notes?: string, scheduledDate?: string, branch?: BranchId): boolean {
     const key = getBranchKey(BASE_STORAGE_KEYS.CRM_LOGS, branch);
     const logs = getLocal<CRMLog[]>(key, []);
     const idx = logs.findIndex((l) => l.id === id);
-    if (idx === -1) return false;
 
-    logs[idx].status = status;
-    logs[idx].contacted_at = new Date().toISOString();
-    if (notes !== undefined) logs[idx].notes = notes;
-    logs[idx].updated_at = new Date().toISOString();
-
-    setLocal(key, logs);
+    if (idx !== -1) {
+      logs[idx].status = status;
+      logs[idx].contacted_at = new Date().toISOString();
+      if (notes !== undefined) logs[idx].notes = notes;
+      if (scheduledDate !== undefined) logs[idx].scheduled_date = scheduledDate;
+      logs[idx].updated_at = new Date().toISOString();
+      setLocal(key, logs);
+    } else {
+      // Jika update status untuk log yang baru dibuat dari milestone
+      const newEntry: CRMLog = {
+        id,
+        vehicle_id: '',
+        due_date: new Date().toISOString().slice(0, 10),
+        reminder_type: 'custom',
+        status,
+        contacted_at: new Date().toISOString(),
+        notes,
+        scheduled_date: scheduledDate,
+        updated_at: new Date().toISOString(),
+      };
+      logs.push(newEntry);
+      setLocal(key, logs);
+    }
     return true;
   }
 

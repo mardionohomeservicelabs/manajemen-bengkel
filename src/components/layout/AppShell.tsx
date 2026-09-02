@@ -20,7 +20,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       router.push('/login');
     } else if (!isLoading && isAuthenticated && isMekanik && !pathname.startsWith('/checkup') && !isPublicPage) {
       router.replace('/checkup');
-    } else if (!isLoading && isAuthenticated && isEstimator && !pathname.startsWith('/estimasi') && !isPublicPage) {
+    } else if (!isLoading && isAuthenticated && isEstimator && !pathname.startsWith('/estimasi') && !pathname.startsWith('/crm') && !isPublicPage) {
       router.replace('/estimasi');
     }
   }, [isLoading, isAuthenticated, isPublicPage, isMekanik, isEstimator, pathname, router]);
@@ -74,8 +74,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Estimator mencoba membuka halaman non-estimasi: tampilkan pesan akses terbatas selagi redirect
-  if (isEstimator && !pathname.startsWith('/estimasi')) {
+  // Estimator mencoba membuka halaman selain estimasi dan CRM: tampilkan pesan akses terbatas selagi redirect
+  if (isEstimator && !pathname.startsWith('/estimasi') && !pathname.startsWith('/crm')) {
     return (
       <div className="flex min-h-screen">
         <Sidebar />
@@ -84,11 +84,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto flex items-center justify-center">
             <div className="text-center p-8 bg-white rounded-2xl border border-slate-200 shadow-card max-w-md">
               <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto mb-3 font-black text-sm">
-                EST
+                CRM
               </div>
-              <h2 className="text-base font-black text-slate-900">Hak Akses Estimasi Biaya</h2>
+              <h2 className="text-base font-black text-slate-900">Hak Akses Estimasi &amp; CRM</h2>
               <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                Akun Anda dikhususkan untuk modul <strong>Estimasi Biaya</strong> untuk seluruh cabang. Mengalihkan ke modul estimasi...
+                Akun Anda memiliki akses ke modul <strong>Estimasi Biaya</strong> dan <strong>CRM &amp; Reminder</strong> untuk seluruh cabang. Mengalihkan...
               </p>
             </div>
           </main>

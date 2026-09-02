@@ -400,12 +400,26 @@ export interface StockMovement {
   created_at: string;
 }
 
+export type CRMReminderPeriod =
+  | '1_week'
+  | '2_weeks'
+  | '1_month'
+  | '3_months'
+  | 'custom'
+  | 'periodic_service'
+  | 'ac_cleaning'
+  | 'oil_change'
+  | 'general_check';
+
 export interface CRMLog {
   id: string;
   vehicle_id: string;
+  work_order_id?: string;
+  spk_number?: string;
   last_service_id?: string;
+  service_date?: string;
   due_date: string;
-  reminder_type: 'periodic_service' | 'ac_cleaning' | 'oil_change' | 'general_check';
+  reminder_type: CRMReminderPeriod;
   status: CRMStatus;
   contacted_at?: string;
   scheduled_date?: string;
@@ -416,6 +430,7 @@ export interface CRMLog {
 
   // Joined fields
   vehicle?: VehicleCustomer;
+  work_order?: WorkOrder;
 }
 
 export interface WorkshopSettings {

@@ -199,5 +199,5 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Admin',
   sa: 'Service Advisor',
   mekanik: 'Mekanik',
-  estimator: 'Estimator Biaya',
+  estimator: 'Estimator & CRM',
 };

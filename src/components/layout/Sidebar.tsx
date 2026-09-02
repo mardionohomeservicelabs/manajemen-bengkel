@@ -122,7 +122,7 @@ export function Sidebar() {
       name: 'CRM & Reminder',
       href: '/crm',
       icon: <MessageSquare className="w-4 h-4" />,
-      roles: ['admin', 'owner'],
+      roles: ['admin', 'owner', 'estimator'],
       badge: pendingCrmCount > 0 ? pendingCrmCount : undefined,
       badgeColor: 'bg-maroon-700 text-white',
     },
@@ -182,7 +182,7 @@ export function Sidebar() {
     currentRole === 'mekanik'
       ? navItems.filter((item) => item.roles.includes('mekanik'))
       : currentRole === 'estimator'
-      ? navItems.filter((item) => item.href === '/estimasi')
+      ? navItems.filter((item) => item.href === '/estimasi' || item.href === '/crm')
       : navItems;
 
   return (
