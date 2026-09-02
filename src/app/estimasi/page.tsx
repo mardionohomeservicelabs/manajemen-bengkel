@@ -119,15 +119,13 @@ const discoverTabsForSpk = (found: WorkOrder, allInvoices: Invoice[]): Estimatio
     });
   }
 
-  // 3. Cek invoices (database Supabase / local) untuk SPK ini
+  // 3. Cek invoices (database Supabase / local) untuk SPK ini secara STRICT
   const spkInvoices = allInvoices.filter(
     (inv) =>
       inv.type === 'estimation' &&
       (inv.work_order_id === found.id ||
-        inv.work_order_id === found.spk_number ||
-        inv.id === found.id ||
-        (inv.work_order?.spk_number && inv.work_order.spk_number === found.spk_number) ||
-        (found.spk_number && inv.invoice_number && inv.invoice_number.includes(found.spk_number)))
+        (found.spk_number && inv.work_order_id === found.spk_number) ||
+        (inv.work_order?.spk_number && found.spk_number && inv.work_order.spk_number === found.spk_number))
   );
   spkInvoices.forEach((inv: any, idx) => {
     const tabId = inv.tab_id || inv.estimation_tab || (idx === 0 ? 'tab_1' : `tab_inv_${inv.id}`);
@@ -299,6 +297,7 @@ function EstimationBuilderContent() {
   const [currentClock, setCurrentClock] = useState<string>('');
   const [currentDateStr, setCurrentDateStr] = useState<string>('');
   const lastLoadedSpkId = useRef<string>('');
+  const loadedFormSpkIdRef = useRef<string>('');
 
   useEffect(() => {
     const updateTime = () => {
@@ -325,15 +324,13 @@ function EstimationBuilderContent() {
     const woObj = typeof spkOrWo === 'object' ? spkOrWo : workOrders.find((w) => w.id === spkId || w.spk_number === spkId);
     const spkNumber = typeof spkOrWo === 'object' ? spkOrWo.spk_number : woObj?.spk_number;
 
-    // 1. Cek invoices state (sudah tersimpan di server/Supabase)
+    // 1. Cek invoices state (sudah tersimpan di server/Supabase) - STRICT MATCHING
     let existingEst = allInvoices.find(
       (inv) =>
         inv.type === 'estimation' &&
         (inv.work_order_id === spkId ||
           (spkNumber && inv.work_order_id === spkNumber) ||
-          inv.id === spkId ||
-          (inv.work_order?.spk_number && spkNumber && inv.work_order.spk_number === spkNumber) ||
-          (spkNumber && inv.invoice_number && inv.invoice_number.includes(spkNumber))) &&
+          (inv.work_order?.spk_number && spkNumber && inv.work_order.spk_number === spkNumber)) &&
         ((inv as any).tab_id === tabId || inv.estimation_tab === tabId)
     );
     // Fallback: cari berdasarkan estimation_tab (untuk data lama tanpa tab_id)
@@ -343,36 +340,42 @@ function EstimationBuilderContent() {
           inv.type === 'estimation' &&
           (inv.work_order_id === spkId ||
             (spkNumber && inv.work_order_id === spkNumber) ||
-            inv.id === spkId ||
-            (inv.work_order?.spk_number && spkNumber && inv.work_order.spk_number === spkNumber) ||
-            (spkNumber && inv.invoice_number && inv.invoice_number.includes(spkNumber)))
+            (inv.work_order?.spk_number && spkNumber && inv.work_order.spk_number === spkNumber))
       );
     }
 
     // Fallback 2: cek dari work_order checklist_data yang tersinkronisasi dari Supabase
     if (!existingEst && woObj?.checklist_data) {
-      existingEst = (woObj.checklist_data as any)[`estimation_${tabId}`] || (tabId === 'tab_1' ? (woObj.checklist_data as any).estimation : undefined);
+      const cl = woObj.checklist_data as any;
+      const keyEst = cl[`estimation_${tabId}`] || (tabId === 'tab_1' ? cl.estimation : undefined);
+      if (keyEst && keyEst.items && keyEst.items.length > 0) {
+        existingEst = keyEst;
+      }
     }
 
-    // 2. Cek localStorage draft (spkNumber lalu spkId)
+    // 2. Cek localStorage draft (hanya untuk ID atau nomor SPK yang sama persis)
     let draftData: any = null;
     if (typeof window !== 'undefined') {
       try {
-        const draftRaw =
-          (spkNumber && localStorage.getItem(`mhs_est_draft_${spkNumber}_${tabId}`)) ||
-          localStorage.getItem(`mhs_est_draft_${spkId}_${tabId}`);
-        if (draftRaw) draftData = JSON.parse(draftRaw);
+        const d1 = localStorage.getItem(`mhs_est_draft_${spkId}_${tabId}`);
+        const d2 = spkNumber ? localStorage.getItem(`mhs_est_draft_${spkNumber}_${tabId}`) : null;
+        if (d1) draftData = JSON.parse(d1);
+        else if (d2) draftData = JSON.parse(d2);
       } catch {}
     }
 
-    // Prioritaskan draft jika memiliki items bermakna
+    // Prioritas: Jika existingEst (data tersimpan resmi di DB) ada, utamakan existingEst!
+    // Draft hanya digunakan jika tidak ada existingEst atau draft valid
     const isDraftValid = draftData && (draftData.items?.length > 0 && draftData.items.some((i: any) => i.name?.trim() || (i.price_opsi1 !== undefined && i.price_opsi1 !== 0)));
-    const sourceData = isDraftValid ? draftData : (existingEst || draftData);
+    const sourceData = existingEst || (isDraftValid ? draftData : null);
     return { sourceData, existingEst };
   }, [workOrders]);
 
   // Helper function to load and populate estimation data for a work order (first tab)
   const loadEstimationForSpk = useCallback((found: WorkOrder) => {
+    // Kunci loadedFormSpkIdRef agar auto-save tidak jalan selama proses pergantian state
+    loadedFormSpkIdRef.current = '';
+
     const tabs = discoverTabsForSpk(found, invoices);
     setTabList(tabs);
     const firstTabId = tabs[0].id;
@@ -393,7 +396,7 @@ function EstimationBuilderContent() {
       if (sourceData.estimation_time) setEstimationTime(sourceData.estimation_time);
       if (sourceData.vehicle_status) setVehicleStatus(sourceData.vehicle_status); else setVehicleStatus('Di Tinggal');
       if (sourceData.payment_plan) setPaymentPlan(sourceData.payment_plan);
-      setEstimatorName(sourceData.estimator_name || '');
+      setEstimatorName(sourceData.estimator_name || currentUser?.full_name || (currentRole === 'estimator' ? 'Via Rizkiana' : ''));
       setEstimatorSignature(sourceData.estimator_signature || sourceData.signature_admin_url || '');
       setCustomerSignature(sourceData.customer_signature || sourceData.signature_customer_url || '');
       setCustomerSignedName(sourceData.customer_signed_name || found.vehicle?.customer_name || '');
@@ -440,7 +443,7 @@ function EstimationBuilderContent() {
       // SPK baru: MULAI DENGAN 1 BARIS KOSONG & RESET SEMUA STATE BERSIH
       setEstimationType(tabs[0]?.name || 'Estimasi 1');
       setItems(EMPTY_ESTIMATION_ROW);
-      setEstimatorName('');
+      setEstimatorName(currentUser?.full_name || (currentRole === 'estimator' ? 'Via Rizkiana' : ''));
       setEstimatorSignature('');
       setCustomerSignature('');
       setCustomerSignedName(found.vehicle?.customer_name || '');
@@ -455,14 +458,17 @@ function EstimationBuilderContent() {
       setShowRangePrice(false);
       setDiscountAmount(0);
     }
-  }, [invoices, loadTabData]);
+
+    // Tandai form state ini valid milik SPK target
+    loadedFormSpkIdRef.current = found.id;
+  }, [invoices, loadTabData, currentUser, currentRole]);
 
   // Handler pergantian SPK dari dropdown dengan penyimpanan draft sebelumnya secara aman
   const handleSelectSpk = useCallback((newSpkId: string) => {
     if (!newSpkId) return;
 
-    // 1. Simpan draft untuk SPK sebelumnya terlebih dahulu sebelum pindah
-    if (selectedSpkId && selectedSpk && !isLocked && lastLoadedSpkId.current === selectedSpkId) {
+    // 1. Simpan draft untuk SPK sebelumnya HANYA JIKA form memang milik SPK tersebut
+    if (selectedSpkId && selectedSpk && !isLocked && loadedFormSpkIdRef.current === selectedSpk.id) {
       const prevDraftPayload = {
         items, estimation_type: estimationType, estimation_tab: activeTabId,
         estimation_date: estimationDate, estimation_time: estimationTime,
@@ -476,26 +482,29 @@ function EstimationBuilderContent() {
         discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
       };
       try {
-        localStorage.setItem(`mhs_est_draft_${selectedSpkId}_${activeTabId}`, JSON.stringify(prevDraftPayload));
+        localStorage.setItem(`mhs_est_draft_${selectedSpk.id}_${activeTabId}`, JSON.stringify(prevDraftPayload));
         if (selectedSpk?.spk_number) {
           localStorage.setItem(`mhs_est_draft_${selectedSpk.spk_number}_${activeTabId}`, JSON.stringify(prevDraftPayload));
         }
-        localStorage.setItem(`mhs_est_tabs_${selectedSpkId}`, JSON.stringify(tabList));
+        localStorage.setItem(`mhs_est_tabs_${selectedSpk.id}`, JSON.stringify(tabList));
         if (selectedSpk?.spk_number) {
           localStorage.setItem(`mhs_est_tabs_${selectedSpk.spk_number}`, JSON.stringify(tabList));
         }
       } catch {}
     }
 
+    // 2. Kunci loadedFormSpkIdRef agar auto-save tidak jalan selama proses pergantian
+    loadedFormSpkIdRef.current = '';
+
     const targetWo = workOrders.find((w) => w.id === newSpkId);
     if (!targetWo) return;
 
-    // 2. Tandai SPK yang sedang dimuat
+    // 3. Tandai SPK yang sedang dimuat
     lastLoadedSpkId.current = targetWo.id;
     setSelectedSpkId(targetWo.id);
     setSelectedSpk(targetWo);
 
-    // 3. Muat data estimasi SPK yang baru dipilih
+    // 4. Muat data estimasi SPK yang baru dipilih
     loadEstimationForSpk(targetWo);
   }, [
     selectedSpkId, selectedSpk, isLocked, items, estimationType, activeTabId,
@@ -665,7 +674,8 @@ function EstimationBuilderContent() {
   // Auto-save draft in LocalStorage so edits are never lost when navigating away
   useEffect(() => {
     if (!selectedSpk || !selectedSpkId || isLocked) return;
-    // Cegah draft lama bocor ke SPK baru saat proses pergantian SPK sedang berlangsung
+    // Cegah draft bocor: HANYA simpan jika form memang milik selectedSpk yang aktif
+    if (loadedFormSpkIdRef.current !== selectedSpk.id) return;
     if (lastLoadedSpkId.current !== selectedSpkId || selectedSpk.id !== selectedSpkId) return;
 
     const draftPayload = {
@@ -681,11 +691,11 @@ function EstimationBuilderContent() {
       discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
     };
     try {
-      localStorage.setItem(`mhs_est_draft_${selectedSpkId}_${activeTabId}`, JSON.stringify(draftPayload));
+      localStorage.setItem(`mhs_est_draft_${selectedSpk.id}_${activeTabId}`, JSON.stringify(draftPayload));
       if (selectedSpk.spk_number) {
         localStorage.setItem(`mhs_est_draft_${selectedSpk.spk_number}_${activeTabId}`, JSON.stringify(draftPayload));
       }
-      localStorage.setItem(`mhs_est_tabs_${selectedSpkId}`, JSON.stringify(tabList));
+      localStorage.setItem(`mhs_est_tabs_${selectedSpk.id}`, JSON.stringify(tabList));
       if (selectedSpk.spk_number) {
         localStorage.setItem(`mhs_est_tabs_${selectedSpk.spk_number}`, JSON.stringify(tabList));
       }
@@ -2179,6 +2189,41 @@ function EstimationBuilderContent() {
             </div>
 
             <div className="flex items-center space-x-2.5">
+              {!isLocked && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('Kosongkan semua baris dan bersihkan draft estimasi untuk mobil ini?')) {
+                      setItems(EMPTY_ESTIMATION_ROW);
+                      setDiscountAmount(0);
+                      setShowDiscount(false);
+                      setShowOpsi2(false);
+                      setShowTax(false);
+                      setShowRangePrice(false);
+                      setAdminNotes('');
+                      setEstimatedDuration('');
+                      setCustomerResponse('');
+                      setCustomerResponseNote('');
+                      setCustomerSignature('');
+                      if (selectedSpk) {
+                        try {
+                          localStorage.removeItem(`mhs_est_draft_${selectedSpk.id}_${activeTabId}`);
+                          if (selectedSpk.spk_number) {
+                            localStorage.removeItem(`mhs_est_draft_${selectedSpk.spk_number}_${activeTabId}`);
+                          }
+                        } catch {}
+                      }
+                      showToast('Form estimasi dibersihkan.', 'info');
+                    }
+                  }}
+                  className="inline-flex items-center space-x-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3.5 py-2.5 rounded-xl border border-slate-300 transition cursor-pointer"
+                  title="Bersihkan baris dan draft estimasi"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Reset Form</span>
+                </button>
+              )}
+
               {isLocked ? (
                 <div className="inline-flex items-center space-x-1.5 bg-slate-200 text-slate-600 font-bold text-xs px-5 py-2.5 rounded-xl cursor-not-allowed border border-slate-300">
                   <Lock className="w-4 h-4 text-amber-600" />
