@@ -7,6 +7,7 @@ import {
   formatDateTime,
   formatPlate,
   createWhatsAppLink,
+  formatKM,
 } from '@/lib/utils';
 import { printCleanDocument } from '@/lib/utils/print-helper';
 import {
@@ -57,7 +58,7 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
       `Berikut konfirmasi Dokumen Surat Perintah Kerja Bengkel (PKB) dari ${settings.name}:\n\n` +
       `No. PKB: ${workOrder.spk_number}\n` +
       `Unit: ${vehicle?.car_brand} ${vehicle?.car_model} (${vehicle?.license_plate})\n` +
-      `KM: ${vehicle?.current_mileage?.toLocaleString('id-ID')} KM\n` +
+      `KM: ${formatKM(vehicle?.current_mileage)}\n` +
       `Keluhan: ${workOrder.complaints}\n\n` +
       `Status: Sedang dalam penanganan teknisi bengkel.\n` +
       `Terima kasih telah mempercayakan kendaraan Anda kepada kami.`
@@ -150,7 +151,7 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
 
           {/* Title Header: PERINTAH KERJA BENGKEL */}
           <div className="text-center pb-0.5">
-            <h2 className="text-xs sm:text-sm font-black tracking-wider uppercase text-slate-900 border-b-2 border-slate-900 inline-block pb-0.5">
+            <h2 className="text-sm font-black tracking-wider uppercase text-slate-900 border-b-2 border-slate-900 inline-block pb-0.5">
               PERINTAH KERJA BENGKEL — BARU
             </h2>
           </div>
@@ -181,7 +182,7 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
             <div className="space-y-1 pl-1">
               <div className="grid grid-cols-12 gap-1">
                 <span className="col-span-4 text-slate-600 font-bold">No Pol</span>
-                <span className="col-span-8 font-mono font-black text-[#8B0000] text-xs sm:text-sm">: {vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'}</span>
+                <span className="col-span-8 font-mono font-black text-[#8B0000] text-sm">: {vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'}</span>
               </div>
               <div className="grid grid-cols-12 gap-1">
                 <span className="col-span-4 text-slate-600 font-bold">No PKB</span>
@@ -193,7 +194,7 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
               </div>
               <div className="grid grid-cols-12 gap-1">
                 <span className="col-span-4 text-slate-600 font-bold">KM</span>
-                <span className="col-span-8 font-mono font-bold text-slate-950">: {vehicle?.current_mileage ? vehicle.current_mileage.toLocaleString('id-ID') : '-'}</span>
+                <span className="col-span-8 font-mono font-bold text-slate-950">: {formatKM(vehicle?.current_mileage, false)}</span>
               </div>
             </div>
           </div>

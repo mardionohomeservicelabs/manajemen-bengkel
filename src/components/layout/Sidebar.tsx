@@ -38,7 +38,7 @@ interface NavItem {
   name: string;
   href: string;
   icon: React.ReactNode;
-  roles: ('sa' | 'admin' | 'owner' | 'mekanik')[];
+  roles: ('sa' | 'admin' | 'owner' | 'mekanik' | 'estimator')[];
   badge?: number | string;
   badgeColor?: string;
 }
@@ -96,7 +96,7 @@ export function Sidebar() {
       name: 'Estimasi Biaya',
       href: '/estimasi',
       icon: <Calculator className="w-4 h-4" />,
-      roles: ['admin', 'owner'],
+      roles: ['admin', 'owner', 'estimator'],
     },
     {
       name: 'Kasir & Nota Servis',
@@ -177,10 +177,12 @@ export function Sidebar() {
     </div>
   );
 
-  // Khusus role mekanik hanya tampilkan menu yang diizinkan
+  // Filter menu navigasi sesuai role user
   const displayedNavItems =
     currentRole === 'mekanik'
       ? navItems.filter((item) => item.roles.includes('mekanik'))
+      : currentRole === 'estimator'
+      ? navItems.filter((item) => item.href === '/estimasi')
       : navItems;
 
   return (

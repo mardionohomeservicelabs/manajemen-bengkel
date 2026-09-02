@@ -10,6 +10,7 @@ import {
   formatDateTime,
   formatPlate,
   createWhatsAppLink,
+  formatKM,
 } from '@/lib/utils';
 import {
   ClipboardList,
@@ -210,7 +211,7 @@ function SPKListContent() {
                         )}
                         <div className="flex flex-wrap gap-1 items-center text-[9.5px] mt-1.5">
                           <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-mono font-bold">
-                            KM: {vehicle?.current_mileage?.toLocaleString('id-ID')}
+                            KM: {formatKM(vehicle?.current_mileage, false)}
                           </span>
                           <span className={`px-1.5 py-0.5 rounded font-bold ${order.vehicle_status === 'Ditinggal' ? 'bg-indigo-50 text-indigo-800' : 'bg-amber-50 text-amber-800'}`}>
                             {order.vehicle_status || 'Ditunggu'}

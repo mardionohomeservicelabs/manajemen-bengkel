@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useApp } from '@/lib/context/AppContext';
+import { useAuth } from '@/lib/context/AuthContext';
 import { DBService } from '@/lib/services/db-service';
 import { Invoice, InvoiceItem, InventoryItem, WorkOrder } from '@/lib/types/database';
 import { formatCurrency, formatPlate, generateInvoiceNumber, createWhatsAppLink } from '@/lib/utils';
@@ -84,10 +85,12 @@ const parseNumericPriceValue = (val: any): { isText: boolean; isRange: boolean; 
 const discoverTabsForSpk = (found: WorkOrder, allInvoices: Invoice[]): EstimationTab[] => {
   const tabsMap = new Map<string, EstimationTab>();
 
-  // 1. Cek localStorage tabs
+  // 1. Cek localStorage tabs (baik dengan spk_number maupun id)
   if (typeof window !== 'undefined') {
     try {
-      const tabsRaw = localStorage.getItem(`mhs_est_tabs_${found.id}`);
+      const tabsRaw =
+        (found.spk_number && localStorage.getItem(`mhs_est_tabs_${found.spk_number}`)) ||
+        localStorage.getItem(`mhs_est_tabs_${found.id}`);
       if (tabsRaw) {
         const parsed: EstimationTab[] = JSON.parse(tabsRaw);
         if (Array.isArray(parsed)) {
@@ -118,7 +121,13 @@ const discoverTabsForSpk = (found: WorkOrder, allInvoices: Invoice[]): Estimatio
 
   // 3. Cek invoices (database Supabase / local) untuk SPK ini
   const spkInvoices = allInvoices.filter(
-    (inv) => inv.type === 'estimation' && (inv.work_order_id === found.id || inv.id === found.id)
+    (inv) =>
+      inv.type === 'estimation' &&
+      (inv.work_order_id === found.id ||
+        inv.work_order_id === found.spk_number ||
+        inv.id === found.id ||
+        (inv.work_order?.spk_number && inv.work_order.spk_number === found.spk_number) ||
+        (found.spk_number && inv.invoice_number && inv.invoice_number.includes(found.spk_number)))
   );
   spkInvoices.forEach((inv: any, idx) => {
     const tabId = inv.tab_id || inv.estimation_tab || (idx === 0 ? 'tab_1' : `tab_inv_${inv.id}`);
@@ -151,13 +160,15 @@ const discoverTabsForSpk = (found: WorkOrder, allInvoices: Invoice[]): Estimatio
     });
   }
 
-  // 5. Cek localStorage draft keys
+  // 5. Cek localStorage draft keys (spk_number dan id)
   if (typeof window !== 'undefined') {
     try {
+      const idPrefix = `mhs_est_draft_${found.id}_`;
+      const numPrefix = found.spk_number ? `mhs_est_draft_${found.spk_number}_` : '';
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k.startsWith(`mhs_est_draft_${found.id}_`)) {
-          const tabId = k.replace(`mhs_est_draft_${found.id}_`, '');
+        if (k && (k.startsWith(idPrefix) || (numPrefix && k.startsWith(numPrefix)))) {
+          const tabId = numPrefix && k.startsWith(numPrefix) ? k.replace(numPrefix, '') : k.replace(idPrefix, '');
           if (!tabsMap.has(tabId)) {
             try {
               const draft = JSON.parse(localStorage.getItem(k) || '{}');
@@ -228,10 +239,26 @@ function EstimationBuilderContent() {
   const [vehicleStatus, setVehicleStatus] = useState<string>('Di Tinggal');
   const [paymentPlan, setPaymentPlan] = useState<string>('Transfer');
 
+  const { currentUser } = useAuth();
+
   // Estimator/SA name, signature & estimated work duration (baru)
-  const [estimatorName, setEstimatorName] = useState<string>('');
+  const [estimatorName, setEstimatorName] = useState<string>(() => {
+    if (currentUser?.full_name) return currentUser.full_name;
+    if (currentRole === 'estimator') return 'Via Rizkiana';
+    return '';
+  });
   const [estimatorSignature, setEstimatorSignature] = useState<string>('');
   const [estimatedDuration, setEstimatedDuration] = useState<string>('');
+
+  useEffect(() => {
+    if (!estimatorName) {
+      if (currentUser?.full_name) {
+        setEstimatorName(currentUser.full_name);
+      } else if (currentRole === 'estimator') {
+        setEstimatorName('Via Rizkiana');
+      }
+    }
+  }, [currentUser, currentRole, estimatorName]);
 
   // Customer signature & signed name directly on estimation form
   const [customerSignature, setCustomerSignature] = useState<string>('');
@@ -295,16 +322,30 @@ function EstimationBuilderContent() {
   // Helper: load estimasi for a specific tab from saved/draft
   const loadTabData = useCallback((spkOrWo: WorkOrder | string, tabId: string, allInvoices: Invoice[]) => {
     const spkId = typeof spkOrWo === 'string' ? spkOrWo : spkOrWo.id;
-    const woObj = typeof spkOrWo === 'object' ? spkOrWo : workOrders.find((w) => w.id === spkId);
+    const woObj = typeof spkOrWo === 'object' ? spkOrWo : workOrders.find((w) => w.id === spkId || w.spk_number === spkId);
+    const spkNumber = typeof spkOrWo === 'object' ? spkOrWo.spk_number : woObj?.spk_number;
 
     // 1. Cek invoices state (sudah tersimpan di server/Supabase)
     let existingEst = allInvoices.find(
-      (inv) => inv.type === 'estimation' && inv.work_order_id === spkId && ((inv as any).tab_id === tabId || inv.estimation_tab === tabId)
+      (inv) =>
+        inv.type === 'estimation' &&
+        (inv.work_order_id === spkId ||
+          (spkNumber && inv.work_order_id === spkNumber) ||
+          inv.id === spkId ||
+          (inv.work_order?.spk_number && spkNumber && inv.work_order.spk_number === spkNumber) ||
+          (spkNumber && inv.invoice_number && inv.invoice_number.includes(spkNumber))) &&
+        ((inv as any).tab_id === tabId || inv.estimation_tab === tabId)
     );
     // Fallback: cari berdasarkan estimation_tab (untuk data lama tanpa tab_id)
     if (!existingEst && tabId === 'tab_1') {
       existingEst = allInvoices.find(
-        (inv) => inv.type === 'estimation' && inv.work_order_id === spkId
+        (inv) =>
+          inv.type === 'estimation' &&
+          (inv.work_order_id === spkId ||
+            (spkNumber && inv.work_order_id === spkNumber) ||
+            inv.id === spkId ||
+            (inv.work_order?.spk_number && spkNumber && inv.work_order.spk_number === spkNumber) ||
+            (spkNumber && inv.invoice_number && inv.invoice_number.includes(spkNumber)))
       );
     }
 
@@ -313,11 +354,13 @@ function EstimationBuilderContent() {
       existingEst = (woObj.checklist_data as any)[`estimation_${tabId}`] || (tabId === 'tab_1' ? (woObj.checklist_data as any).estimation : undefined);
     }
 
-    // 2. Cek localStorage draft
+    // 2. Cek localStorage draft (spkNumber lalu spkId)
     let draftData: any = null;
     if (typeof window !== 'undefined') {
       try {
-        const draftRaw = localStorage.getItem(`mhs_est_draft_${spkId}_${tabId}`);
+        const draftRaw =
+          (spkNumber && localStorage.getItem(`mhs_est_draft_${spkNumber}_${tabId}`)) ||
+          localStorage.getItem(`mhs_est_draft_${spkId}_${tabId}`);
         if (draftRaw) draftData = JSON.parse(draftRaw);
       } catch {}
     }
@@ -434,7 +477,13 @@ function EstimationBuilderContent() {
       };
       try {
         localStorage.setItem(`mhs_est_draft_${selectedSpkId}_${activeTabId}`, JSON.stringify(prevDraftPayload));
+        if (selectedSpk?.spk_number) {
+          localStorage.setItem(`mhs_est_draft_${selectedSpk.spk_number}_${activeTabId}`, JSON.stringify(prevDraftPayload));
+        }
         localStorage.setItem(`mhs_est_tabs_${selectedSpkId}`, JSON.stringify(tabList));
+        if (selectedSpk?.spk_number) {
+          localStorage.setItem(`mhs_est_tabs_${selectedSpk.spk_number}`, JSON.stringify(tabList));
+        }
       } catch {}
     }
 
@@ -633,7 +682,13 @@ function EstimationBuilderContent() {
     };
     try {
       localStorage.setItem(`mhs_est_draft_${selectedSpkId}_${activeTabId}`, JSON.stringify(draftPayload));
+      if (selectedSpk.spk_number) {
+        localStorage.setItem(`mhs_est_draft_${selectedSpk.spk_number}_${activeTabId}`, JSON.stringify(draftPayload));
+      }
       localStorage.setItem(`mhs_est_tabs_${selectedSpkId}`, JSON.stringify(tabList));
+      if (selectedSpk.spk_number) {
+        localStorage.setItem(`mhs_est_tabs_${selectedSpk.spk_number}`, JSON.stringify(tabList));
+      }
     } catch {}
   }, [
     selectedSpk, selectedSpkId, isLocked, items, estimationType, activeTabId,
@@ -1058,8 +1113,11 @@ function EstimationBuilderContent() {
       // 3. Backup to LocalStorage and remove draft
       if (typeof window !== 'undefined') {
         localStorage.setItem(`mhs_est_saved_${selectedSpk.id}_${activeTabId}`, JSON.stringify(saved));
+        localStorage.setItem(`mhs_est_saved_${selectedSpk.spk_number}_${activeTabId}`, JSON.stringify(saved));
         localStorage.removeItem(`mhs_est_draft_${selectedSpk.id}_${activeTabId}`);
+        localStorage.removeItem(`mhs_est_draft_${selectedSpk.spk_number}_${activeTabId}`);
         localStorage.setItem(`mhs_est_tabs_${selectedSpk.id}`, JSON.stringify(updatedTabList));
+        localStorage.setItem(`mhs_est_tabs_${selectedSpk.spk_number}`, JSON.stringify(updatedTabList));
       }
 
       refreshData();

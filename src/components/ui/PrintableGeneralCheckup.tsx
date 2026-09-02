@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { QCGeneralCheckupData, WorkshopSettings } from '@/lib/types/database';
-import { formatDate, formatPlate, createWhatsAppLink } from '@/lib/utils';
+import { formatDate, formatPlate, createWhatsAppLink, formatKM } from '@/lib/utils';
 import { printCleanDocument } from '@/lib/utils/print-helper';
 import { Printer, Share2, X, Wrench, CheckCircle2 } from 'lucide-react';
 import {
@@ -38,7 +38,7 @@ export function PrintableGeneralCheckup({
       `Halo Bpk/Ibu ${checkup.customer_name || 'Pelanggan'},\n` +
       `Berikut hasil Lembar Quality Control Tune Up kendaraan Anda (${checkup.license_plate}) dari ${settings.name}:\n\n` +
       `No. Dokumen: ${checkup.document_number}\n` +
-      `KM: ${checkup.mileage?.toLocaleString('id-ID')} KM\n` +
+      `KM: ${formatKM(checkup.mileage)}\n` +
       `Teknisi: ${checkup.technician_name}\n` +
       `Kondisi Aki: ${checkup.battery_condition?.toUpperCase()} (${checkup.battery_health_percent || 80}%)\n\n` +
       `Dokumen lengkap siap dicetak. Terima kasih atas kepercayaan Anda!`
@@ -162,7 +162,7 @@ export function PrintableGeneralCheckup({
               </div>
               <div className="grid grid-cols-12 gap-1">
                 <span className="col-span-4 text-slate-600 font-bold">KM Odometer</span>
-                <span className="col-span-8 font-mono font-bold text-slate-950">: {checkup.mileage ? checkup.mileage.toLocaleString('id-ID') : '-'} KM</span>
+                <span className="col-span-8 font-mono font-bold text-slate-950">: {formatKM(checkup.mileage)}</span>
               </div>
             </div>
           </div>

@@ -139,3 +139,35 @@ export function generateInvoiceNumber(type: 'invoice' | 'estimation' = 'invoice'
   const randomSuffix = Math.floor(100 + Math.random() * 900);
   return `${prefix}-${dateStr}-${randomSuffix}`;
 }
+
+/**
+ * Format angka kilometer / odometer menjadi format ribuan Indonesia
+ * Contoh: 35000 -> "35.000 KM" (jika withUnit = true) atau "35.000" (jika withUnit = false)
+ */
+export function formatKM(val: number | string | undefined | null, withUnit: boolean = true): string {
+  if (val === undefined || val === null || val === '') return withUnit ? '- KM' : '-';
+  let num: number;
+  if (typeof val === 'number') {
+    num = val;
+  } else {
+    const cleaned = String(val).replace(/[^0-9]/g, '');
+    if (!cleaned) return withUnit ? '- KM' : '-';
+    num = parseInt(cleaned, 10);
+  }
+  if (isNaN(num)) return withUnit ? '- KM' : '-';
+  const formatted = new Intl.NumberFormat('id-ID').format(num);
+  return withUnit ? `${formatted} KM` : formatted;
+}
+
+/**
+ * Parse string kilometer yang mungkin memiliki titik / koma / teks menjadi angka integer
+ */
+export function parseKM(val: string | number | undefined | null): number {
+  if (val === undefined || val === null || val === '') return 0;
+  if (typeof val === 'number') return isNaN(val) ? 0 : Math.floor(val);
+  const cleaned = String(val).replace(/[^0-9]/g, '');
+  if (!cleaned) return 0;
+  const num = parseInt(cleaned, 10);
+  return isNaN(num) ? 0 : num;
+}
+

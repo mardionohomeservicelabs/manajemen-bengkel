@@ -10,6 +10,7 @@ import {
   createWhatsAppLink,
   parseNumericPrice,
   formatNumberOrText,
+  formatKM,
 } from '@/lib/utils';
 import { printCleanDocument } from '@/lib/utils/print-helper';
 import {
@@ -178,7 +179,7 @@ export function PrintableEstimation({
             </div>
 
             {/* Meta Info (4-Column: Waktu, Ref SPK, Estimator, Durasi) */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs bg-slate-50 p-2 rounded-xl border border-slate-300">
+            <div className="grid grid-cols-4 gap-2 text-xs bg-slate-50 p-2 rounded-xl border border-slate-300">
               <div>
                 <span className="text-slate-500 text-[10px] block">Waktu Terbit:</span>
                 <strong className="text-slate-900">{formatDateTime(estimation.created_at)}</strong>
@@ -226,7 +227,7 @@ export function PrintableEstimation({
                   {vehicle?.car_brand} {vehicle?.car_model} ({vehicle?.car_year || '-'})
                 </div>
                 <div className="text-slate-600 text-[11px]">
-                  KM: <strong>{vehicle?.current_mileage ? `${vehicle.current_mileage.toLocaleString('id-ID')} KM` : '-'}</strong>
+                  KM: <strong>{formatKM(vehicle?.current_mileage)}</strong>
                 </div>
               </div>
             </div>

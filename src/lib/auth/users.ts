@@ -6,7 +6,7 @@
 // ============================================================
 
 export type BranchId = 'MHS 1' | 'MHS 2' | 'MHS 3';
-export type UserRole = 'owner' | 'admin' | 'sa' | 'mekanik';
+export type UserRole = 'owner' | 'admin' | 'sa' | 'mekanik' | 'estimator';
 
 export interface AppUser {
   id: string;
@@ -60,12 +60,22 @@ export const APP_USERS: AppUser[] = [
 
   // ─────────── MHS 2 ───────────
   {
-    id: 'mhs2-admin-via',
+    id: 'mhs2-estimator-via',
     email: 'via@mhs2.mardiono',
     password: 'mhs2admin',
     full_name: 'Via Rizkiana',
-    role: 'admin',
+    role: 'estimator',
     branch: 'MHS 2',
+    canAccessAllBranches: true,
+  },
+  {
+    id: 'global-estimator-via',
+    email: 'via@mardiono',
+    password: 'via123',
+    full_name: 'Via Rizkiana',
+    role: 'estimator',
+    branch: 'MHS 2',
+    canAccessAllBranches: true,
   },
   {
     id: 'mhs2-sa-mey',
@@ -149,6 +159,25 @@ export const APP_USERS: AppUser[] = [
  */
 export function authenticateUser(email: string, password: string): AppUser | null {
   const normalizedEmail = email.trim().toLowerCase();
+
+  // Dukungan alias login khusus Via Rizkiana (estimator seluruh cabang)
+  if (
+    (normalizedEmail === 'via@mardiono' ||
+      normalizedEmail === 'via@mhs2.mardiono' ||
+      normalizedEmail === 'via@estimasi.mardiono') &&
+    (password === 'mhs2admin' || password === 'via123' || password === 'admin123')
+  ) {
+    return {
+      id: 'mhs2-estimator-via',
+      email: normalizedEmail,
+      password: password,
+      full_name: 'Via Rizkiana',
+      role: 'estimator',
+      branch: 'MHS 2',
+      canAccessAllBranches: true,
+    };
+  }
+
   const user = APP_USERS.find(
     (u) =>
       u.email.toLowerCase() === normalizedEmail &&
@@ -170,4 +199,5 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Admin',
   sa: 'Service Advisor',
   mekanik: 'Mekanik',
+  estimator: 'Estimator Biaya',
 };

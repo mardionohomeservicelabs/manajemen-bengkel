@@ -43,44 +43,188 @@ type OfflineQueueEntry = {
   retries: number;
 };
 
-// ─── SMART MERGE HELPER ──────────────────────────────────────────────────────
-/**
- * Gabungkan array cloud (dari Supabase) dengan array lokal.
- * Aturan: item dengan `updated_at` lebih baru yang menang.
- * Data lokal yang belum ada di cloud (belum pernah tersync) tetap dipertahankan.
- */
-function smartMergeById<T extends { id: string; updated_at?: string }>(
-  cloudItems: T[],
-  localItems: T[],
-  idField: keyof T = 'id'
-): T[] {
-  const merged = new Map<string, T>();
+// ─── SMART MERGE & RELATIONAL DATA INTEGRITY HELPERS ─────────────────────────
 
-  // Masukkan semua item lokal dulu
-  localItems.forEach((item) => {
-    const key = String(item[idField]);
-    merged.set(key, item);
+function normalizeBranch(b?: string): BranchId {
+  if (!b) return 'MHS 1';
+  const upper = b.toUpperCase().trim();
+  if (upper.includes('2') || upper.includes('TROSOBO')) return 'MHS 2';
+  if (upper.includes('3') || upper.includes('SURABAYA')) return 'MHS 3';
+  return 'MHS 1';
+}
+
+/**
+ * Smart merge WorkOrders dengan rekonsiliasi SPK Number & UUID
+ * Memperbarui ID invoice & checkup lokal jika ID SPK berganti dari temporary ke UUID
+ */
+function smartMergeWorkOrders(
+  cloudItems: WorkOrder[],
+  localItems: WorkOrder[],
+  branch: BranchId
+): WorkOrder[] {
+  const mergedMap = new Map<string, WorkOrder>();
+  const idMap = new Map<string, string>(); // oldLocalId -> newCloudId
+
+  // Index lokal berdasarkan spk_number (kunci utama) dan id
+  localItems.forEach((local) => {
+    const key = local.spk_number || local.id;
+    mergedMap.set(key, local);
   });
 
-  // Gabungkan dengan cloud: cloud menang hanya jika updated_at lebih baru atau sama
-  cloudItems.forEach((cloudItem) => {
-    const key = String(cloudItem[idField]);
-    const localItem = merged.get(key);
-    if (!localItem) {
-      // Item baru dari cloud, langsung tambahkan
-      merged.set(key, cloudItem);
+  // Merge dengan cloud
+  cloudItems.forEach((cloud) => {
+    const key = cloud.spk_number || cloud.id;
+    const local = mergedMap.get(key) || localItems.find((l) => l.id === cloud.id);
+
+    if (!local) {
+      mergedMap.set(key, cloud);
     } else {
-      // Bandingkan waktu update — cloud menang jika lebih baru
-      const cloudTime = cloudItem.updated_at ? new Date(cloudItem.updated_at).getTime() : 0;
-      const localTime = localItem.updated_at ? new Date(localItem.updated_at).getTime() : 0;
-      if (cloudTime >= localTime) {
-        merged.set(key, cloudItem);
+      // Catat pemetaan jika ID lokal sementara digantikan UUID cloud
+      if (local.id && cloud.id && local.id !== cloud.id) {
+        idMap.set(local.id, cloud.id);
+        if (local.spk_number) {
+          idMap.set(local.spk_number, cloud.id);
+        }
       }
-      // Jika lokal lebih baru, pertahankan lokal (sedang dalam proses save)
+
+      const cloudTime = cloud.updated_at ? new Date(cloud.updated_at).getTime() : 0;
+      const localTime = local.updated_at ? new Date(local.updated_at).getTime() : 0;
+
+      if (cloudTime >= localTime) {
+        // Cloud menang, tapi pertahankan tabs/estimasi di checklist_data lokal jika ada
+        const mergedChecklist = {
+          ...((local as any).checklist_data || {}),
+          ...((cloud as any).checklist_data || {}),
+        };
+        mergedMap.set(key, { ...cloud, checklist_data: mergedChecklist });
+      } else {
+        // Lokal menang karena ada editan offline/lokal yang lebih baru, tapi adopsi UUID cloud
+        mergedMap.set(key, { ...local, id: cloud.id });
+      }
     }
   });
 
-  return Array.from(merged.values());
+  // Cascade update work_order_id ke Invoices & Checkups lokal jika ada id yang berganti ke UUID
+  if (idMap.size > 0 && typeof window !== 'undefined') {
+    ['MHS 1', 'MHS 2', 'MHS 3'].forEach((b) => {
+      const invKey = getBranchKey(BASE_STORAGE_KEYS.INVOICES, b as BranchId);
+      const invs = getLocal<Invoice[]>(invKey, []);
+      let changed = false;
+      invs.forEach((inv) => {
+        if (inv.work_order_id && idMap.has(inv.work_order_id)) {
+          inv.work_order_id = idMap.get(inv.work_order_id)!;
+          changed = true;
+        }
+      });
+      if (changed) setLocal(invKey, invs);
+
+      const chkKey = getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, b as BranchId);
+      const chks = getLocal<CheckupRecord[]>(chkKey, []);
+      let chkChanged = false;
+      chks.forEach((chk) => {
+        if (chk.work_order_id && idMap.has(chk.work_order_id)) {
+          chk.work_order_id = idMap.get(chk.work_order_id)!;
+          chkChanged = true;
+        }
+      });
+      if (chkChanged) setLocal(chkKey, chks);
+    });
+  }
+
+  return Array.from(mergedMap.values());
+}
+
+/**
+ * Smart merge Invoices & Estimations dengan rekonsiliasi Invoice Number
+ */
+function smartMergeInvoices(cloudItems: Invoice[], localItems: Invoice[]): Invoice[] {
+  const mergedMap = new Map<string, Invoice>();
+
+  localItems.forEach((local) => {
+    const key = local.invoice_number || local.id;
+    mergedMap.set(key, local);
+  });
+
+  cloudItems.forEach((cloud) => {
+    const key = cloud.invoice_number || cloud.id;
+    const local = mergedMap.get(key) || localItems.find((l) => l.id === cloud.id);
+
+    if (!local) {
+      mergedMap.set(key, cloud);
+    } else {
+      const cloudTime = cloud.updated_at ? new Date(cloud.updated_at).getTime() : 0;
+      const localTime = local.updated_at ? new Date(local.updated_at).getTime() : 0;
+      if (cloudTime >= localTime) {
+        mergedMap.set(key, cloud);
+      } else {
+        mergedMap.set(key, { ...local, id: cloud.id });
+      }
+    }
+  });
+
+  return Array.from(mergedMap.values());
+}
+
+/**
+ * Smart merge Checkup Records dengan rekonsiliasi Document Number
+ */
+function smartMergeCheckups(cloudItems: CheckupRecord[], localItems: CheckupRecord[]): CheckupRecord[] {
+  const mergedMap = new Map<string, CheckupRecord>();
+
+  localItems.forEach((local) => {
+    const key = local.document_number || local.id;
+    mergedMap.set(key, local);
+  });
+
+  cloudItems.forEach((cloud) => {
+    const key = cloud.document_number || cloud.id;
+    const local = mergedMap.get(key) || localItems.find((l) => l.id === cloud.id);
+
+    if (!local) {
+      mergedMap.set(key, cloud);
+    } else {
+      const cloudTime = cloud.updated_at ? new Date(cloud.updated_at).getTime() : 0;
+      const localTime = local.updated_at ? new Date(local.updated_at).getTime() : 0;
+      if (cloudTime >= localTime) {
+        mergedMap.set(key, cloud);
+      } else {
+        mergedMap.set(key, { ...local, id: cloud.id });
+      }
+    }
+  });
+
+  return Array.from(mergedMap.values());
+}
+
+/**
+ * Smart merge Vehicles dengan rekonsiliasi Plat Nomor
+ */
+function smartMergeVehicles(cloudItems: VehicleCustomer[], localItems: VehicleCustomer[]): VehicleCustomer[] {
+  const mergedMap = new Map<string, VehicleCustomer>();
+
+  localItems.forEach((local) => {
+    const key = local.license_plate ? local.license_plate.toUpperCase().replace(/\s+/g, '') : local.id;
+    mergedMap.set(key, local);
+  });
+
+  cloudItems.forEach((cloud) => {
+    const key = cloud.license_plate ? cloud.license_plate.toUpperCase().replace(/\s+/g, '') : cloud.id;
+    const local = mergedMap.get(key) || localItems.find((l) => l.id === cloud.id);
+
+    if (!local) {
+      mergedMap.set(key, cloud);
+    } else {
+      const cloudTime = cloud.updated_at ? new Date(cloud.updated_at).getTime() : 0;
+      const localTime = local.updated_at ? new Date(local.updated_at).getTime() : 0;
+      if (cloudTime >= localTime) {
+        mergedMap.set(key, cloud);
+      } else {
+        mergedMap.set(key, { ...local, id: cloud.id });
+      }
+    }
+  });
+
+  return Array.from(mergedMap.values());
 }
 
 function getBranchKey(baseKey: string, branch?: BranchId): string {
@@ -894,11 +1038,34 @@ export class DBService {
   static getCheckups(branch?: BranchId): CheckupRecord[] {
     const key = getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, branch);
     const checkups = getLocal<CheckupRecord[]>(key, []);
-    return checkups.sort((a, b) => {
-      const timeA = new Date(a.created_at || a.check_date || 0).getTime() || 0;
-      const timeB = new Date(b.created_at || b.check_date || 0).getTime() || 0;
-      return timeB - timeA;
-    });
+    const vehicles = this.getVehicles(branch);
+    const workOrders = this.getWorkOrders(branch);
+
+    return checkups
+      .map((rec) => {
+        const cleanPlate = rec.license_plate?.toUpperCase().replace(/\s+/g, '');
+        const vehicle = vehicles.find(
+          (v) =>
+            v.id === rec.vehicle_id ||
+            (cleanPlate && v.license_plate.toUpperCase().replace(/\s+/g, '') === cleanPlate)
+        );
+        const workOrder = workOrders.find(
+          (w) =>
+            w.id === rec.work_order_id ||
+            w.spk_number === rec.document_number ||
+            (rec.work_order_id && w.spk_number === rec.work_order_id)
+        );
+        return {
+          ...rec,
+          vehicle,
+          work_order: workOrder,
+        };
+      })
+      .sort((a, b) => {
+        const timeA = new Date(a.created_at || a.check_date || 0).getTime() || 0;
+        const timeB = new Date(b.created_at || b.check_date || 0).getTime() || 0;
+        return timeB - timeA;
+      });
   }
 
   static getCheckupById(id: string, branch?: BranchId): CheckupRecord | undefined {
@@ -1084,11 +1251,28 @@ export class DBService {
     const vehicles = this.getVehicles(branch);
     const workOrders = this.getWorkOrders(branch);
 
-    return invoices.map((inv) => ({
-      ...inv,
-      vehicle: vehicles.find((v) => v.id === inv.vehicle_id),
-      work_order: workOrders.find((w) => w.id === inv.work_order_id),
-    }));
+    return invoices.map((inv) => {
+      const cleanPlate = inv.vehicle?.license_plate?.toUpperCase().replace(/\s+/g, '');
+      const vehicle = vehicles.find(
+        (v) =>
+          v.id === inv.vehicle_id ||
+          (cleanPlate && v.license_plate.toUpperCase().replace(/\s+/g, '') === cleanPlate)
+      ) || inv.vehicle;
+
+      const workOrder = workOrders.find(
+        (w) =>
+          w.id === inv.work_order_id ||
+          w.spk_number === inv.work_order_id ||
+          (inv.work_order?.spk_number && w.spk_number === inv.work_order.spk_number) ||
+          (w.spk_number && inv.invoice_number && inv.invoice_number.includes(w.spk_number))
+      ) || inv.work_order;
+
+      return {
+        ...inv,
+        vehicle,
+        work_order: workOrder,
+      };
+    });
   }
 
   static getInvoiceById(id: string, branch?: BranchId): Invoice | undefined {
@@ -1715,7 +1899,7 @@ export class DBService {
         // Smart merge: gabungkan cloud dengan lokal, yang lebih baru menang
         allBranches.forEach((b) => {
           const localVehicles = getLocal<VehicleCustomer[]>(getBranchKey(BASE_STORAGE_KEYS.VEHICLES, b), []);
-          const merged = smartMergeById(cloudVehicles, localVehicles);
+          const merged = smartMergeVehicles(cloudVehicles, localVehicles);
           setLocal(getBranchKey(BASE_STORAGE_KEYS.VEHICLES, b), merged);
         });
       }
@@ -1741,7 +1925,8 @@ export class DBService {
         };
 
         woData.forEach((row: any) => {
-          const targetBranch: string = row.checklist_data?.received_at_branch || 'MHS 1';
+          const rawBranch = row.checklist_data?.received_at_branch || row.received_at_branch || (row as any).branch || 'MHS 1';
+          const targetBranch = normalizeBranch(rawBranch);
           const branchKey = cloudWorkOrders[targetBranch] ? targetBranch : 'MHS 1';
 
           const vehicle: VehicleCustomer | undefined = row.vehicle ? {
@@ -1787,8 +1972,7 @@ export class DBService {
             };
             cloudWorkOrders[branchKey].push(wo);
 
-            // FIX: Extract estimasi dari semua format tab ID
-            // Mendukung: estimation, estimation_tab_1, estimation_tab_{timestamp}
+            // Extract estimasi dari seluruh format tab
             Object.keys(checklist).forEach((k) => {
               if (k === 'estimation' && checklist[k]) {
                 const est = checklist[k];
@@ -1796,7 +1980,6 @@ export class DBService {
                   extraInvoicesFromWO.push({ ...est, work_order_id: row.id, vehicle });
                 }
               } else if (k.startsWith('estimation_') && k !== 'estimation' && checklist[k]) {
-                // Matches: estimation_tab_1, estimation_tab_1234567890, estimation_tab_{id}
                 const est = checklist[k];
                 if (est && est.invoice_number) {
                   extraInvoicesFromWO.push({ ...est, work_order_id: row.id, vehicle });
@@ -1832,10 +2015,10 @@ export class DBService {
           }
         });
 
-        // SMART MERGE: gabungkan work orders cloud dengan lokal (bukan overwrite brutal)
+        // SMART MERGE: gabungkan work orders cloud dengan lokal dengan rekonsiliasi SPK number & UUID
         allBranches.forEach((b) => {
           const localWOs = getLocal<WorkOrder[]>(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), []);
-          const mergedWOs = smartMergeById<WorkOrder>(cloudWorkOrders[b] || [], localWOs, 'id').sort((x, y) => {
+          const mergedWOs = smartMergeWorkOrders(cloudWorkOrders[b] || [], localWOs, b).sort((x, y) => {
             const timeX = new Date(x.created_at || x.entry_date || 0).getTime() || 0;
             const timeY = new Date(y.created_at || y.entry_date || 0).getTime() || 0;
             return timeY - timeX;
@@ -1843,7 +2026,7 @@ export class DBService {
           setLocal(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), mergedWOs);
 
           const localCheckups = getLocal<CheckupRecord[]>(getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, b), []);
-          const mergedCheckups = smartMergeById<CheckupRecord>(cloudCheckups[b] || [], localCheckups, 'id').sort((x, y) => {
+          const mergedCheckups = smartMergeCheckups(cloudCheckups[b] || [], localCheckups).sort((x, y) => {
             const timeX = new Date(x.created_at || x.check_date || 0).getTime() || 0;
             const timeY = new Date(y.created_at || y.check_date || 0).getTime() || 0;
             return timeY - timeX;
@@ -1918,33 +2101,11 @@ export class DBService {
 
         const cloudInvoices = Array.from(cloudInvoicesMap.values());
 
-        // SMART MERGE: gabungkan invoices cloud dengan lokal per cabang
+        // SMART MERGE: gabungkan invoices cloud dengan lokal per cabang dengan smartMergeInvoices
         allBranches.forEach((b) => {
           const localInvs = getLocal<Invoice[]>(getBranchKey(BASE_STORAGE_KEYS.INVOICES, b), []);
-          // Gunakan invoice_number sebagai key merge karena lebih reliable dari id
-          const merged = new Map<string, Invoice>();
-
-          // Masukkan lokal dulu
-          localInvs.forEach((inv) => {
-            merged.set(inv.invoice_number || inv.id, inv);
-          });
-
-          // Cloud menang jika updated_at lebih baru
-          cloudInvoices.forEach((cloudInv) => {
-            const key = cloudInv.invoice_number || cloudInv.id;
-            const localInv = merged.get(key);
-            if (!localInv) {
-              merged.set(key, cloudInv);
-            } else {
-              const cloudTime = cloudInv.updated_at ? new Date(cloudInv.updated_at).getTime() : 0;
-              const localTime = localInv.updated_at ? new Date(localInv.updated_at).getTime() : 0;
-              if (cloudTime >= localTime) {
-                merged.set(key, cloudInv);
-              }
-            }
-          });
-
-          setLocal(getBranchKey(BASE_STORAGE_KEYS.INVOICES, b), Array.from(merged.values()));
+          const mergedInvs = smartMergeInvoices(cloudInvoices, localInvs);
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.INVOICES, b), mergedInvs);
         });
       }
 

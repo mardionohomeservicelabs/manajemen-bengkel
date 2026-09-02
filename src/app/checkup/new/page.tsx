@@ -14,7 +14,7 @@ import {
   CheckupRecord,
   WorkOrder,
 } from '@/lib/types/database';
-import { formatPlate } from '@/lib/utils';
+import { formatPlate, formatKM, parseKM } from '@/lib/utils';
 import {
   ShieldAlert,
   ThermometerSnowflake,
@@ -88,7 +88,7 @@ function NewCheckupPageContent() {
           setCarBrand(spk.vehicle.car_brand ? spk.vehicle.car_brand.toUpperCase() : '');
           setCarYear(spk.vehicle.car_year || '');
           setCarColor((spk.vehicle as any).color || (spk.vehicle as any).car_color || '');
-          setMileage(spk.vehicle.current_mileage || '');
+          setMileage(spk.vehicle.current_mileage ? formatKM(spk.vehicle.current_mileage, false) : '');
         }
         if (spk.mechanic_name) {
           setTechnicianName(spk.mechanic_name);
@@ -252,7 +252,7 @@ function NewCheckupPageContent() {
           customer_name: customerName,
           car_model: carModel,
           license_plate: formatPlate(licensePlate),
-          mileage: Number(mileage),
+          mileage: parseKM(mileage),
           battery_condition: batteryCondition,
           battery_health_percent: Number(batteryHealth),
           battery_suggest_replace: batterySuggestReplace,
@@ -327,7 +327,7 @@ function NewCheckupPageContent() {
           document_number: docNo,
           customer_name: customerName,
           car_model: carModel,
-          mileage: Number(mileage),
+          mileage: parseKM(mileage),
           license_plate: formatPlate(licensePlate),
           check_date: checkDate,
           technician_name: technicianName,
@@ -700,13 +700,27 @@ function NewCheckupPageContent() {
             </div>
             <div>
               <label className="block font-bold text-slate-700 mb-1">KM / Odometer</label>
-              <input
-                type="number"
-                placeholder="Contoh: 35000"
-                value={mileage}
-                onChange={(e) => setMileage(e.target.value)}
-                className="w-full p-2 rounded-xl border border-slate-200 font-mono font-bold"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Contoh: 35.000"
+                  value={mileage}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^0-9]/g, '');
+                    if (!raw) {
+                      setMileage('');
+                    } else {
+                      const num = parseInt(raw, 10);
+                      setMileage(new Intl.NumberFormat('id-ID').format(num));
+                    }
+                  }}
+                  className="w-full p-2 rounded-xl border border-slate-200 font-mono font-bold pr-10"
+                />
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                  KM
+                </span>
+              </div>
             </div>
             <div>
               <label className="block font-bold text-slate-700 mb-1">Tanggal Pemeriksaan</label>

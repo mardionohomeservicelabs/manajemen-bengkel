@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/context/AuthContext';
 import { BRANCHES, BranchId } from '@/lib/auth/users';
 import { DBService } from '@/lib/services/db-service';
 import { WorkOrder } from '@/lib/types/database';
-import { formatPlate, generateSpkNumber } from '@/lib/utils';
+import { formatPlate, generateSpkNumber, formatKM, parseKM } from '@/lib/utils';
 import {
   ClipboardCheck,
   Car,
@@ -86,7 +86,7 @@ export default function NewSPKPage() {
         setCarModel(match.car_model ? match.car_model.toUpperCase() : '');
         if (match.car_year) setCarYear(String(match.car_year));
         if (match.chassis_number) setChassisNumber(match.chassis_number);
-        if (match.current_mileage) setCurrentMileage(String(match.current_mileage));
+        if (match.current_mileage) setCurrentMileage(formatKM(match.current_mileage, false));
         showToast(`Data kendaraan ${match.license_plate} ditemukan!`, 'info');
       }
     }
@@ -113,7 +113,7 @@ export default function NewSPKPage() {
         car_model: carModel.trim() ? carModel.trim().toUpperCase() : 'STANDAR',
         car_year: carYear ? Number(carYear) : undefined,
         chassis_number: chassisNumber,
-        current_mileage: currentMileage ? Number(currentMileage) : 0,
+        current_mileage: currentMileage ? parseKM(currentMileage) : 0,
       });
 
       // Construct entry datetime with custom time
@@ -336,14 +336,28 @@ export default function NewSPKPage() {
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     KM Masuk (Odometer) <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="Contoh: 35000"
-                    value={currentMileage}
-                    onChange={(e) => setCurrentMileage(e.target.value)}
-                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 font-mono font-bold"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      required
+                      placeholder="Contoh: 35.000"
+                      value={currentMileage}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/[^0-9]/g, '');
+                        if (!raw) {
+                          setCurrentMileage('');
+                        } else {
+                          const num = parseInt(raw, 10);
+                          setCurrentMileage(new Intl.NumberFormat('id-ID').format(num));
+                        }
+                      }}
+                      className="w-full text-xs p-2.5 rounded-xl border border-slate-200 font-mono font-bold pr-12 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                      KM
+                    </span>
+                  </div>
                 </div>
 
                 <div>

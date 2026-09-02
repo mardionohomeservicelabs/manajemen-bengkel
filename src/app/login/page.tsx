@@ -29,6 +29,8 @@ export default function LoginPage() {
     if (isAuthenticated && mounted) {
       if (currentUser?.role === 'mekanik') {
         window.location.href = '/checkup';
+      } else if (currentUser?.role === 'estimator') {
+        window.location.href = '/estimasi';
       } else {
         window.location.href = '/';
       }
@@ -56,6 +58,8 @@ export default function LoginPage() {
     } else {
       if (result.user?.role === 'mekanik') {
         window.location.href = '/checkup';
+      } else if (result.user?.role === 'estimator') {
+        window.location.href = '/estimasi';
       } else {
         window.location.href = '/';
       }

@@ -8,6 +8,7 @@ import {
   formatDateTime,
   formatPlate,
   createWhatsAppLink,
+  formatKM,
 } from '@/lib/utils';
 import { printCleanDocument } from '@/lib/utils/print-helper';
 import {
@@ -236,7 +237,7 @@ export function PrintableInvoice({
                   {vehicle?.car_brand} {vehicle?.car_model} ({vehicle?.car_year || '-'})
                 </div>
                 <div className="text-slate-600 text-[11px]">
-                  KM: <strong>{vehicle?.current_mileage ? `${vehicle.current_mileage.toLocaleString('id-ID')} KM` : '-'}</strong>
+                  KM: <strong>{formatKM(vehicle?.current_mileage)}</strong>
                 </div>
               </div>
             </div>

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { ACCheckupData, WorkshopSettings, CheckConditionStatus } from '@/lib/types/database';
-import { formatDate, formatPlate, createWhatsAppLink } from '@/lib/utils';
+import { formatDate, formatPlate, createWhatsAppLink, formatKM } from '@/lib/utils';
 import { printCleanDocument } from '@/lib/utils/print-helper';
 import { Printer, Share2, X, ThermometerSnowflake } from 'lucide-react';
 import {
@@ -39,7 +39,7 @@ export function PrintableACCheckup({
       `Berikut hasil Lembar Quality Control AC dari ${settings.name}:\n\n` +
       `No. Dokumen: ${checkup.document_number}\n` +
       `No. Pol: ${checkup.license_plate}\n` +
-      `KM: ${checkup.mileage?.toLocaleString('id-ID')} KM\n` +
+      `KM: ${formatKM(checkup.mileage)}\n` +
       `Suhu Embusan: ${checkup.air_vent_temperature || '7 °C'}\n` +
       `Tekanan Freon: Low ${checkup.low_pressure_psi || '25 Psi'} / High ${checkup.high_pressure_psi || '160 Psi'}\n` +
       `Catatan: ${checkup.recommendations || 'Cek kebocoran berkala.'}\n\n` +
@@ -165,7 +165,7 @@ export function PrintableACCheckup({
               </div>
               <div className="grid grid-cols-12 gap-1">
                 <span className="col-span-4 text-slate-600 font-bold">KM</span>
-                <span className="col-span-8 font-mono font-bold text-slate-950">: {checkup.mileage ? checkup.mileage.toLocaleString('id-ID') : '-'}</span>
+                <span className="col-span-8 font-mono font-bold text-slate-950">: {formatKM(checkup.mileage, false)}</span>
               </div>
             </div>
           </div>

@@ -151,7 +151,7 @@ export default function CheckupPage() {
                   </tr>
                 ) : (
                   filteredCheckups.map((rec) => {
-                    const linkedWo = workOrders.find((w) => w.id === rec.work_order_id);
+                    const linkedWo = workOrders.find((w) => w.id === rec.work_order_id || w.spk_number === rec.document_number || (rec.work_order_id && w.spk_number === rec.work_order_id));
                     const isCompleted = linkedWo?.status === 'completed';
                     const isLocked = isCompleted && currentRole !== 'owner';
 
