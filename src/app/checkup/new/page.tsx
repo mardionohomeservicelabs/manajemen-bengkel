@@ -55,7 +55,12 @@ function NewCheckupPageContent() {
     unlockWorkOrderAsync,
   } = useApp();
 
-  const [checkupType, setCheckupType] = useState<CheckupType>('qc_general');
+  const typeParam = searchParams.get('type') as CheckupType | null;
+  const [checkupType, setCheckupType] = useState<CheckupType>(
+    typeParam === 'ac_specialist' || typeParam === 'understeel' || typeParam === 'qc_general'
+      ? typeParam
+      : 'qc_general'
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showEditPlateModal, setShowEditPlateModal] = useState(false);
 
