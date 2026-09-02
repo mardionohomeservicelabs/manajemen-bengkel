@@ -175,8 +175,8 @@ export function PrintableGeneralCheckup({
                 BBM: E [ {checkup.fuel_level_fraction || '3/4'} ] F ⛽
               </span>
             </div>
-            <div className="p-2.5 grid grid-cols-3 gap-3 bg-white items-center">
-              <div className="flex items-center space-x-2">
+            <div className="p-2.5 grid grid-cols-12 gap-2 bg-white items-center text-xs">
+              <div className="col-span-5 flex items-center space-x-2">
                 <span className="font-bold text-slate-700">Kondisi Aki:</span>
                 <span
                   className={`px-2.5 py-0.5 rounded font-black text-white text-[11px] ${
@@ -190,14 +190,14 @@ export function PrintableGeneralCheckup({
                 </span>
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className="col-span-3 flex items-center space-x-1.5">
                 <span className="font-bold text-slate-700">Saran Ganti:</span>
                 <span className="font-black text-red-700 text-[11px]">
-                  {checkup.battery_suggest_replace ? '☑ YA (PERLU GANTI)' : '☐ TIDAK'}
+                  {checkup.battery_suggest_replace ? '☑ YA' : '☐ TIDAK'}
                 </span>
               </div>
 
-              <div className="text-slate-800 text-xs truncate">
+              <div className="col-span-4 text-slate-800 text-[11px] leading-snug">
                 <strong className="text-slate-600">Catatan:</strong> {checkup.battery_notes || 'Normal'}
               </div>
             </div>

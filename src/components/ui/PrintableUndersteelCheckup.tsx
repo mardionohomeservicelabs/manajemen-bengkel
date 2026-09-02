@@ -194,15 +194,15 @@ export function PrintableUndersteelCheckup({
                     </td>
                     <td className="p-0.5 border-r border-slate-900 text-center align-middle">
                       <div className="flex items-center justify-center">
-                        <div className={`w-3.5 h-3.5 border border-slate-900 flex items-center justify-center text-[10px] font-black ${item.replace ? 'bg-slate-900 text-white' : 'bg-white'}`}>
-                          {item.replace ? '✓' : ''}
+                        <div className="w-3.5 h-3.5 border border-slate-900 flex items-center justify-center bg-white">
+                          {item.replace ? <span className="text-slate-950 font-black text-xs leading-none">✓</span> : null}
                         </div>
                       </div>
                     </td>
                     <td className="p-0.5 border-r border-slate-900 text-center align-middle">
                       <div className="flex items-center justify-center">
-                        <div className={`w-3.5 h-3.5 border border-slate-900 flex items-center justify-center text-[10px] font-black ${item.service ? 'bg-slate-900 text-white' : 'bg-white'}`}>
-                          {item.service ? '✓' : ''}
+                        <div className="w-3.5 h-3.5 border border-slate-900 flex items-center justify-center bg-white">
+                          {item.service ? <span className="text-slate-950 font-black text-xs leading-none">✓</span> : null}
                         </div>
                       </div>
                     </td>
@@ -227,15 +227,15 @@ export function PrintableUndersteelCheckup({
                     </td>
                     <td className="p-0.5 border-r border-slate-900 text-center align-middle">
                       <div className="flex items-center justify-center">
-                        <div className={`w-3.5 h-3.5 border border-slate-900 flex items-center justify-center text-[10px] font-black ${c.replace ? 'bg-slate-900 text-white' : 'bg-white'}`}>
-                          {c.replace ? '✓' : ''}
+                        <div className="w-3.5 h-3.5 border border-slate-900 flex items-center justify-center bg-white">
+                          {c.replace ? <span className="text-slate-950 font-black text-xs leading-none">✓</span> : null}
                         </div>
                       </div>
                     </td>
                     <td className="p-0.5 border-r border-slate-900 text-center align-middle">
                       <div className="flex items-center justify-center">
-                        <div className={`w-3.5 h-3.5 border border-slate-900 flex items-center justify-center text-[10px] font-black ${c.service ? 'bg-slate-900 text-white' : 'bg-white'}`}>
-                          {c.service ? '✓' : ''}
+                        <div className="w-3.5 h-3.5 border border-slate-900 flex items-center justify-center bg-white">
+                          {c.service ? <span className="text-slate-950 font-black text-xs leading-none">✓</span> : null}
                         </div>
                       </div>
                     </td>
