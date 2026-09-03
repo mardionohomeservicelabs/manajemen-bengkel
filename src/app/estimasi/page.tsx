@@ -365,25 +365,58 @@ function EstimationBuilderContent() {
       } catch {}
     }
 
-    // Prioritas: Jika existingEst (data tersimpan resmi di DB) ada, utamakan existingEst!
-    // Draft hanya digunakan jika tidak ada existingEst atau draft valid
-    const isDraftValid = draftData && (draftData.items?.length > 0 && draftData.items.some((i: any) => i.name?.trim() || (i.price_opsi1 !== undefined && i.price_opsi1 !== 0)));
-    const sourceData = existingEst || (isDraftValid ? draftData : null);
+    // Validasi apakah draftData memiliki item yang terisi
+    const isDraftValid =
+      draftData &&
+      Array.isArray(draftData.items) &&
+      draftData.items.length > 0 &&
+      draftData.items.some(
+        (i: any) =>
+          (i.name && i.name.trim()) ||
+          (i.price_opsi1 !== undefined && i.price_opsi1 !== '' && i.price_opsi1 !== 0 && i.price_opsi1 !== '0') ||
+          (i.price_opsi2 !== undefined && i.price_opsi2 !== '' && i.price_opsi2 !== 0 && i.price_opsi2 !== '0')
+      );
+
+    // Prioritas: Utamakan draftData terbaru agar data yang sedang diinputkan tidak hilang jika komputer mati atau direload
+    let sourceData = existingEst;
+    if (isDraftValid) {
+      if (!existingEst) {
+        sourceData = draftData;
+      } else {
+        sourceData = {
+          ...existingEst,
+          ...draftData,
+          id: existingEst.id,
+          invoice_number: existingEst.invoice_number,
+          created_at: existingEst.created_at,
+        };
+      }
+    }
     return { sourceData, existingEst };
   }, [workOrders]);
 
-  // Helper function to load and populate estimation data for a work order (first tab)
+  // Helper function to load and populate estimation data for a work order (target tab)
   const loadEstimationForSpk = useCallback((found: WorkOrder) => {
     // Kunci loadedFormSpkIdRef agar auto-save tidak jalan selama proses pergantian state
     loadedFormSpkIdRef.current = '';
 
     const tabs = discoverTabsForSpk(found, invoices);
     setTabList(tabs);
-    const firstTabId = tabs[0].id;
-    setActiveTabId(firstTabId);
+    
+    // Pulihkan tab aktif terakhir yang sedang dikerjakan untuk SPK ini
+    let targetTabId = tabs[0].id;
+    if (typeof window !== 'undefined') {
+      try {
+        const savedTabId = localStorage.getItem(`mhs_last_active_tab_${found.id}`);
+        if (savedTabId && tabs.some((t) => t.id === savedTabId)) {
+          targetTabId = savedTabId;
+        }
+      } catch {}
+    }
+    setActiveTabId(targetTabId);
 
-    // Load data untuk tab pertama dari found (SPK target)
-    const { sourceData, existingEst } = loadTabData(found, firstTabId, invoices);
+    // Load data untuk tab target dari found (SPK target)
+    const { sourceData, existingEst } = loadTabData(found, targetTabId, invoices);
 
     if (existingEst) {
       setCurrentEstimationRecord(existingEst);
@@ -412,8 +445,8 @@ function EstimationBuilderContent() {
       setTaxPercent(sourceData.tax_percent || 11);
       setAdminNotes(sourceData.admin_notes || '');
 
-      if (existingEst || sourceData.invoice_number) {
-        const saveDate = existingEst?.created_at || sourceData.created_at;
+      if (existingEst || sourceData.invoice_number || sourceData.updated_at) {
+        const saveDate = sourceData.updated_at || existingEst?.created_at || sourceData.created_at;
         const timeFormatted = saveDate
           ? new Date(saveDate).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB'
           : 'Tersimpan';
@@ -425,19 +458,19 @@ function EstimationBuilderContent() {
       if (sourceData.items && sourceData.items.length > 0) {
         const mappedItems = sourceData.items.map((it: any) => {
           const p1 = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
-          const hasP2 = it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0';
-          const p2 = hasP2 ? it.price_opsi2 : p1;
+          const isP2ExplicitlyEmpty = it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0';
+          const p2 = isP2ExplicitlyEmpty ? '' : (it.price_opsi2 !== undefined ? it.price_opsi2 : p1);
           const qty = it.qty || 1;
           const isP1Text = typeof p1 === 'string' && /[a-zA-Z]/.test(p1);
           const isP2Text = typeof p2 === 'string' && /[a-zA-Z]/.test(p2);
           const isP1Range = typeof p1 === 'string' && /[-\u2012\u2013\u2014\u2212~]/.test(p1);
           const isP2Range = typeof p2 === 'string' && /[-\u2012\u2013\u2014\u2212~]/.test(p2);
           const r1 = isP1Range ? parseRangePrice(p1) : null;
-          const r2 = isP2Range ? parseRangePrice(p2) : null;
+          const r2 = (isP2Range && !isP2ExplicitlyEmpty) ? parseRangePrice(p2) : null;
           const num1 = parseNumericPriceValue(p1).num;
           const num2 = parseNumericPriceValue(p2).num;
           const tot1 = isP1Text ? p1 : (r1 ? (r1.min === r1.max ? r1.min * qty : `${r1.min * qty} - ${r1.max * qty}`) : qty * num1);
-          const tot2 = isP2Text ? p2 : (r2 ? (r2.min === r2.max ? r2.min * qty : `${r2.min * qty} - ${r2.max * qty}`) : qty * num2);
+          const tot2 = isP2ExplicitlyEmpty ? 0 : (isP2Text ? p2 : (r2 ? (r2.min === r2.max ? r2.min * qty : `${r2.min * qty} - ${r2.max * qty}`) : qty * num2));
           return {
             ...it,
             unit: it.unit || (it.is_service ? 'JASA' : 'PCS'),
@@ -517,6 +550,11 @@ function EstimationBuilderContent() {
     lastLoadedSpkId.current = targetWo.id;
     setSelectedSpkId(targetWo.id);
     setSelectedSpk(targetWo);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('mhs_last_active_estimation_spk_id', targetWo.id);
+      } catch {}
+    }
 
     // 4. Muat data estimasi SPK yang baru dipilih
     loadEstimationForSpk(targetWo);
@@ -533,14 +571,25 @@ function EstimationBuilderContent() {
   useEffect(() => {
     if (workOrders.length > 0) {
       const activeWorkOrders = workOrders.filter((w) => w.status !== 'completed' && w.status !== 'cancelled');
-      const targetId = selectedSpkId || spkIdParam || activeWorkOrders[0]?.id || workOrders[0]?.id;
+      let savedLastSpkId: string | null = null;
+      if (typeof window !== 'undefined') {
+        try {
+          savedLastSpkId = localStorage.getItem('mhs_last_active_estimation_spk_id');
+        } catch {}
+      }
+      const targetId = spkIdParam || selectedSpkId || savedLastSpkId || activeWorkOrders[0]?.id || workOrders[0]?.id;
       if (targetId) {
-        const found = workOrders.find((w) => w.id === targetId);
+        const found = workOrders.find((w) => w.id === targetId || w.spk_number === targetId);
         if (found) {
           if (lastLoadedSpkId.current !== found.id) {
             lastLoadedSpkId.current = found.id;
             setSelectedSpk(found);
             setSelectedSpkId(found.id);
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem('mhs_last_active_estimation_spk_id', found.id);
+              } catch {}
+            }
             loadEstimationForSpk(found);
           } else {
             // SPK sama tapi workOrders/invoices terupdate (misal customer baru saja TTD dari link)
@@ -619,6 +668,11 @@ function EstimationBuilderContent() {
       try { localStorage.setItem(`mhs_est_draft_${selectedSpkId}_${activeTabId}`, JSON.stringify(draftPayload)); } catch {}
     }
     setActiveTabId(tab.id);
+    if (selectedSpkId && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`mhs_last_active_tab_${selectedSpkId}`, tab.id);
+      } catch {}
+    }
     // Load data for the new tab
     const { sourceData, existingEst } = loadTabData(selectedSpkId, tab.id, invoices);
     setCurrentEstimationRecord(existingEst || null);
@@ -645,49 +699,24 @@ function EstimationBuilderContent() {
       setDiscountAmount(sourceData.discount_amount || 0);
       setTaxPercent(sourceData.tax_percent || 11);
       setAdminNotes(sourceData.admin_notes || '');
-      if (sourceData.invoice_number || sourceData.created_at) {
-        const timeFormatted = sourceData.created_at
-          ? new Date(sourceData.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB'
-          : 'Tersimpan';
-        setLastSavedTime(timeFormatted);
+      if (sourceData.items && Array.isArray(sourceData.items) && sourceData.items.length > 0) {
+        setItems(sourceData.items.map((i: any) => ({
+          name: i.name || '',
+          is_service: Boolean(i.is_service),
+          qty: i.qty || 1,
+          unit: i.unit || 'PCS',
+          price_opsi1: i.price_opsi1 !== undefined && i.price_opsi1 !== '' ? i.price_opsi1 : (i.price !== undefined ? i.price : 0),
+          total_opsi1: i.total_opsi1 !== undefined ? i.total_opsi1 : (i.subtotal !== undefined ? i.subtotal : 0),
+          price_opsi2: i.price_opsi2 !== undefined && i.price_opsi2 !== '' ? i.price_opsi2 : (i.price_opsi1 !== undefined && i.price_opsi1 !== '' ? i.price_opsi1 : (i.price !== undefined ? i.price : 0)),
+          total_opsi2: i.total_opsi2 !== undefined ? i.total_opsi2 : (i.total_opsi1 !== undefined ? i.total_opsi1 : 0),
+          price: i.price !== undefined ? i.price : 0,
+          subtotal: i.subtotal !== undefined ? i.subtotal : 0,
+        })));
       } else {
-        setLastSavedTime(null);
+        setItems([...EMPTY_ESTIMATION_ROW]);
       }
-
-      if (sourceData.items && sourceData.items.length > 0) {
-        const mapped = sourceData.items.map((it: any) => {
-          const p1 = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
-          const hasP2 = it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0';
-          const p2 = hasP2 ? it.price_opsi2 : p1;
-          const qty = it.qty || 1;
-          const isP1Text = typeof p1 === 'string' && /[a-zA-Z]/.test(p1);
-          const isP2Text = typeof p2 === 'string' && /[a-zA-Z]/.test(p2);
-          const isP1Range = typeof p1 === 'string' && /[-\u2012\u2013\u2014\u2212~]/.test(p1);
-          const isP2Range = typeof p2 === 'string' && /[-\u2012\u2013\u2014\u2212~]/.test(p2);
-          const r1 = isP1Range ? parseRangePrice(p1) : null;
-          const r2 = isP2Range ? parseRangePrice(p2) : null;
-          const num1 = parseNumericPriceValue(p1).num;
-          const num2 = parseNumericPriceValue(p2).num;
-          const tot1 = isP1Text ? p1 : (r1 ? (r1.min === r1.max ? r1.min * qty : `${r1.min * qty} - ${r1.max * qty}`) : qty * num1);
-          const tot2 = isP2Text ? p2 : (r2 ? (r2.min === r2.max ? r2.min * qty : `${r2.min * qty} - ${r2.max * qty}`) : qty * num2);
-          return {
-            ...it,
-            unit: it.unit || (it.is_service ? 'JASA' : 'PCS'),
-            price_opsi1: p1,
-            total_opsi1: tot1,
-            price_opsi2: p2,
-            total_opsi2: tot2,
-            price: p1,
-            subtotal: tot1,
-          };
-        });
-        setItems(mapped);
-      } else { setItems(EMPTY_ESTIMATION_ROW); }
     } else {
-      setLastSavedTime(null);
-      setItems(EMPTY_ESTIMATION_ROW);
-      setEstimatorName(''); setEstimatorSignature('');
-      setCustomerSignature(''); setCustomerSignedName(selectedSpk?.vehicle?.customer_name || '');
+      setItems([...EMPTY_ESTIMATION_ROW]);
       setEstimatedDuration('');
       setCustomerResponse(''); setCustomerResponseNote('');
       setAdminNotes(''); setVehicleStatus('Di Tinggal');
@@ -698,7 +727,7 @@ function EstimationBuilderContent() {
       estimatedDuration, customerResponse, customerResponseNote,
       showDiscount, showOpsi2, showTax, showRangePrice, discountAmount, taxPercent, adminNotes, loadTabData, invoices]);
 
-  // Auto-save draft in LocalStorage so edits are never lost when navigating away
+  // Real-time auto-save ke LocalStorage dan pembaruan indikator tersimpan otomatis (anti mati lampu / reload)
   useEffect(() => {
     if (!selectedSpk || !selectedSpkId || isLocked) return;
     // Cegah draft bocor: HANYA simpan jika form memang milik selectedSpk yang aktif
@@ -716,7 +745,10 @@ function EstimationBuilderContent() {
       has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
       has_range_price: showRangePrice,
       discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
+      updated_at: new Date().toISOString(),
     };
+
+    // 1. Simpan LANGSUNG secara sinkron ke LocalStorage (< 1ms)
     try {
       localStorage.setItem(`mhs_est_draft_${selectedSpk.id}_${activeTabId}`, JSON.stringify(draftPayload));
       if (selectedSpk.spk_number) {
@@ -726,7 +758,22 @@ function EstimationBuilderContent() {
       if (selectedSpk.spk_number) {
         localStorage.setItem(`mhs_est_tabs_${selectedSpk.spk_number}`, JSON.stringify(tabList));
       }
+      localStorage.setItem('mhs_last_active_estimation_spk_id', selectedSpk.id);
+      localStorage.setItem(`mhs_last_active_tab_${selectedSpk.id}`, activeTabId);
     } catch {}
+
+    // 2. Debounced update status indikator tersimpan otomatis
+    const hasFilledItems = items.length > 0 && items.some((i) => (i.name && i.name.trim()) || (i.price_opsi1 !== undefined && i.price_opsi1 !== '' && i.price_opsi1 !== 0));
+    if (!hasFilledItems) return;
+
+    const timer = setTimeout(() => {
+      try {
+        const timeNow = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+        setLastSavedTime(`Otomatis ${timeNow}`);
+      } catch {}
+    }, 1000);
+
+    return () => clearTimeout(timer);
   }, [
     selectedSpk, selectedSpkId, isLocked, items, estimationType, activeTabId,
     estimationDate, estimationTime, vehicleStatus, paymentPlan,
