@@ -50,7 +50,7 @@ interface VehicleCheckupGroup {
 }
 
 export default function CheckupPage() {
-  const { checkups, workOrders, vehicles, settings, deleteCheckupAsync, showToast, currentRole } = useApp();
+  const { checkups, workOrders, allWorkOrders, vehicles, settings, deleteCheckupAsync, showToast, currentRole } = useApp();
   const [filterTab, setFilterTab] = useState<'all' | 'has_checkup' | 'empty'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVehicleGroup, setSelectedVehicleGroup] = useState<VehicleCheckupGroup | null>(null);
@@ -67,9 +67,9 @@ export default function CheckupPage() {
       const key = v.id || normPlate;
       if (!normPlate) return;
 
-      const latestWo = workOrders
+      const latestWo = allWorkOrders
         .filter((w) => w.vehicle_id === v.id || (w.vehicle?.license_plate && w.vehicle.license_plate.replace(/\s+/g, '') === normPlate))
-        .sort((a, b) => new Date(b.created_at || b.entry_date).getTime() - new Date(a.created_at || a.entry_date).getTime())[0];
+        .sort((a, b) => new Date(b.created_at || b.entry_date || 0).getTime() - new Date(a.created_at || a.entry_date || 0).getTime())[0];
 
       map.set(key, {
         key,
@@ -82,7 +82,7 @@ export default function CheckupPage() {
         car_year: v.car_year || '',
         car_color: (v as any).color || (v as any).car_color || '',
         latestSpk: latestWo,
-        lastDate: latestWo?.entry_date || v.updated_at || v.created_at || '',
+        lastDate: latestWo?.created_at || latestWo?.entry_date || v.updated_at || v.created_at || '',
         qcGeneralList: [],
         acList: [],
         understeelList: [],
@@ -91,7 +91,7 @@ export default function CheckupPage() {
     });
 
     // 2. Seed / attach from active workOrders (jika ada yang belum masuk vehicles)
-    workOrders.forEach((wo) => {
+    allWorkOrders.forEach((wo) => {
       const v = wo.vehicle;
       if (!v || !v.license_plate) return;
       const normPlate = v.license_plate.trim().toUpperCase().replace(/\s+/g, '');
@@ -109,7 +109,7 @@ export default function CheckupPage() {
           car_year: v.car_year || '',
           car_color: (v as any).color || (v as any).car_color || '',
           latestSpk: wo,
-          lastDate: wo.entry_date || wo.created_at || '',
+          lastDate: wo.created_at || wo.entry_date || '',
           qcGeneralList: [],
           acList: [],
           understeelList: [],
@@ -117,9 +117,11 @@ export default function CheckupPage() {
         });
       } else {
         const existing = map.get(key)!;
-        if (!existing.latestSpk || new Date(wo.entry_date).getTime() > new Date(existing.lastDate).getTime()) {
+        const woTime = new Date(wo.created_at || wo.entry_date || 0).getTime();
+        const existingTime = new Date(existing.latestSpk?.created_at || existing.latestSpk?.entry_date || existing.lastDate || 0).getTime();
+        if (!existing.latestSpk || woTime > existingTime) {
           existing.latestSpk = wo;
-          existing.lastDate = wo.entry_date || wo.created_at || existing.lastDate;
+          existing.lastDate = wo.created_at || wo.entry_date || existing.lastDate;
         }
       }
     });
@@ -150,7 +152,7 @@ export default function CheckupPage() {
           phone_number: '',
           car_brand: '',
           car_model: rec.car_model || '',
-          latestSpk: workOrders.find((w) => w.id === rec.work_order_id || w.spk_number === rec.document_number),
+          latestSpk: allWorkOrders.find((w) => w.id === rec.work_order_id || w.spk_number === rec.document_number),
           lastDate: rec.check_date || rec.created_at || '',
           qcGeneralList: [],
           acList: [],
@@ -164,25 +166,25 @@ export default function CheckupPage() {
       if (rec.type === 'qc_general') group.qcGeneralList.push(rec);
       else if (rec.type === 'ac_specialist') group.acList.push(rec);
       else if (rec.type === 'understeel') group.understeelList.push(rec);
-
-      const recTime = new Date(rec.check_date || rec.created_at || 0).getTime();
-      const currTime = new Date(group.lastDate || 0).getTime();
-      if (recTime > currTime) {
-        group.lastDate = rec.check_date || rec.created_at || group.lastDate;
-      }
     });
 
     const groups = Array.from(map.values());
 
-    // Urutkan mobil berdasarkan yang punya checklist terbaru atau SPK terbaru
-    return groups.sort((a, b) => {
-      // Prioritaskan yang punya form checklist terlebih dahulu
-      if (b.allRecords.length !== a.allRecords.length) {
-        return b.allRecords.length - a.allRecords.length;
-      }
-      return new Date(b.lastDate || 0).getTime() - new Date(a.lastDate || 0).getTime();
+    // Urutkan checklist internal per mobil berdasarkan tanggal terbaru
+    groups.forEach((g) => {
+      g.allRecords.sort((a, b) => new Date(b.check_date || b.created_at || 0).getTime() - new Date(a.check_date || a.created_at || 0).getTime());
+      g.qcGeneralList.sort((a, b) => new Date(b.check_date || b.created_at || 0).getTime() - new Date(a.check_date || a.created_at || 0).getTime());
+      g.acList.sort((a, b) => new Date(b.check_date || b.created_at || 0).getTime() - new Date(a.check_date || a.created_at || 0).getTime());
+      g.understeelList.sort((a, b) => new Date(b.check_date || b.created_at || 0).getTime() - new Date(a.check_date || a.created_at || 0).getTime());
     });
-  }, [checkups, workOrders, vehicles]);
+
+    // Urutkan daftar mobil secara kronologis berdasarkan saat SPK tersebut diterbitkan
+    return groups.sort((a, b) => {
+      const timeA = new Date(a.latestSpk?.created_at || a.latestSpk?.entry_date || a.lastDate || 0).getTime();
+      const timeB = new Date(b.latestSpk?.created_at || b.latestSpk?.entry_date || b.lastDate || 0).getTime();
+      return timeB - timeA;
+    });
+  }, [checkups, allWorkOrders, vehicles]);
 
   // Filter & Search
   const filteredVehicleGroups = vehicleGroups.filter((g) => {
@@ -367,8 +369,8 @@ export default function CheckupPage() {
                               <div className="font-mono font-bold text-[#001F7A]">
                                 {group.latestSpk.spk_number}
                               </div>
-                              <div className="text-[10.5px] text-slate-500">
-                                {formatDate(group.latestSpk.entry_date)}
+                              <div className="text-[10.5px] text-slate-500 font-medium">
+                                Terbit: {formatDate(group.latestSpk.created_at || group.latestSpk.entry_date)}
                               </div>
                             </>
                           ) : (

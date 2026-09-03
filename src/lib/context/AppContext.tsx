@@ -28,9 +28,11 @@ interface AppContextType {
   settings: WorkshopSettings;
   updateSettings: (newSettings: Partial<WorkshopSettings>) => void;
   workOrders: WorkOrder[];
+  allWorkOrders: WorkOrder[];
   inventory: InventoryItem[];
   invoices: Invoice[];
   crmLogs: CRMLog[];
+  allCrmLogs: CRMLog[];
   vehicles: VehicleCustomer[];
   checkups: CheckupRecord[];
   refreshData: () => void;
@@ -65,9 +67,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const { currentUser, activeBranch } = useAuth();
   const [settings, setSettings] = useState<WorkshopSettings>(DBService.getSettings(activeBranch));
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [allWorkOrders, setAllWorkOrders] = useState<WorkOrder[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [crmLogs, setCrmLogs] = useState<CRMLog[]>([]);
+  const [allCrmLogs, setAllCrmLogs] = useState<CRMLog[]>([]);
   const [vehicles, setVehicles] = useState<VehicleCustomer[]>([]);
   const [checkups, setCheckups] = useState<CheckupRecord[]>([]);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -82,9 +86,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     DBService.init(activeBranch);
     setSettings(DBService.getSettings(activeBranch));
     setWorkOrders(DBService.getWorkOrders(activeBranch));
+    setAllWorkOrders(DBService.getAllWorkOrders());
     setInventory(DBService.getInventory(activeBranch));
     setInvoices(DBService.getInvoices(activeBranch));
     setCrmLogs(DBService.getCRMLogs(activeBranch));
+    setAllCrmLogs(DBService.getAllCRMLogs());
     setVehicles(DBService.getVehicles(activeBranch));
     setCheckups(DBService.getCheckups(activeBranch));
   }, [activeBranch]);
@@ -175,7 +181,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const saveWorkOrderAsync = async (
     workOrder: Omit<WorkOrder, 'id' | 'spk_number'> & { id?: string; spk_number?: string }
   ): Promise<WorkOrder> => {
-    const saved = await DBService.saveWorkOrderAsync(workOrder, activeBranch);
+    const targetBranch = (workOrder.received_at_branch as any) || activeBranch;
+    const saved = await DBService.saveWorkOrderAsync(workOrder, targetBranch);
     refreshData();
     return saved;
   };
@@ -270,9 +277,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         settings,
         updateSettings,
         workOrders,
+        allWorkOrders,
         inventory,
         invoices,
         crmLogs,
+        allCrmLogs,
         vehicles,
         checkups,
         refreshData,

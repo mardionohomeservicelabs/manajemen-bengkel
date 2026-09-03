@@ -620,17 +620,17 @@ export default function NewSPKPage() {
                 <span>Dokumen PKB Berhasil Diterbitkan dengan 3 Tanda Tangan!</span>
               </div>
               <button
-                onClick={() => router.push('/antrean')}
+                onClick={() => router.push(`/antrean?branch=${receivedAtBranch}`)}
                 className="bg-white text-emerald-800 text-xs font-bold px-3 py-1 rounded-lg hover:bg-emerald-50 transition"
               >
-                Lihat di Board Antrean →
+                Lihat di Board Antrean ({receivedAtBranch}) →
               </button>
             </div>
 
             <PrintableSPK
               workOrder={createdOrder}
               settings={settings}
-              onClose={() => router.push('/spk')}
+              onClose={() => router.push(`/antrean?branch=${receivedAtBranch}`)}
             />
           </div>
         </div>

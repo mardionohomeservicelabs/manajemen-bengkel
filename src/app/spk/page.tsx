@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useApp } from '@/lib/context/AppContext';
+import { BranchId } from '@/lib/auth/users';
 import { DBService } from '@/lib/services/db-service';
 import { WorkOrder, WorkOrderStatus } from '@/lib/types/database';
 import {
@@ -28,6 +29,7 @@ import {
   Wrench,
   Lock,
   Unlock,
+  Building2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PrintableSPK } from '@/components/ui/PrintableSPK';
@@ -36,6 +38,7 @@ import { EditLicensePlateModal } from '@/components/ui/EditLicensePlateModal';
 function SPKListContent() {
   const {
     workOrders,
+    allWorkOrders,
     refreshData,
     showToast,
     settings,
@@ -45,29 +48,36 @@ function SPKListContent() {
   } = useApp();
   const searchParams = useSearchParams();
   const targetId = searchParams.get('id');
+  const branchParam = searchParams.get('branch');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [selectedBranch, setSelectedBranch] = useState<'ALL' | BranchId>((branchParam as BranchId) || 'ALL');
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
   const [editingPlateOrder, setEditingPlateOrder] = useState<WorkOrder | null>(null);
 
+  const baseOrders = selectedBranch === 'ALL'
+    ? allWorkOrders
+    : allWorkOrders.filter((w) => (w.received_at_branch || 'MHS 1') === selectedBranch);
+
   useEffect(() => {
-    if (targetId && workOrders.length > 0) {
-      const found = workOrders.find((w) => w.id === targetId);
+    if (targetId && allWorkOrders.length > 0) {
+      const found = allWorkOrders.find((w) => w.id === targetId || w.spk_number === targetId);
       if (found) {
         setSelectedOrder(found);
       }
     }
-  }, [targetId, workOrders]);
+  }, [targetId, allWorkOrders]);
 
-  const filteredOrders = workOrders
+  const filteredOrders = baseOrders
     .filter((order) => {
       const vehicle = order.vehicle;
       const matchesSearch =
         order.spk_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (vehicle?.customer_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (vehicle?.license_plate || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (vehicle?.car_model || '').toLowerCase().includes(searchQuery.toLowerCase());
+        (vehicle?.car_model || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (order.mechanic_name || '').toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
       return matchesSearch && matchesStatus;
@@ -109,7 +119,7 @@ function SPKListContent() {
             <span>Manajemen Surat Perintah Kerja (SPK)</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Daftar intake kendaraan, lembar checklist inspeksi fisik & persetujuan pelanggan.
+            Daftar intake kendaraan, lembar checklist inspeksi fisik &amp; persetujuan pelanggan lintas cabang.
           </p>
         </div>
 
@@ -118,40 +128,59 @@ function SPKListContent() {
           className="inline-flex items-center space-x-2 bg-maroon-700 hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm transition"
         >
           <PlusCircle className="w-4 h-4" />
-          <span>+ Buat SPK & Intake Baru</span>
+          <span>+ Buat SPK &amp; Intake Baru</span>
         </Link>
       </div>
 
       {/* Filter and Search Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-card flex flex-col md:flex-row gap-3 items-center justify-between">
-        <div className="relative w-full md:w-80">
+        <div className="relative w-full md:w-72">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Cari Plat Nomor, No SPK, Pelanggan..."
+            placeholder="Cari Plat, No SPK, Pelanggan, Mekanik..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-2 rounded-xl text-xs border border-slate-200 focus:outline-none focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 bg-slate-50/50"
           />
         </div>
 
-        <div className="flex items-center space-x-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-          <Filter className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-          <span className="text-xs text-slate-500 font-medium flex-shrink-0">Status:</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="text-xs px-3 py-2 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-maroon-600"
-          >
-            <option value="all">Semua Status ({workOrders.length})</option>
-            <option value="queue">Antrean Masuk</option>
-            <option value="estimating">Proses Estimasi</option>
-            <option value="approved">Disetujui</option>
-            <option value="servicing">Sedang Dikerjakan</option>
-            <option value="waiting_parts">Menunggu Part</option>
-            <option value="completed">Selesai</option>
-            <option value="cancelled">Dibatalkan</option>
-          </select>
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          {/* Filter Cabang */}
+          <div className="flex items-center space-x-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200 text-xs">
+            <Building2 className="w-3.5 h-3.5 text-maroon-700 ml-1.5" />
+            <span className="text-[11px] font-bold text-slate-500">Cabang:</span>
+            <select
+              value={selectedBranch}
+              onChange={(e) => setSelectedBranch(e.target.value as any)}
+              className="text-xs px-2 py-1 rounded-lg bg-white border border-slate-200 font-bold text-slate-800 outline-none cursor-pointer"
+            >
+              <option value="ALL">Semua Cabang ({allWorkOrders.length})</option>
+              <option value="MHS 1">MHS 1 ({allWorkOrders.filter(w => (w.received_at_branch || 'MHS 1') === 'MHS 1').length})</option>
+              <option value="MHS 2">MHS 2 ({allWorkOrders.filter(w => (w.received_at_branch || 'MHS 1') === 'MHS 2').length})</option>
+              <option value="MHS 3">MHS 3 ({allWorkOrders.filter(w => (w.received_at_branch || 'MHS 1') === 'MHS 3').length})</option>
+            </select>
+          </div>
+
+          {/* Filter Status */}
+          <div className="flex items-center space-x-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200 text-xs">
+            <Filter className="w-3.5 h-3.5 text-slate-400 ml-1.5" />
+            <span className="text-[11px] font-bold text-slate-500">Status:</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="text-xs px-2 py-1 rounded-lg bg-white border border-slate-200 font-bold text-slate-800 outline-none cursor-pointer"
+            >
+              <option value="all">Semua Status ({baseOrders.length})</option>
+              <option value="queue">Antrean Masuk</option>
+              <option value="estimating">Proses Estimasi</option>
+              <option value="approved">Disetujui</option>
+              <option value="servicing">Sedang Dikerjakan</option>
+              <option value="waiting_parts">Menunggu Part</option>
+              <option value="completed">Selesai</option>
+              <option value="cancelled">Dibatalkan</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -161,8 +190,9 @@ function SPKListContent() {
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
-                <th className="p-3.5">No. SPK & Tanggal</th>
-                <th className="p-3.5">Kendaraan & Pelanggan</th>
+                <th className="p-3.5">No. SPK &amp; Tanggal</th>
+                <th className="p-3.5">Cabang</th>
+                <th className="p-3.5">Kendaraan &amp; Pelanggan</th>
                 <th className="p-3.5">Keluhan Utama</th>
                 <th className="p-3.5">Mekanik / SA</th>
                 <th className="p-3.5 text-center">Status</th>
@@ -172,7 +202,7 @@ function SPKListContent() {
             <tbody className="divide-y divide-slate-100">
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-500">
+                  <td colSpan={7} className="p-8 text-center text-slate-500">
                     Tidak ada data SPK yang sesuai dengan filter pencarian.
                   </td>
                 </tr>
@@ -180,6 +210,7 @@ function SPKListContent() {
                 filteredOrders.map((order) => {
                   const vehicle = order.vehicle;
                   const badge = statusBadgeMap[order.status] || statusBadgeMap.queue;
+                  const branchLabel = order.received_at_branch || 'MHS 1';
 
                   return (
                     <tr key={order.id} className="hover:bg-slate-50/80 transition">
@@ -188,6 +219,18 @@ function SPKListContent() {
                         <div className="text-[11px] text-slate-400 mt-0.5">
                           {formatDateTime(order.entry_date)}
                         </div>
+                      </td>
+
+                      <td className="p-3.5 align-top">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                          branchLabel === 'MHS 2'
+                            ? 'bg-amber-50 text-amber-900 border-amber-300'
+                            : branchLabel === 'MHS 3'
+                            ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                            : 'bg-blue-50 text-blue-900 border-blue-300'
+                        }`}>
+                          {branchLabel}
+                        </span>
                       </td>
 
                       <td className="p-3.5 align-top">

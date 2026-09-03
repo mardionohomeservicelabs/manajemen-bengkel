@@ -44,13 +44,14 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
     printCleanDocument(documentRef.current, `SPK - ${workOrder.spk_number}`);
   };
 
-  // Format Jam Datang (HH:mm)
-  const entryDateObj = new Date(workOrder.entry_date);
+  // Format Jam Datang / Terbit (HH:mm)
+  const spkIssuedTimestamp = workOrder.created_at || workOrder.entry_date;
+  const entryDateObj = new Date(spkIssuedTimestamp);
   const jamDatang = !isNaN(entryDateObj.getTime())
     ? entryDateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
     : '09:00';
 
-  const tanggalDatang = formatDate(workOrder.entry_date);
+  const tanggalDatang = formatDate(spkIssuedTimestamp);
 
   const getWhatsAppMessage = () => {
     return (

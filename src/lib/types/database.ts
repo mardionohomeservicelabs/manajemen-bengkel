@@ -414,6 +414,7 @@ export type CRMReminderPeriod =
 export interface CRMLog {
   id: string;
   vehicle_id: string;
+  branch?: string;
   work_order_id?: string;
   spk_number?: string;
   last_service_id?: string;

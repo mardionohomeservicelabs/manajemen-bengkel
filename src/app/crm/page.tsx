@@ -32,13 +32,16 @@ import {
   Check,
   ShieldCheck,
   Sparkle,
+  Building2,
 } from 'lucide-react';
 import Link from 'next/link';
+import { BranchId } from '@/lib/auth/users';
 
 export default function CRMPage() {
-  const { crmLogs, vehicles, refreshData, showToast, settings } = useApp();
+  const { crmLogs, allCrmLogs, vehicles, refreshData, showToast, settings } = useApp();
   const { activeBranch } = useAuth();
 
+  const [selectedBranch, setSelectedBranch] = useState<'ALL' | BranchId>('ALL');
   const [periodFilter, setPeriodFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [timingFilter, setTimingFilter] = useState<'all' | 'due' | 'upcoming'>('all');
@@ -87,7 +90,12 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! ðŸ
     }
   };
 
-  const filteredLogs = crmLogs.filter((log) => {
+  // Sumber data: Sesuai cabang yang dipilih atau Semua Cabang
+  const sourceLogs = selectedBranch === 'ALL'
+    ? allCrmLogs
+    : allCrmLogs.filter((l) => (l.branch || 'MHS 1') === selectedBranch);
+
+  const filteredLogs = sourceLogs.filter((log) => {
     // 1. Period filter
     if (periodFilter !== 'all' && log.reminder_type !== periodFilter) {
       return false;
@@ -110,13 +118,14 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! ðŸ
     // 4. Search query
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const vehicle = log.vehicle || vehicles.find((v) => v.id === log.vehicle_id);
+      const vehicle = log.vehicle || vehicles.find((v) => v.id === log.vehicle_id) || log.work_order?.vehicle;
       const plate = (vehicle?.license_plate || '').toLowerCase();
       const name = (vehicle?.customer_name || '').toLowerCase();
       const phone = (vehicle?.phone_number || '').toLowerCase();
       const car = `${vehicle?.car_brand || ''} ${vehicle?.car_model || ''}`.toLowerCase();
       const spk = (log.spk_number || '').toLowerCase();
-      return plate.includes(q) || name.includes(q) || phone.includes(q) || car.includes(q) || spk.includes(q);
+      const br = (log.branch || '').toLowerCase();
+      return plate.includes(q) || name.includes(q) || phone.includes(q) || car.includes(q) || spk.includes(q) || br.includes(q);
     }
 
     return true;
@@ -124,7 +133,7 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! ðŸ
 
   const handleOpenContactModal = (log: CRMLog) => {
     setSelectedLog(log);
-    const vehicle = log.vehicle || vehicles.find((v) => v.id === log.vehicle_id);
+    const vehicle = log.vehicle || vehicles.find((v) => v.id === log.vehicle_id) || log.work_order?.vehicle;
     const customerName = vehicle?.customer_name || 'Pelanggan';
     const car = vehicle ? `${vehicle.car_brand} ${vehicle.car_model}` : 'Mobil';
     const plate = vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '';
@@ -137,7 +146,14 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! ðŸ
 
   const handleUpdateStatus = (status: CRMStatus) => {
     if (!selectedLog) return;
-    DBService.updateCRMStatus(selectedLog.id, status, followupNotes, scheduledBookingDate, activeBranch);
+    DBService.updateCRMStatus(
+      selectedLog.id,
+      status,
+      followupNotes,
+      scheduledBookingDate,
+      (selectedLog.branch as BranchId) || activeBranch,
+      selectedLog
+    );
     refreshData();
     showToast(`Status follow-up berhasil diubah menjadi "${status.toUpperCase()}"`, 'success');
     setSelectedLog(null);
@@ -145,7 +161,7 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! ðŸ
 
   const handleSendWhatsAppAndMarkContacted = () => {
     if (!selectedLog) return;
-    const vehicle = selectedLog.vehicle || vehicles.find((v) => v.id === selectedLog.vehicle_id);
+    const vehicle = selectedLog.vehicle || vehicles.find((v) => v.id === selectedLog.vehicle_id) || selectedLog.work_order?.vehicle;
     if (!vehicle?.phone_number) {
       showToast('Nomor WhatsApp pelanggan tidak ditemukan.', 'error');
       return;
@@ -154,21 +170,35 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! ðŸ
     const waUrl = createWhatsAppLink(vehicle.phone_number, customWaMessage);
     window.open(waUrl, '_blank');
 
-    DBService.updateCRMStatus(selectedLog.id, 'contacted', followupNotes, scheduledBookingDate, activeBranch);
+    DBService.updateCRMStatus(
+      selectedLog.id,
+      'contacted',
+      followupNotes,
+      scheduledBookingDate,
+      (selectedLog.branch as BranchId) || activeBranch,
+      selectedLog
+    );
     refreshData();
     showToast('WhatsApp dibuka & status diubah menjadi "Sudah Dihubungi"', 'success');
     setSelectedLog(null);
   };
 
   const handleQuickMarkFollowup = (log: CRMLog, newStatus: CRMStatus = 'contacted') => {
-    DBService.updateCRMStatus(log.id, newStatus, log.notes, log.scheduled_date, activeBranch);
+    DBService.updateCRMStatus(
+      log.id,
+      newStatus,
+      log.notes,
+      log.scheduled_date,
+      (log.branch as BranchId) || activeBranch,
+      log
+    );
     refreshData();
-    const vehicle = log.vehicle || vehicles.find((v) => v.id === log.vehicle_id);
+    const vehicle = log.vehicle || vehicles.find((v) => v.id === log.vehicle_id) || log.work_order?.vehicle;
     const plate = vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '';
     if (newStatus === 'contacted') {
-      showToast(`Kendaraan ${plate} berhasil ditandai "Sudah Follow-up"!`, 'success');
+      showToast(`Kendaraan ${plate || log.spk_number || 'pelanggan'} berhasil ditandai "Sudah Follow-up"!`, 'success');
     } else {
-      showToast(`Status kendaraan ${plate} dikembalikan ke "${newStatus.toUpperCase()}"`, 'info');
+      showToast(`Status kendaraan ${plate || log.spk_number} dikembalikan ke "${newStatus.toUpperCase()}"`, 'info');
     }
   };
 
@@ -192,11 +222,11 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! ðŸ
   };
 
   // KPI Counters
-  const count1Week = crmLogs.filter((c) => c.reminder_type === '1_week').length;
-  const count2Weeks = crmLogs.filter((c) => c.reminder_type === '2_weeks').length;
-  const count1Month = crmLogs.filter((c) => c.reminder_type === '1_month').length;
-  const count3Months = crmLogs.filter((c) => c.reminder_type === '3_months').length;
-  const countDueNow = crmLogs.filter((c) => new Date(c.due_date).getTime() <= todayTime && c.status === 'pending').length;
+  const count1Week = sourceLogs.filter((c) => c.reminder_type === '1_week').length;
+  const count2Weeks = sourceLogs.filter((c) => c.reminder_type === '2_weeks').length;
+  const count1Month = sourceLogs.filter((c) => c.reminder_type === '1_month').length;
+  const count3Months = sourceLogs.filter((c) => c.reminder_type === '3_months').length;
+  const countDueNow = sourceLogs.filter((c) => new Date(c.due_date).getTime() <= todayTime && c.status === 'pending').length;
 
   return (
     <div className="space-y-6">
@@ -208,14 +238,64 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! ðŸ
             <span>CRM &amp; Service Reminder Engine</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Otomatisasi pengingat servis berjenjang (1 Minggu, 2 Minggu, 1 Bulan &amp; 3 Bulan) pasca servis SPK selesai.
+            Otomatisasi pengingat servis berjenjang (1 Minggu, 2 Minggu, 1 Bulan &amp; 3 Bulan) pasca servis SPK selesai lintas cabang.
           </p>
         </div>
+      </div>
 
-        <div className="flex items-center space-x-2">
-          <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700">
-            Cabang Aktif: <strong className="text-maroon-900">{activeBranch}</strong>
-          </span>
+      {/* Filter Cabang Terpadu */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="flex items-center space-x-2.5">
+          <div className="w-8 h-8 rounded-xl bg-maroon-100 text-maroon-800 flex items-center justify-center font-bold">
+            <Building2 className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-xs font-black text-slate-900 uppercase tracking-wide">
+              Filter Cabang Bengkel
+            </div>
+            <div className="text-[11px] text-slate-500">
+              Pilih cabang bengkel tempat servis dilakukan untuk follow-up pelanggan
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold border border-slate-200">
+          <button
+            onClick={() => setSelectedBranch('ALL')}
+            className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg transition ${
+              selectedBranch === 'ALL'
+                ? 'bg-maroon-700 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <span>Semua Cabang</span>
+            <span className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-black ${
+              selectedBranch === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+            }`}>
+              {allCrmLogs.length}
+            </span>
+          </button>
+          {(['MHS 1', 'MHS 2', 'MHS 3'] as BranchId[]).map((b) => {
+            const count = allCrmLogs.filter((l) => (l.branch || 'MHS 1') === b).length;
+            return (
+              <button
+                key={b}
+                onClick={() => setSelectedBranch(b)}
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg transition ${
+                  selectedBranch === b
+                    ? 'bg-maroon-700 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                }`}
+              >
+                <span>{b}</span>
+                <span className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-black ${
+                  selectedBranch === b ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -407,6 +487,7 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! ðŸ
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-black uppercase text-[11px]">
                 <th className="p-3.5">Plat &amp; Kendaraan</th>
+                <th className="p-3.5">Cabang</th>
                 <th className="p-3.5">No. SPK &amp; Pelanggan</th>
                 <th className="p-3.5">Kategori Pengingat</th>
                 <th className="p-3.5">Tgl Servis &amp; Jatuh Tempo</th>
@@ -417,7 +498,7 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! ðŸ
             <tbody className="divide-y divide-slate-100">
               {filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-12 text-center text-slate-400 font-medium">
+                  <td colSpan={7} className="p-12 text-center text-slate-400 font-medium">
                     {searchQuery || periodFilter !== 'all' || statusFilter !== 'all'
                       ? 'Tidak ada data pengingat CRM yang sesuai filter.'
                       : 'Belum ada data pengingat CRM. Selesaikan SPK di antrean untuk memasukkan mobil ke database CRM.'}
@@ -425,9 +506,10 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! ðŸ
                 </tr>
               ) : (
                 filteredLogs.map((log) => {
-                  const vehicle = log.vehicle || vehicles.find((v) => v.id === log.vehicle_id);
+                  const vehicle = log.vehicle || vehicles.find((v) => v.id === log.vehicle_id) || log.work_order?.vehicle;
                   const badge = statusMap[log.status] || statusMap.pending;
                   const periodInfo = periodLabels[log.reminder_type] || periodLabels.custom;
+                  const branchLabel = log.branch || 'MHS 1';
 
                   const logDueTime = new Date(log.due_date).getTime();
                   const isDueOrOverdue = logDueTime <= todayTime;
@@ -443,6 +525,19 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! ðŸ
                         <div className="font-bold text-slate-900">
                           {vehicle?.car_brand} {vehicle?.car_model} {vehicle?.car_year ? `(${vehicle.car_year})` : ''}
                         </div>
+                      </td>
+
+                      {/* Cabang */}
+                      <td className="p-3.5">
+                        <span className={`px-2 py-0.5 rounded text-[10.5px] font-black border ${
+                          branchLabel === 'MHS 2'
+                            ? 'bg-amber-50 text-amber-900 border-amber-300'
+                            : branchLabel === 'MHS 3'
+                            ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                            : 'bg-blue-50 text-blue-900 border-blue-300'
+                        }`}>
+                          {branchLabel}
+                        </span>
                       </td>
 
                       {/* 2. No. SPK & Pelanggan */}

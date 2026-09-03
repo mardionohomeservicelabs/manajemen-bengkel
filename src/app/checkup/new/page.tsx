@@ -14,7 +14,7 @@ import {
   CheckupRecord,
   WorkOrder,
 } from '@/lib/types/database';
-import { formatPlate, formatKM, parseKM } from '@/lib/utils';
+import { formatDate, formatPlate, formatKM, parseKM } from '@/lib/utils';
 import {
   ShieldAlert,
   ThermometerSnowflake,
@@ -53,6 +53,7 @@ function NewCheckupPageContent() {
     saveCheckupAsync,
     currentRole,
     unlockWorkOrderAsync,
+    allWorkOrders,
   } = useApp();
 
   const typeParam = searchParams.get('type') as CheckupType | null;
@@ -66,7 +67,7 @@ function NewCheckupPageContent() {
 
   // Selected Active SPK
   const [selectedSpkId, setSelectedSpkId] = useState<string>(spkIdParam || '');
-  const selectedSpk = workOrders.find((w) => w.id === selectedSpkId);
+  const selectedSpk = allWorkOrders.find((w) => w.id === selectedSpkId);
   const isCompleted = selectedSpk?.status === 'completed';
   const isLocked = isCompleted && currentRole !== 'owner';
 
@@ -83,8 +84,8 @@ function NewCheckupPageContent() {
 
   // Auto-fill when an active SPK is selected
   useEffect(() => {
-    if (selectedSpkId && workOrders.length > 0) {
-      const spk = workOrders.find((w) => w.id === selectedSpkId);
+    if (selectedSpkId && allWorkOrders.length > 0) {
+      const spk = allWorkOrders.find((w) => w.id === selectedSpkId);
       if (spk) {
         if (spk.vehicle) {
           setCustomerName(spk.vehicle.customer_name);
@@ -99,10 +100,15 @@ function NewCheckupPageContent() {
           setTechnicianName(spk.mechanic_name);
           setMech1(spk.mechanic_name);
         }
-        showToast(`Data SPK ${spk.spk_number} berhasil dimuat ke formulir checkup!`, 'info');
+        // Sesuaikan tanggal checklist saat SPK tersebut diterbitkan
+        const spkIssuedDate = spk.created_at || spk.entry_date;
+        if (spkIssuedDate) {
+          setCheckDate(new Date(spkIssuedDate).toISOString().slice(0, 10));
+        }
+        showToast(`Data SPK ${spk.spk_number} dimuat & tanggal checklist disesuaikan ke tanggal terbit SPK!`, 'info');
       }
     }
-  }, [selectedSpkId, workOrders]);
+  }, [selectedSpkId, allWorkOrders]);
 
   // --- FORM 1: QC GENERAL CHECKUP STATES ---
   const [batteryCondition, setBatteryCondition] = useState<'baik' | 'buruk'>('baik');
@@ -454,12 +460,17 @@ function NewCheckupPageContent() {
           className="w-full text-xs p-3 rounded-xl border border-maroon-300 bg-white focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none font-bold text-slate-900 shadow-xs"
         >
           <option value="">-- Atau Input Manual / Tanpa SPK --</option>
-          {workOrders
+          {allWorkOrders
             .filter((wo) => wo.status !== 'completed' && wo.status !== 'cancelled')
+            .sort((a, b) => {
+              const timeA = new Date(a.created_at || a.entry_date || 0).getTime();
+              const timeB = new Date(b.created_at || b.entry_date || 0).getTime();
+              return timeB - timeA;
+            })
             .map((wo) => (
               <option key={wo.id} value={wo.id}>
-                {wo.spk_number} • {wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''} •{' '}
-                {wo.vehicle?.customer_name} ({wo.vehicle?.car_brand} {wo.vehicle?.car_model}) - Status: {wo.status.toUpperCase()}
+                {wo.spk_number} • Terbit: {formatDate(wo.created_at || wo.entry_date)} • {wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''} •{' '}
+                {wo.vehicle?.customer_name} ({wo.vehicle?.car_brand} {wo.vehicle?.car_model}) - [{wo.received_at_branch || 'MHS 1'}]
               </option>
             ))}
         </select>

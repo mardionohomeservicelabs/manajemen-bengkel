@@ -475,8 +475,25 @@ export class DBService {
     return getLocal<VehicleCustomer[]>(key, []);
   }
 
+  static getAllVehicles(): VehicleCustomer[] {
+    const branches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+    const map = new Map<string, VehicleCustomer>();
+    branches.forEach((b) => {
+      this.getVehicles(b).forEach((v) => {
+        if (!map.has(v.id)) {
+          map.set(v.id, v);
+        }
+      });
+    });
+    return Array.from(map.values());
+  }
+
   static getVehicleById(id: string, branch?: BranchId): VehicleCustomer | undefined {
-    return this.getVehicles(branch).find((v) => v.id === id);
+    if (branch) {
+      const found = this.getVehicles(branch).find((v) => v.id === id);
+      if (found) return found;
+    }
+    return this.getAllVehicles().find((v) => v.id === id);
   }
 
   static getVehicleByPlate(plate: string, branch?: BranchId): VehicleCustomer | undefined {
@@ -794,7 +811,7 @@ export class DBService {
     return orders
       .map((order) => ({
         ...order,
-        vehicle: vehicles.find((v) => v.id === order.vehicle_id),
+        vehicle: vehicles.find((v) => v.id === order.vehicle_id) || order.vehicle,
       }))
       .sort((a, b) => {
         const timeA = new Date(a.created_at || a.entry_date || 0).getTime() || 0;
@@ -803,15 +820,38 @@ export class DBService {
       });
   }
 
+  static getAllWorkOrders(): WorkOrder[] {
+    const branches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+    const map = new Map<string, WorkOrder>();
+    branches.forEach((b) => {
+      this.getWorkOrders(b).forEach((wo) => {
+        const key = wo.spk_number || wo.id;
+        if (!map.has(key)) {
+          map.set(key, { ...wo, received_at_branch: wo.received_at_branch || b });
+        }
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => {
+      const timeA = new Date(a.created_at || a.entry_date || 0).getTime() || 0;
+      const timeB = new Date(b.created_at || b.entry_date || 0).getTime() || 0;
+      return timeB - timeA;
+    });
+  }
+
   static getWorkOrderById(id: string, branch?: BranchId): WorkOrder | undefined {
-    return this.getWorkOrders(branch).find((w) => w.id === id);
+    if (branch) {
+      const found = this.getWorkOrders(branch).find((w) => w.id === id || w.spk_number === id);
+      if (found) return found;
+    }
+    return this.getAllWorkOrders().find((w) => w.id === id || w.spk_number === id);
   }
 
   static saveWorkOrder(
     workOrder: Omit<WorkOrder, 'id' | 'spk_number'> & { id?: string; spk_number?: string },
     branch?: BranchId
   ): WorkOrder {
-    const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, branch);
+    const targetBranch: BranchId = normalizeBranch(workOrder.received_at_branch || branch || this.getActiveBranch());
+    const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, targetBranch);
     const orders = getLocal<WorkOrder[]>(key, []);
     let saved: WorkOrder;
 
@@ -856,7 +896,7 @@ export class DBService {
     });
 
     setLocal(key, orders);
-    return this.getWorkOrderById(saved.id, branch) || saved;
+    return this.getWorkOrderById(saved.id, targetBranch) || saved;
   }
 
   /**
@@ -866,7 +906,8 @@ export class DBService {
     workOrder: Omit<WorkOrder, 'id' | 'spk_number'> & { id?: string; spk_number?: string },
     branch?: BranchId
   ): Promise<WorkOrder> {
-    const localSaved = this.saveWorkOrder(workOrder, branch);
+    const targetBranch: BranchId = normalizeBranch(workOrder.received_at_branch || branch || this.getActiveBranch());
+    const localSaved = this.saveWorkOrder(workOrder, targetBranch);
 
     if (supabase && isSupabaseConfigured) {
       try {
@@ -875,7 +916,7 @@ export class DBService {
           ...((workOrder as any).checklist_data || {}),
           source_info: workOrder.source_info || (localSaved as any).source_info || 'REFERENSI',
           vehicle_status: workOrder.vehicle_status || (localSaved as any).vehicle_status || 'Ditunggu',
-          received_at_branch: workOrder.received_at_branch || (localSaved as any).received_at_branch || branch || DBService.getActiveBranch(),
+          received_at_branch: workOrder.received_at_branch || (localSaved as any).received_at_branch || targetBranch,
           signature_customer_url: workOrder.signature_customer_url || (localSaved as any).signature_customer_url || null,
           signature_mechanic_url: workOrder.signature_mechanic_url || (localSaved as any).signature_mechanic_url || null,
           signature_sa_url: workOrder.signature_sa_url || (localSaved as any).signature_sa_url || null,
@@ -926,7 +967,7 @@ export class DBService {
             vehicle: remoteSaved.vehicle || localSaved.vehicle,
           };
 
-          const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, branch);
+          const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, targetBranch);
           const orders = getLocal<WorkOrder[]>(key, []);
           const idx = orders.findIndex((o) => o.spk_number === localSaved.spk_number);
           if (idx !== -1) {
@@ -939,11 +980,11 @@ export class DBService {
       } catch (err) {
         console.warn('Supabase saveWorkOrder exception:', err);
         // Tambahkan ke offline queue untuk retry saat koneksi tersedia
-        this.addToOfflineQueue('work_order', workOrder, branch);
+        this.addToOfflineQueue('work_order', workOrder, targetBranch);
       }
     } else if (isSupabaseConfigured) {
       // Supabase dikonfigurasi tapi client null — offline, tambahkan ke queue
-      this.addToOfflineQueue('work_order', workOrder, branch);
+      this.addToOfflineQueue('work_order', workOrder, targetBranch);
     }
 
     return localSaved;
@@ -952,16 +993,37 @@ export class DBService {
   static updateWorkOrderStatus(id: string, status: WorkOrderStatus, userRole: UserRole = 'sa', branch?: BranchId): boolean {
     const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, branch);
     const orders = getLocal<WorkOrder[]>(key, []);
-    const idx = orders.findIndex((o) => o.id === id);
-    if (idx === -1) return false;
+    let idx = orders.findIndex((o) => o.id === id);
 
-    orders[idx].status = status;
-    orders[idx].updated_at = new Date().toISOString();
-    if (status === 'completed') {
-      orders[idx].finish_date = new Date().toISOString();
+    if (idx !== -1) {
+      orders[idx].status = status;
+      orders[idx].updated_at = new Date().toISOString();
+      if (status === 'completed') {
+        orders[idx].finish_date = new Date().toISOString();
+      }
+      setLocal(key, orders);
+      return true;
     }
-    setLocal(key, orders);
-    return true;
+
+    // Jika tidak ditemukan di cabang yang diminta, cari di semua cabang
+    const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+    for (const b of allBranches) {
+      if (b === branch) continue;
+      const bKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b);
+      const bOrders = getLocal<WorkOrder[]>(bKey, []);
+      const bIdx = bOrders.findIndex((o) => o.id === id);
+      if (bIdx !== -1) {
+        bOrders[bIdx].status = status;
+        bOrders[bIdx].updated_at = new Date().toISOString();
+        if (status === 'completed') {
+          bOrders[bIdx].finish_date = new Date().toISOString();
+        }
+        setLocal(bKey, bOrders);
+        return true;
+      }
+    }
+
+    return false;
   }
 
   static async updateWorkOrderStatusAsync(
@@ -1820,7 +1882,7 @@ export class DBService {
 
     // Otomatis generate 4 milestone follow-up untuk setiap SPK yang sudah selesai
     workOrders.forEach((wo) => {
-      const v = wo.vehicle || vehicles.find((veh) => veh.id === wo.vehicle_id);
+      const v = wo.vehicle || vehicles.find((veh) => veh.id === wo.vehicle_id) || this.getVehicleById(wo.vehicle_id);
       const finishDateStr = wo.finish_date || wo.updated_at || wo.entry_date || new Date().toISOString();
       const finishTime = new Date(finishDateStr).getTime();
 
@@ -1841,6 +1903,7 @@ export class DBService {
             vehicle_id: wo.vehicle_id,
             work_order_id: wo.id,
             spk_number: wo.spk_number,
+            branch: wo.received_at_branch || branch || 'MHS 1',
             service_date: finishDateStr,
             due_date: dueDate,
             reminder_type: period,
@@ -1851,52 +1914,170 @@ export class DBService {
           logsMap.set(logId, newLog);
         } else {
           const existing = logsMap.get(logId)!;
+          // PERBAIKAN KRITIS: Selalu pulihkan field data pelanggan jika sebelumnya kosong / ter-overwrite
+          if (!existing.vehicle_id || existing.vehicle_id === '') existing.vehicle_id = wo.vehicle_id;
+          if (!existing.reminder_type || existing.reminder_type === 'custom') existing.reminder_type = period;
           if (!existing.spk_number) existing.spk_number = wo.spk_number;
           if (!existing.work_order_id) existing.work_order_id = wo.id;
           if (!existing.service_date) existing.service_date = finishDateStr;
-          if (!existing.due_date) existing.due_date = dueDate;
+          if (!existing.due_date || existing.reminder_type === 'custom') existing.due_date = dueDate;
+          if (!existing.branch) existing.branch = wo.received_at_branch || branch || 'MHS 1';
         }
       });
     });
 
-    const allLogs = Array.from(logsMap.values()).map((log) => ({
-      ...log,
-      vehicle: vehicles.find((v) => v.id === log.vehicle_id),
-      work_order: workOrders.find((w) => w.id === log.work_order_id || w.spk_number === log.spk_number),
-    }));
+    // Simpan kembali manualLogs yang sudah diperbaiki ke storage
+    const updatedManualLogs = manualLogs.map((l) => logsMap.get(l.id) || l);
+    setLocal(key, updatedManualLogs);
+
+    const allLogs = Array.from(logsMap.values()).map((log) => {
+      const wo = workOrders.find((w) => w.id === log.work_order_id || w.spk_number === log.spk_number) || this.getWorkOrderById(log.work_order_id || '');
+      const vehicle = vehicles.find((v) => v.id === log.vehicle_id) || wo?.vehicle || this.getVehicleById(log.vehicle_id);
+
+      return {
+        ...log,
+        vehicle,
+        work_order: wo,
+        branch: log.branch || wo?.received_at_branch || branch || 'MHS 1',
+      };
+    });
 
     // Urutkan berdasarkan due_date (yang paling dekat/overdue di paling atas)
     return allLogs.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
   }
 
-  static updateCRMStatus(id: string, status: CRMLog['status'], notes?: string, scheduledDate?: string, branch?: BranchId): boolean {
-    const key = getBranchKey(BASE_STORAGE_KEYS.CRM_LOGS, branch);
-    const logs = getLocal<CRMLog[]>(key, []);
-    const idx = logs.findIndex((l) => l.id === id);
+  static getAllCRMLogs(): CRMLog[] {
+    const branches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+    const map = new Map<string, CRMLog>();
+    branches.forEach((b) => {
+      this.getCRMLogs(b).forEach((log) => {
+        if (!map.has(log.id)) {
+          map.set(log.id, { ...log, branch: log.branch || b });
+        }
+      });
+    });
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
+    );
+  }
 
-    if (idx !== -1) {
-      logs[idx].status = status;
-      logs[idx].contacted_at = new Date().toISOString();
-      if (notes !== undefined) logs[idx].notes = notes;
-      if (scheduledDate !== undefined) logs[idx].scheduled_date = scheduledDate;
-      logs[idx].updated_at = new Date().toISOString();
-      setLocal(key, logs);
-    } else {
-      // Jika update status untuk log yang baru dibuat dari milestone
-      const newEntry: CRMLog = {
-        id,
-        vehicle_id: '',
-        due_date: new Date().toISOString().slice(0, 10),
-        reminder_type: 'custom',
-        status,
-        contacted_at: new Date().toISOString(),
-        notes,
-        scheduled_date: scheduledDate,
-        updated_at: new Date().toISOString(),
-      };
-      logs.push(newEntry);
-      setLocal(key, logs);
+  static updateCRMStatus(
+    id: string,
+    status: CRMLog['status'],
+    notes?: string,
+    scheduledDate?: string,
+    branch?: BranchId,
+    logContext?: Partial<CRMLog>
+  ): boolean {
+    const targetBranch = normalizeBranch(logContext?.branch || branch || this.getActiveBranch());
+    const key = getBranchKey(BASE_STORAGE_KEYS.CRM_LOGS, targetBranch);
+    const logs = getLocal<CRMLog[]>(key, []);
+    let idx = logs.findIndex((l) => l.id === id);
+
+    // Cari juga di cabang lain jika tidak ditemukan di branch target
+    let actualKey = key;
+    let actualLogs = logs;
+    let actualIdx = idx;
+
+    if (actualIdx === -1) {
+      const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+      for (const b of allBranches) {
+        if (b === targetBranch) continue;
+        const bKey = getBranchKey(BASE_STORAGE_KEYS.CRM_LOGS, b);
+        const bLogs = getLocal<CRMLog[]>(bKey, []);
+        const bIdx = bLogs.findIndex((l) => l.id === id);
+        if (bIdx !== -1) {
+          actualKey = bKey;
+          actualLogs = bLogs;
+          actualIdx = bIdx;
+          break;
+        }
+      }
     }
+
+    if (actualIdx !== -1) {
+      actualLogs[actualIdx].status = status;
+      actualLogs[actualIdx].contacted_at = new Date().toISOString();
+      if (notes !== undefined) actualLogs[actualIdx].notes = notes;
+      if (scheduledDate !== undefined) actualLogs[actualIdx].scheduled_date = scheduledDate;
+      // Pulihkan field jika kosong
+      if (logContext?.vehicle_id && (!actualLogs[actualIdx].vehicle_id || actualLogs[actualIdx].vehicle_id === '')) {
+        actualLogs[actualIdx].vehicle_id = logContext.vehicle_id;
+      }
+      if (logContext?.reminder_type && (actualLogs[actualIdx].reminder_type === 'custom' || !actualLogs[actualIdx].reminder_type)) {
+        actualLogs[actualIdx].reminder_type = logContext.reminder_type;
+      }
+      if (logContext?.spk_number && !actualLogs[actualIdx].spk_number) {
+        actualLogs[actualIdx].spk_number = logContext.spk_number;
+      }
+      if (logContext?.service_date && !actualLogs[actualIdx].service_date) {
+        actualLogs[actualIdx].service_date = logContext.service_date;
+      }
+      if (logContext?.due_date && (!actualLogs[actualIdx].due_date || actualLogs[actualIdx].reminder_type === 'custom')) {
+        actualLogs[actualIdx].due_date = logContext.due_date;
+      }
+      if (logContext?.branch && !actualLogs[actualIdx].branch) {
+        actualLogs[actualIdx].branch = logContext.branch;
+      }
+      actualLogs[actualIdx].updated_at = new Date().toISOString();
+      setLocal(actualKey, actualLogs);
+      return true;
+    }
+
+    // Jika first time update untuk auto-generated milestone log
+    let vehicleId = logContext?.vehicle_id || '';
+    let woId = logContext?.work_order_id || '';
+    let spkNumber = logContext?.spk_number || '';
+    let reminderType = logContext?.reminder_type || 'custom';
+    let serviceDate = logContext?.service_date || '';
+    let dueDate = logContext?.due_date || new Date().toISOString().slice(0, 10);
+    let itemBranch = logContext?.branch || targetBranch;
+
+    if (id.startsWith('crm-')) {
+      const parts = id.split('-');
+      if (parts.length >= 3) {
+        woId = woId || parts[1];
+        const period = parts.slice(2).join('-') as CRMReminderPeriod;
+        if (['1_week', '2_weeks', '1_month', '3_months'].includes(period)) {
+          reminderType = period;
+        }
+        const wo = this.getWorkOrderById(woId, targetBranch);
+        if (wo) {
+          vehicleId = vehicleId || wo.vehicle_id;
+          spkNumber = spkNumber || wo.spk_number;
+          itemBranch = wo.received_at_branch || itemBranch;
+          const finishDateStr = wo.finish_date || wo.updated_at || wo.entry_date || new Date().toISOString();
+          serviceDate = serviceDate || finishDateStr;
+          const finishTime = new Date(finishDateStr).getTime();
+          const daysMap: Record<string, number> = { '1_week': 7, '2_weeks': 14, '1_month': 30, '3_months': 90 };
+          const days = daysMap[period] || 7;
+          dueDate = logContext?.due_date || new Date(finishTime + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        }
+      }
+    }
+
+    const newEntry: CRMLog = {
+      id,
+      vehicle_id: vehicleId,
+      work_order_id: woId,
+      spk_number: spkNumber,
+      branch: itemBranch,
+      service_date: serviceDate,
+      due_date: dueDate,
+      reminder_type: reminderType as CRMReminderPeriod,
+      status,
+      contacted_at: new Date().toISOString(),
+      notes,
+      scheduled_date: scheduledDate,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const finalBranch = normalizeBranch(itemBranch);
+    const finalKey = getBranchKey(BASE_STORAGE_KEYS.CRM_LOGS, finalBranch);
+    const branchLogs = getLocal<CRMLog[]>(finalKey, []);
+    branchLogs.push(newEntry);
+    setLocal(finalKey, branchLogs);
     return true;
   }
 

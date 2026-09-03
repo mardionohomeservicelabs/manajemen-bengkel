@@ -1,7 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useApp } from '@/lib/context/AppContext';
+import { useAuth } from '@/lib/context/AuthContext';
+import { BranchId } from '@/lib/auth/users';
 import { DBService } from '@/lib/services/db-service';
 import { WorkOrder, WorkOrderStatus } from '@/lib/types/database';
 import {
@@ -29,6 +32,7 @@ import {
   Calendar,
   CheckCircle,
   FolderCheck,
+  Building2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PrintableSPK } from '@/components/ui/PrintableSPK';
@@ -72,17 +76,36 @@ const ACTIVE_COLUMNS: { id: WorkOrderStatus; title: string; color: string; borde
   },
 ];
 
-export default function QueueBoardPage() {
-  const { workOrders, showToast, settings, currentRole, updateWorkOrderStatusAsync } = useApp();
+function QueueBoardContent() {
+  const { workOrders, allWorkOrders, showToast, settings, currentRole, updateWorkOrderStatusAsync } = useApp();
+  const { activeBranch, setActiveBranch, currentUser } = useAuth();
+  const searchParams = useSearchParams();
+  const branchParam = searchParams.get('branch');
+
   const [pageTab, setPageTab] = useState<'active' | 'database'>('active');
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+  const [selectedBranch, setSelectedBranch] = useState<'ALL' | BranchId>(
+    (branchParam as BranchId) || 'ALL'
+  );
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
   const [editingPlateOrder, setEditingPlateOrder] = useState<WorkOrder | null>(null);
   const [dbSearchQuery, setDbSearchQuery] = useState('');
 
+  // Sinkronkan jika query param branch berubah
+  useEffect(() => {
+    if (branchParam && (branchParam === 'MHS 1' || branchParam === 'MHS 2' || branchParam === 'MHS 3')) {
+      setSelectedBranch(branchParam as BranchId);
+    }
+  }, [branchParam]);
+
+  // Sumber data: Semua cabang atau difilter per cabang tertentu
+  const sourceOrders = selectedBranch === 'ALL'
+    ? allWorkOrders
+    : allWorkOrders.filter((w) => (w.received_at_branch || 'MHS 1') === selectedBranch);
+
   // Pisahkan antrean aktif dan pekerjaan selesai
-  const activeOrders = workOrders.filter((w) => w.status !== 'completed' && w.status !== 'cancelled');
-  const completedOrders = workOrders
+  const activeOrders = sourceOrders.filter((w) => w.status !== 'completed' && w.status !== 'cancelled');
+  const completedOrders = sourceOrders
     .filter((w) => w.status === 'completed')
     .filter((w) => {
       if (!dbSearchQuery.trim()) return true;
@@ -92,7 +115,8 @@ export default function QueueBoardPage() {
       const spk = (w.spk_number || '').toLowerCase();
       const car = `${w.vehicle?.car_brand || ''} ${w.vehicle?.car_model || ''}`.toLowerCase();
       const mech = (w.mechanic_name || '').toLowerCase();
-      return plate.includes(q) || name.includes(q) || spk.includes(q) || car.includes(q) || mech.includes(q);
+      const branch = (w.received_at_branch || '').toLowerCase();
+      return plate.includes(q) || name.includes(q) || spk.includes(q) || car.includes(q) || mech.includes(q) || branch.includes(q);
     })
     .sort((a, b) => {
       const timeA = new Date(a.finish_date || a.updated_at || a.created_at || 0).getTime() || 0;
@@ -100,7 +124,7 @@ export default function QueueBoardPage() {
       return timeB - timeA;
     });
 
-  const totalCompletedCount = workOrders.filter((w) => w.status === 'completed').length;
+  const totalCompletedCount = sourceOrders.filter((w) => w.status === 'completed').length;
 
   const handleStatusChange = async (orderId: string, newStatus: WorkOrderStatus) => {
     const success = await updateWorkOrderStatusAsync(orderId, newStatus);
@@ -122,16 +146,16 @@ export default function QueueBoardPage() {
 
   return (
     <div>
-      <div className="no-print space-y-6">
+      <div className="no-print space-y-5">
         {/* Top Header & Mode Switcher */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center space-x-2">
               <Kanban className="w-6 h-6 text-maroon-700" />
-              <span>Board Antrean & Manajemen Servis</span>
+              <span>Board Antrean &amp; Manajemen Servis</span>
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Pelacakan alur pengerjaan kendaraan aktif serta arsip database pekerjaan selesai.
+              Pelacakan alur pengerjaan kendaraan aktif serta arsip database pekerjaan selesai lintas cabang.
             </p>
           </div>
 
@@ -143,6 +167,64 @@ export default function QueueBoardPage() {
               <PlusCircle className="w-4 h-4" />
               <span>+ Intake SPK Baru</span>
             </Link>
+          </div>
+        </div>
+
+        {/* Filter Cabang Terpadu (Semua Cabang / MHS 1 / MHS 2 / MHS 3) */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-xl bg-maroon-100 text-maroon-800 flex items-center justify-center font-bold">
+              <Building2 className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                Filter Lokasi Cabang Bengkel
+              </div>
+              <div className="text-[11px] text-slate-500">
+                Pilih cabang untuk memantau antrean unit di bengkel yang bersangkutan
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold border border-slate-200">
+            <button
+              onClick={() => setSelectedBranch('ALL')}
+              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg transition ${
+                selectedBranch === 'ALL'
+                  ? 'bg-maroon-700 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
+            >
+              <span>Semua Cabang</span>
+              <span className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-black ${
+                selectedBranch === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+              }`}>
+                {allWorkOrders.filter((w) => w.status !== 'completed' && w.status !== 'cancelled').length}
+              </span>
+            </button>
+            {(['MHS 1', 'MHS 2', 'MHS 3'] as BranchId[]).map((b) => {
+              const activeCount = allWorkOrders.filter(
+                (w) => (w.received_at_branch || 'MHS 1') === b && w.status !== 'completed' && w.status !== 'cancelled'
+              ).length;
+              return (
+                <button
+                  key={b}
+                  onClick={() => setSelectedBranch(b)}
+                  className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg transition ${
+                    selectedBranch === b
+                      ? 'bg-maroon-700 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                >
+                  <span>{b}</span>
+                  <span className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-black ${
+                    selectedBranch === b ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {activeCount}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -158,7 +240,7 @@ export default function QueueBoardPage() {
               }`}
             >
               <Wrench className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Antrean & Pengerjaan Aktif</span>
+              <span>Antrean &amp; Pengerjaan Aktif</span>
               <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10.5px] font-black bg-indigo-100 text-indigo-800">
                 {activeOrders.length} Unit
               </span>
@@ -253,13 +335,14 @@ export default function QueueBoardPage() {
                         ) : (
                           columnOrders.map((order) => {
                             const vehicle = order.vehicle;
+                            const branchLabel = order.received_at_branch || 'MHS 1';
 
                             return (
                               <div
                                 key={order.id}
                                 className="bg-white rounded-xl border border-slate-200/90 p-3 shadow-xs hover:shadow-md transition space-y-2.5"
                               >
-                                {/* Card Top: Plate & SPK */}
+                                {/* Card Top: Plate & Branch & SPK */}
                                 <div className="flex items-start justify-between">
                                   <div>
                                     <div className="font-black text-sm text-maroon-900 tracking-wide font-mono">
@@ -272,9 +355,20 @@ export default function QueueBoardPage() {
                                       {vehicle?.customer_name || 'Pelanggan'}
                                     </div>
                                   </div>
-                                  <span className="text-[9.5px] font-mono font-bold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">
-                                    {order.spk_number.slice(-7)}
-                                  </span>
+                                  <div className="flex flex-col items-end space-y-1">
+                                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${
+                                      branchLabel === 'MHS 2'
+                                        ? 'bg-amber-50 text-amber-900 border-amber-300'
+                                        : branchLabel === 'MHS 3'
+                                        ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                                        : 'bg-blue-50 text-blue-900 border-blue-300'
+                                    }`}>
+                                      {branchLabel}
+                                    </span>
+                                    <span className="text-[9.5px] font-mono font-bold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">
+                                      {order.spk_number.slice(-7)}
+                                    </span>
+                                  </div>
                                 </div>
 
                                 {/* Complaints Snippet */}
@@ -374,6 +468,7 @@ export default function QueueBoardPage() {
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px]">
                         <th className="p-3.5">Plat &amp; Kendaraan</th>
+                        <th className="p-3.5">Cabang</th>
                         <th className="p-3.5">No. SPK</th>
                         <th className="p-3.5">Pemilik &amp; Kontak</th>
                         <th className="p-3.5">Mekanik</th>
@@ -384,13 +479,14 @@ export default function QueueBoardPage() {
                     <tbody className="divide-y divide-slate-100">
                       {activeOrders.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="p-8 text-center text-slate-400 font-medium">
-                            Tidak ada antrean kendaraan aktif saat ini.
+                          <td colSpan={7} className="p-8 text-center text-slate-400 font-medium">
+                            Tidak ada antrean kendaraan aktif saat ini di cabang yang dipilih.
                           </td>
                         </tr>
                       ) : (
                         activeOrders.map((order) => {
                           const vehicle = order.vehicle;
+                          const branchLabel = order.received_at_branch || 'MHS 1';
                           return (
                             <tr key={order.id} className="hover:bg-slate-50">
                               <td className="p-3.5">
@@ -400,6 +496,17 @@ export default function QueueBoardPage() {
                                 <div className="text-slate-700 font-medium">
                                   {vehicle?.car_brand} {vehicle?.car_model}
                                 </div>
+                              </td>
+                              <td className="p-3.5">
+                                <span className={`px-2 py-0.5 rounded text-[10.5px] font-black border ${
+                                  branchLabel === 'MHS 2'
+                                    ? 'bg-amber-50 text-amber-900 border-amber-300'
+                                    : branchLabel === 'MHS 3'
+                                    ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                                    : 'bg-blue-50 text-blue-900 border-blue-300'
+                                }`}>
+                                  {branchLabel}
+                                </span>
                               </td>
                               <td className="p-3.5 font-mono font-bold text-slate-900">{order.spk_number}</td>
                               <td className="p-3.5">
@@ -468,7 +575,7 @@ export default function QueueBoardPage() {
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-emerald-950 uppercase tracking-wide">
-                    Database Pekerjaan Selesai
+                    Database Pekerjaan Selesai {selectedBranch !== 'ALL' ? `(${selectedBranch})` : '(Semua Cabang)'}
                   </h3>
                   <p className="text-xs text-emerald-800 font-medium mt-0.5">
                     Menampilkan seluruh mobil yang telah selesai dikerjakan dan siap diambil atau telah diserahkan ke pelanggan.
@@ -486,6 +593,7 @@ export default function QueueBoardPage() {
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-black uppercase text-[11px]">
                       <th className="p-3.5">Plat &amp; Kendaraan</th>
+                      <th className="p-3.5">Cabang</th>
                       <th className="p-3.5">No. SPK</th>
                       <th className="p-3.5">Customer &amp; Kontak</th>
                       <th className="p-3.5">Mekanik PIC</th>
@@ -497,13 +605,14 @@ export default function QueueBoardPage() {
                   <tbody className="divide-y divide-slate-100">
                     {completedOrders.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="p-12 text-center text-slate-400 font-medium">
-                          {dbSearchQuery ? 'Tidak ada data selesai yang cocok dengan pencarian.' : 'Belum ada data pekerjaan selesai di database.'}
+                        <td colSpan={8} className="p-12 text-center text-slate-400 font-medium">
+                          {dbSearchQuery ? 'Tidak ada data selesai yang cocok dengan pencarian.' : 'Belum ada data pekerjaan selesai di database cabang yang dipilih.'}
                         </td>
                       </tr>
                     ) : (
                       completedOrders.map((order) => {
                         const vehicle = order.vehicle;
+                        const branchLabel = order.received_at_branch || 'MHS 1';
                         return (
                           <tr key={order.id} className="hover:bg-slate-50/80 transition">
                             <td className="p-3.5">
@@ -513,6 +622,17 @@ export default function QueueBoardPage() {
                               <div className="font-bold text-slate-900">
                                 {vehicle?.car_brand} {vehicle?.car_model} {vehicle?.car_year ? `(${vehicle.car_year})` : ''}
                               </div>
+                            </td>
+                            <td className="p-3.5">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                                branchLabel === 'MHS 2'
+                                  ? 'bg-amber-50 text-amber-900 border-amber-300'
+                                  : branchLabel === 'MHS 3'
+                                  ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                                  : 'bg-blue-50 text-blue-900 border-blue-300'
+                              }`}>
+                                {branchLabel}
+                              </span>
                             </td>
                             <td className="p-3.5 font-mono font-bold text-[#001F7A]">
                               {order.spk_number}
@@ -609,5 +729,13 @@ export default function QueueBoardPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function QueueBoardPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500 font-medium">Memuat Board Antrean Servis...</div>}>
+      <QueueBoardContent />
+    </Suspense>
   );
 }
