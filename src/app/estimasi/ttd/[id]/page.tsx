@@ -200,13 +200,15 @@ export default function CustomerSignatureApprovalPage() {
 
   // Kalkulasi Opsi 2
   const subtotalOpsi2Min = items.reduce((sum, it) => {
-    const p = it.price_opsi2 !== undefined ? it.price_opsi2 : (it.price_opsi1 !== undefined ? it.price_opsi1 : it.price || 0);
+    const hasCustomP2 = it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0';
+    const p = hasCustomP2 ? it.price_opsi2 : (it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : it.price || 0);
     const { min } = parseRangePrice(p);
     return sum + min * (it.qty || 1);
   }, 0);
 
   const subtotalOpsi2Max = items.reduce((sum, it) => {
-    const p = it.price_opsi2 !== undefined ? it.price_opsi2 : (it.price_opsi1 !== undefined ? it.price_opsi1 : it.price || 0);
+    const hasCustomP2 = it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0';
+    const p = hasCustomP2 ? it.price_opsi2 : (it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : it.price || 0);
     const { max } = parseRangePrice(p);
     return sum + max * (it.qty || 1);
   }, 0);
@@ -371,8 +373,9 @@ export default function CustomerSignatureApprovalPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {items.map((item, idx) => {
-                  const p1Raw = item.price_opsi1 !== undefined ? item.price_opsi1 : (item.price !== undefined ? item.price : 0);
-                  const p2Raw = item.price_opsi2 !== undefined ? item.price_opsi2 : (item.price_opsi1 !== undefined ? item.price_opsi1 : (item.price || 0));
+                  const p1Raw = item.price_opsi1 !== undefined && item.price_opsi1 !== '' ? item.price_opsi1 : (item.price !== undefined ? item.price : 0);
+                  const hasCustomP2 = item.price_opsi2 !== undefined && item.price_opsi2 !== '' && item.price_opsi2 !== 0 && item.price_opsi2 !== '0';
+                  const p2Raw = hasCustomP2 ? item.price_opsi2 : p1Raw;
 
                   const { min: p1Min, max: p1Max } = parseRangePrice(p1Raw);
                   const { min: p2Min, max: p2Max } = parseRangePrice(p2Raw);

@@ -1418,51 +1418,50 @@ export class DBService {
           signature_admin_url: localSaved.signature_admin_url || (localSaved as any).estimator_signature || null,
         };
 
-        const { data, error } = await supabase
-          .from('invoices')
-          .upsert(payload, { onConflict: 'invoice_number' })
-          .select('*, vehicle:vehicles_customers(*), work_order:work_orders(*)');
+        const client = supabase;
+        if (!client) return localSaved;
 
-        // Jika ini adalah estimasi yang terkait SPK, update juga checklist_data di Supabase
-        if (localSaved.work_order_id) {
-          try {
-            const { data: woData } = await supabase
-              .from('work_orders')
-              .select('checklist_data')
-              .eq('id', localSaved.work_order_id)
-              .single();
+        const syncToCloud = async (): Promise<Invoice> => {
+          const { data, error } = await client
+            .from('invoices')
+            .upsert(payload, { onConflict: 'invoice_number' })
+            .select('*');
 
-            const existingChecklist = woData?.checklist_data || {};
-            const tabKey = (localSaved as any).tab_id || localSaved.estimation_tab || 'tab_1';
-            const updatedChecklist = {
-              ...existingChecklist,
-              estimation: localSaved,
-              [`estimation_${tabKey}`]: localSaved,
-            };
-
-            await supabase
-              .from('work_orders')
-              .update({
-                checklist_data: updatedChecklist,
-                status: 'estimating',
-              })
-              .eq('id', localSaved.work_order_id);
-          } catch (woErr) {
-            console.warn('Failed to update work_order checklist_data with estimation:', woErr);
+          if (error) {
+            console.warn('Supabase saveInvoice upsert warning:', error.message);
           }
-        }
 
-        if (!error && data && data[0]) {
-          return {
-            ...localSaved,
-            ...data[0],
-            vehicle: data[0].vehicle || localSaved.vehicle,
-            work_order: data[0].work_order || localSaved.work_order,
-          };
-        }
+          // Perbarui status work_order ke estimating langsung tanpa blocking
+          if (localSaved.work_order_id) {
+            try {
+              await client
+                .from('work_orders')
+                .update({ status: 'estimating' })
+                .eq('id', localSaved.work_order_id);
+            } catch (woErr) {
+              console.warn('Failed to update work_order status with estimation:', woErr);
+            }
+          }
+
+          if (data && data[0]) {
+            return {
+              ...localSaved,
+              ...data[0],
+              vehicle: localSaved.vehicle,
+              work_order: localSaved.work_order,
+            };
+          }
+          return localSaved;
+        };
+
+        const timeoutPromise = new Promise<Invoice>((_, reject) =>
+          setTimeout(() => reject(new Error('Cloud sync timeout (4s)')), 4000)
+        );
+
+        return await Promise.race([syncToCloud(), timeoutPromise]);
       } catch (err) {
-        console.warn('Supabase saveInvoice exception:', err);
-        // Tambahkan ke offline queue untuk retry saat koneksi tersedia
+        console.warn('Supabase saveInvoice non-blocking exception / timeout:', err);
+        // Tambahkan ke antrean offline untuk disinkronkan saat koneksi optimal
         this.addToOfflineQueue('invoice', invoice, branch);
       }
     } else if (isSupabaseConfigured) {

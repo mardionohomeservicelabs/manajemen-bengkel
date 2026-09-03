@@ -278,8 +278,9 @@ function EstimationBuilderContent() {
   const [taxPercent, setTaxPercent] = useState<number>(11);
   const [adminNotes, setAdminNotes] = useState<string>('');
 
-  // Customer signature status
+  // Customer signature status & Save timestamp indicator
   const [currentEstimationRecord, setCurrentEstimationRecord] = useState<Invoice | null>(null);
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
 
   // Catalog picker modal
   const [showCatalogModal, setShowCatalogModal] = useState<boolean>(false);
@@ -411,10 +412,21 @@ function EstimationBuilderContent() {
       setTaxPercent(sourceData.tax_percent || 11);
       setAdminNotes(sourceData.admin_notes || '');
 
+      if (existingEst || sourceData.invoice_number) {
+        const saveDate = existingEst?.created_at || sourceData.created_at;
+        const timeFormatted = saveDate
+          ? new Date(saveDate).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB'
+          : 'Tersimpan';
+        setLastSavedTime(timeFormatted);
+      } else {
+        setLastSavedTime(null);
+      }
+
       if (sourceData.items && sourceData.items.length > 0) {
         const mappedItems = sourceData.items.map((it: any) => {
-          const p1 = it.price_opsi1 !== undefined ? it.price_opsi1 : it.price;
-          const p2 = it.price_opsi2 !== undefined ? it.price_opsi2 : p1;
+          const p1 = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
+          const hasP2 = it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0';
+          const p2 = hasP2 ? it.price_opsi2 : p1;
           const qty = it.qty || 1;
           const isP1Text = typeof p1 === 'string' && /[a-zA-Z]/.test(p1);
           const isP2Text = typeof p2 === 'string' && /[a-zA-Z]/.test(p2);
@@ -422,8 +434,10 @@ function EstimationBuilderContent() {
           const isP2Range = typeof p2 === 'string' && /[-\u2012\u2013\u2014\u2212~]/.test(p2);
           const r1 = isP1Range ? parseRangePrice(p1) : null;
           const r2 = isP2Range ? parseRangePrice(p2) : null;
-          const tot1 = isP1Text ? p1 : (r1 ? (r1.min === r1.max ? r1.min * qty : `${r1.min * qty} - ${r1.max * qty}`) : qty * (Number(p1) || 0));
-          const tot2 = isP2Text ? p2 : (r2 ? (r2.min === r2.max ? r2.min * qty : `${r2.min * qty} - ${r2.max * qty}`) : qty * (Number(p2) || 0));
+          const num1 = parseNumericPriceValue(p1).num;
+          const num2 = parseNumericPriceValue(p2).num;
+          const tot1 = isP1Text ? p1 : (r1 ? (r1.min === r1.max ? r1.min * qty : `${r1.min * qty} - ${r1.max * qty}`) : qty * num1);
+          const tot2 = isP2Text ? p2 : (r2 ? (r2.min === r2.max ? r2.min * qty : `${r2.min * qty} - ${r2.max * qty}`) : qty * num2);
           return {
             ...it,
             unit: it.unit || (it.is_service ? 'JASA' : 'PCS'),
@@ -631,10 +645,20 @@ function EstimationBuilderContent() {
       setDiscountAmount(sourceData.discount_amount || 0);
       setTaxPercent(sourceData.tax_percent || 11);
       setAdminNotes(sourceData.admin_notes || '');
+      if (sourceData.invoice_number || sourceData.created_at) {
+        const timeFormatted = sourceData.created_at
+          ? new Date(sourceData.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB'
+          : 'Tersimpan';
+        setLastSavedTime(timeFormatted);
+      } else {
+        setLastSavedTime(null);
+      }
+
       if (sourceData.items && sourceData.items.length > 0) {
         const mapped = sourceData.items.map((it: any) => {
-          const p1 = it.price_opsi1 !== undefined ? it.price_opsi1 : it.price;
-          const p2 = it.price_opsi2 !== undefined ? it.price_opsi2 : p1;
+          const p1 = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
+          const hasP2 = it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0';
+          const p2 = hasP2 ? it.price_opsi2 : p1;
           const qty = it.qty || 1;
           const isP1Text = typeof p1 === 'string' && /[a-zA-Z]/.test(p1);
           const isP2Text = typeof p2 === 'string' && /[a-zA-Z]/.test(p2);
@@ -642,8 +666,10 @@ function EstimationBuilderContent() {
           const isP2Range = typeof p2 === 'string' && /[-\u2012\u2013\u2014\u2212~]/.test(p2);
           const r1 = isP1Range ? parseRangePrice(p1) : null;
           const r2 = isP2Range ? parseRangePrice(p2) : null;
-          const tot1 = isP1Text ? p1 : (r1 ? (r1.min === r1.max ? r1.min * qty : `${r1.min * qty} - ${r1.max * qty}`) : qty * (Number(p1) || 0));
-          const tot2 = isP2Text ? p2 : (r2 ? (r2.min === r2.max ? r2.min * qty : `${r2.min * qty} - ${r2.max * qty}`) : qty * (Number(p2) || 0));
+          const num1 = parseNumericPriceValue(p1).num;
+          const num2 = parseNumericPriceValue(p2).num;
+          const tot1 = isP1Text ? p1 : (r1 ? (r1.min === r1.max ? r1.min * qty : `${r1.min * qty} - ${r1.max * qty}`) : qty * num1);
+          const tot2 = isP2Text ? p2 : (r2 ? (r2.min === r2.max ? r2.min * qty : `${r2.min * qty} - ${r2.max * qty}`) : qty * num2);
           return {
             ...it,
             unit: it.unit || (it.is_service ? 'JASA' : 'PCS'),
@@ -658,6 +684,7 @@ function EstimationBuilderContent() {
         setItems(mapped);
       } else { setItems(EMPTY_ESTIMATION_ROW); }
     } else {
+      setLastSavedTime(null);
       setItems(EMPTY_ESTIMATION_ROW);
       setEstimatorName(''); setEstimatorSignature('');
       setCustomerSignature(''); setCustomerSignedName(selectedSpk?.vehicle?.customer_name || '');
@@ -739,28 +766,30 @@ function EstimationBuilderContent() {
   const subtotalOpsi1 = subtotalOpsi1Min; // backward compat
 
   const subtotalOpsi2Min = items.reduce((sum, it) => {
-    const val = it.price_opsi2 !== undefined && it.price_opsi2 !== '' ? it.price_opsi2 : (it.price_opsi1 !== undefined ? it.price_opsi1 : 0);
+    const hasCustomP2 = it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0';
+    const val = hasCustomP2 ? it.price_opsi2 : (it.price_opsi1 !== undefined ? it.price_opsi1 : 0);
     if (showRangePrice) {
       const { min } = parseRangePrice(val);
       return sum + min * (it.qty || 1);
     }
     const parsed = parseNumericPriceValue(val);
     if (parsed.isText) return sum;
-    const tot = typeof it.total_opsi2 === 'number'
+    const tot = hasCustomP2 && typeof it.total_opsi2 === 'number' && it.total_opsi2 > 0
       ? it.total_opsi2
       : parsed.num * (it.qty || 1);
     return sum + (Number.isNaN(tot) ? 0 : tot);
   }, 0);
 
   const subtotalOpsi2Max = items.reduce((sum, it) => {
-    const val = it.price_opsi2 !== undefined && it.price_opsi2 !== '' ? it.price_opsi2 : (it.price_opsi1 !== undefined ? it.price_opsi1 : 0);
+    const hasCustomP2 = it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0';
+    const val = hasCustomP2 ? it.price_opsi2 : (it.price_opsi1 !== undefined ? it.price_opsi1 : 0);
     if (showRangePrice) {
       const { max } = parseRangePrice(val);
       return sum + max * (it.qty || 1);
     }
     const parsed = parseNumericPriceValue(val);
     if (parsed.isText) return sum;
-    const tot = typeof it.total_opsi2 === 'number'
+    const tot = hasCustomP2 && typeof it.total_opsi2 === 'number' && it.total_opsi2 > 0
       ? it.total_opsi2
       : parsed.num * (it.qty || 1);
     return sum + (Number.isNaN(tot) ? 0 : tot);
@@ -799,7 +828,9 @@ function EstimationBuilderContent() {
       }
       row.subtotal = row.total_opsi1;
 
-      const p2Val = row.price_opsi2 !== undefined && row.price_opsi2 !== '' ? row.price_opsi2 : row.price_opsi1;
+      const p2Val = row.price_opsi2 !== undefined && row.price_opsi2 !== '' && row.price_opsi2 !== 0 && row.price_opsi2 !== '0'
+        ? row.price_opsi2
+        : row.price_opsi1;
       const parsed2 = parseNumericPriceValue(p2Val);
       if (parsed2.isText) {
         row.total_opsi2 = parsed2.text;
@@ -836,6 +867,7 @@ function EstimationBuilderContent() {
           row.subtotal = row.total_opsi1;
         }
       }
+      // Jika price_opsi2 belum diubah manual oleh user atau masih 0, selaraskan dengan price_opsi1!
       if (row.price_opsi2 === undefined || row.price_opsi2 === 0 || row.price_opsi2 === '' || row.price_opsi2 === '0') {
         row.price_opsi2 = row.price_opsi1;
         row.total_opsi2 = row.total_opsi1;
@@ -933,6 +965,23 @@ function EstimationBuilderContent() {
     setShowCatalogModal(false);
   };
 
+  // Salin seluruh item harga Opsi 1 ke Opsi 2 secara instan
+  const handleCopyAllFromOpsi1 = () => {
+    if (isLocked) return;
+    setItems((prev) =>
+      prev.map((it) => {
+        const p1 = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : 0;
+        const tot1 = it.total_opsi1 !== undefined ? it.total_opsi1 : 0;
+        return {
+          ...it,
+          price_opsi2: p1,
+          total_opsi2: tot1,
+        };
+      })
+    );
+    showToast('Seluruh harga Opsi 2 berhasil diselaraskan persis dari Opsi 1!', 'success');
+  };
+
   // Add new estimate tab with unique id
   const handleAddNewTab = () => {
     if (isLocked) return;
@@ -963,6 +1012,7 @@ function EstimationBuilderContent() {
     setActiveTabId(newTabId);
     setEstimationType(tabName);
     setItems(EMPTY_ESTIMATION_ROW);
+    setLastSavedTime(null);
     setEstimatorName(''); setEstimatorSignature('');
     setCustomerSignature(''); setCustomerSignedName(selectedSpk?.vehicle?.customer_name || '');
     setEstimatedDuration('');
@@ -1105,10 +1155,12 @@ function EstimationBuilderContent() {
         customer_approved_option: (customerResponse === 'opsi1' || customerResponse === 'opsi2') ? customerResponse : currentEstimationRecord?.customer_approved_option,
       } as any;
 
-      // 1. Save to Invoices (LocalStorage + Supabase)
-      const saved = await saveInvoiceAsync(invoicePayload as any);
+      const targetBranch = (selectedSpk.received_at_branch as any) || DBService.getActiveBranch();
 
-      // 2. Update Work Order status and store all tabs in checklist_data
+      // 1. Simpan Instan ke Local-First Database (Aman & Tidak Terhalang Koneksi)
+      const saved = DBService.saveInvoice(invoicePayload as any, targetBranch);
+
+      // 2. Perbarui SPK lokal
       const updatedWorkOrder: WorkOrder = {
         ...selectedSpk,
         status: selectedSpk.status === 'queue' ? 'estimating' : selectedSpk.status,
@@ -1118,9 +1170,9 @@ function EstimationBuilderContent() {
           [`estimation_${activeTabId}`]: saved,
         } as any,
       };
-      await DBService.saveWorkOrderAsync(updatedWorkOrder);
+      DBService.saveWorkOrder(updatedWorkOrder, targetBranch);
 
-      // 3. Backup to LocalStorage and remove draft
+      // 3. Backup ke LocalStorage browser & hapus draft
       if (typeof window !== 'undefined') {
         localStorage.setItem(`mhs_est_saved_${selectedSpk.id}_${activeTabId}`, JSON.stringify(saved));
         localStorage.setItem(`mhs_est_saved_${selectedSpk.spk_number}_${activeTabId}`, JSON.stringify(saved));
@@ -1130,12 +1182,22 @@ function EstimationBuilderContent() {
         localStorage.setItem(`mhs_est_tabs_${selectedSpk.spk_number}`, JSON.stringify(updatedTabList));
       }
 
-      refreshData();
+      // 4. Update state tampilan & indikator tersimpan INSTAN
+      const timeNow = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB';
+      setLastSavedTime(timeNow);
       setCurrentEstimationRecord(saved);
+      refreshData();
       showToast(`Estimasi "${activeName}" (${estNumber}) berhasil disimpan!`, 'success');
+
+      // 5. Sinkronisasi ke Supabase Cloud di latar belakang (Non-blocking)
+      saveInvoiceAsync(invoicePayload as any)
+        .catch((err) => console.warn('Background invoice cloud sync:', err));
+      DBService.saveWorkOrderAsync(updatedWorkOrder, targetBranch)
+        .catch((err) => console.warn('Background work order cloud sync:', err));
+
       return saved;
     } catch (err) {
-      console.error(err);
+      console.error('Error saving estimation:', err);
       showToast('Gagal menyimpan estimasi.', 'error');
     } finally {
       setIsSaving(false);
@@ -1438,28 +1500,53 @@ function EstimationBuilderContent() {
         </div>
 
         {/* Status Alert Banner */}
-        {currentEstimationRecord?.customer_signature ? (
-          <div className="bg-emerald-50 border border-emerald-300 text-emerald-950 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs font-bold shadow-2xs">
-            <div className="flex items-center space-x-2.5">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-              <span>
-                Sudah disetujui &amp; ditandatangani oleh <strong>{currentEstimationRecord.customer_signed_name || selectedSpk?.vehicle?.customer_name}</strong> ({currentEstimationRecord.customer_approved_option === 'opsi2' ? 'Pilihan: OPSI 2' : 'Pilihan: OPSI 1'})
-                {currentEstimationRecord.customer_signed_at && ` pada ${new Date(currentEstimationRecord.customer_signed_at).toLocaleString('id-ID')}`}.
-              </span>
-            </div>
-            <button
-              onClick={() => setShowShareModal(true)}
-              className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1 rounded-lg text-[11px] font-bold transition flex-shrink-0"
-            >
-              Lihat TTD Digital
-            </button>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-xl border text-xs font-bold shadow-2xs transition-all bg-white border-slate-200">
+          <div className="flex items-center space-x-2.5">
+            {currentEstimationRecord?.customer_signature ? (
+              <>
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                <span className="text-emerald-950">
+                  Sudah disetujui &amp; ditandatangani oleh <strong>{currentEstimationRecord.customer_signed_name || selectedSpk?.vehicle?.customer_name}</strong> ({currentEstimationRecord.customer_approved_option === 'opsi2' ? 'Pilihan: OPSI 2' : 'Pilihan: OPSI 1'})
+                  {currentEstimationRecord.customer_signed_at && ` pada ${new Date(currentEstimationRecord.customer_signed_at).toLocaleString('id-ID')}`}.
+                </span>
+              </>
+            ) : (
+              <>
+                <Hourglass className="w-4 h-4 text-[#D97706] flex-shrink-0" />
+                <span className="text-[#92400E]">Belum ditandatangani customer (dapat dikirim via link TTD).</span>
+              </>
+            )}
           </div>
-        ) : (
-          <div className="bg-[#FFFBEB] border border-[#FDE68A] text-[#92400E] rounded-xl p-3.5 flex items-center space-x-2.5 text-xs font-bold shadow-2xs">
-            <Hourglass className="w-4 h-4 text-[#D97706] flex-shrink-0" />
-            <span>Belum diisi customer (menunggu via link TTD).</span>
+
+          <div className="flex items-center space-x-2 flex-shrink-0">
+            {/* Indikator Status Penyimpanan */}
+            {lastSavedTime ? (
+              <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-900 border border-emerald-300 rounded-lg text-[11px] font-black shadow-2xs animate-in fade-in">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Tersimpan {lastSavedTime}</span>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-amber-50 text-amber-900 border border-amber-300 rounded-lg text-[11px] font-bold shadow-2xs">
+                <Clock className="w-3.5 h-3.5 text-amber-600" />
+                <span>Draft Belum Disimpan</span>
+              </div>
+            )}
+
+            {currentEstimationRecord?.customer_signature && (
+              <button
+                type="button"
+                onClick={() => setShowShareModal(true)}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition flex-shrink-0"
+              >
+                Lihat TTD Digital
+              </button>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Form Fields: Row 1 (Tipe, Tanggal, Jam) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
@@ -1568,7 +1655,34 @@ function EstimationBuilderContent() {
           {/* Toggle Opsi 2 */}
           <label className={`flex items-center space-x-2.5 select-none ${isLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
             <div
-              onClick={() => { if (!isLocked) setShowOpsi2(!showOpsi2); }}
+              onClick={() => {
+                if (!isLocked) {
+                  const nextVal = !showOpsi2;
+                  setShowOpsi2(nextVal);
+                  if (nextVal) {
+                    setItems((prevItems) =>
+                      prevItems.map((row) => {
+                        const hasCustomPrice2 =
+                          row.price_opsi2 !== undefined &&
+                          row.price_opsi2 !== '' &&
+                          row.price_opsi2 !== 0 &&
+                          row.price_opsi2 !== '0';
+                        if (!hasCustomPrice2) {
+                          const p1 = row.price_opsi1 !== undefined && row.price_opsi1 !== '' ? row.price_opsi1 : 0;
+                          const tot1 = row.total_opsi1 !== undefined ? row.total_opsi1 : 0;
+                          return {
+                            ...row,
+                            price_opsi2: p1,
+                            total_opsi2: tot1,
+                          };
+                        }
+                        return row;
+                      })
+                    );
+                    showToast('Harga Opsi 2 diselaraskan dari Opsi 1.', 'info');
+                  }
+                }
+              }}
               className={`w-11 h-6 rounded-full transition-colors p-0.5 flex items-center ${
                 showOpsi2 ? 'bg-blue-600' : 'bg-slate-300'
               }`}
@@ -1653,8 +1767,21 @@ function EstimationBuilderContent() {
                 </th>
                 {showOpsi2 && (
                   <>
-                    <th className={`p-3 text-center border-r border-slate-200 bg-blue-50/40 text-blue-950 ${showRangePrice ? 'w-52' : 'w-36'}`}>
-                      {showRangePrice ? 'Harga Opsi 2 (Min – Maks)' : 'Hrg Opsi 2 (Rp)'}
+                    <th className={`p-3 text-center border-r border-slate-200 bg-blue-50/40 text-blue-950 ${showRangePrice ? 'w-52' : 'w-48'}`}>
+                      <div className="flex items-center justify-center space-x-1.5">
+                        <span>{showRangePrice ? 'Harga Opsi 2 (Min – Maks)' : 'Hrg Opsi 2 (Rp)'}</span>
+                        {!isLocked && (
+                          <button
+                            type="button"
+                            onClick={handleCopyAllFromOpsi1}
+                            className="text-[9.5px] bg-blue-100 hover:bg-blue-200 text-blue-800 px-2 py-0.5 rounded-md font-bold transition flex items-center space-x-1 shadow-2xs cursor-pointer select-none"
+                            title="Salin seluruh harga Opsi 1 ke Opsi 2"
+                          >
+                            <Copy className="w-2.5 h-2.5" />
+                            <span>Samakan Opsi 1</span>
+                          </button>
+                        )}
+                      </div>
                     </th>
                     <th className={`p-3 text-right bg-blue-50/40 text-blue-950 ${showRangePrice ? 'w-52' : 'w-36'}`}>
                       {showRangePrice ? 'Total Opsi 2 (Kisaran)' : 'Total Opsi 2'}
@@ -1667,11 +1794,15 @@ function EstimationBuilderContent() {
             <tbody className="divide-y divide-slate-200">
               {items.map((item, idx) => {
                 const tot1 = item.total_opsi1 !== undefined ? item.total_opsi1 : (typeof item.price_opsi1 === 'number' ? (item.qty || 1) * item.price_opsi1 : 0);
-                const tot2 = item.total_opsi2 !== undefined ? item.total_opsi2 : (typeof item.price_opsi2 === 'number' ? (item.qty || 1) * item.price_opsi2 : tot1);
+                const hasCustomP2 = item.price_opsi2 !== undefined && item.price_opsi2 !== '' && item.price_opsi2 !== 0 && item.price_opsi2 !== '0';
+                const p2DisplayVal = hasCustomP2 ? item.price_opsi2 : (item.price_opsi1 !== undefined && item.price_opsi1 !== '' ? item.price_opsi1 : '');
+                const tot2 = hasCustomP2 && item.total_opsi2 !== undefined && item.total_opsi2 !== 0
+                  ? item.total_opsi2
+                  : (typeof p2DisplayVal === 'number' ? (item.qty || 1) * p2DisplayVal : tot1);
 
                 // Range calculations per row
                 const rowRange1 = showRangePrice ? parseRangePrice(item.price_opsi1 !== undefined ? item.price_opsi1 : 0) : null;
-                const rowRange2 = showRangePrice ? parseRangePrice(item.price_opsi2 !== undefined ? item.price_opsi2 : (item.price_opsi1 !== undefined ? item.price_opsi1 : 0)) : null;
+                const rowRange2 = showRangePrice ? parseRangePrice(p2DisplayVal || 0) : null;
                 const rowTot1Min = rowRange1 ? rowRange1.min * (item.qty || 1) : 0;
                 const rowTot1Max = rowRange1 ? rowRange1.max * (item.qty || 1) : 0;
                 const rowTot2Min = rowRange2 ? rowRange2.min * (item.qty || 1) : 0;
@@ -1769,9 +1900,19 @@ function EstimationBuilderContent() {
                             <input
                               type="text"
                               disabled={isLocked}
-                              value={item.price_opsi2 !== undefined ? item.price_opsi2 : ''}
+                              value={
+                                item.price_opsi2 !== undefined && item.price_opsi2 !== '' && item.price_opsi2 !== 0 && item.price_opsi2 !== '0'
+                                  ? item.price_opsi2
+                                  : (item.price_opsi1 !== undefined && item.price_opsi1 !== '' && item.price_opsi1 !== 0 && item.price_opsi1 !== '0'
+                                    ? item.price_opsi1
+                                    : '')
+                              }
                               onChange={(e) => handleUpdateItemField(idx, 'price_opsi2', e.target.value)}
-                              placeholder={showRangePrice ? '150000 - 160000' : '0 / CEK'}
+                              placeholder={
+                                item.price_opsi1 !== undefined && item.price_opsi1 !== '' && item.price_opsi1 !== 0
+                                  ? String(item.price_opsi1)
+                                  : (showRangePrice ? '150000 - 160000' : '0 / CEK')
+                              }
                               className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:ring-1 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
                                 showRangePrice
                                   ? 'w-44 focus:border-blue-400 focus:ring-blue-300'
@@ -2222,6 +2363,18 @@ function EstimationBuilderContent() {
                   <Trash2 className="w-3.5 h-3.5 text-slate-500" />
                   <span>Reset Form</span>
                 </button>
+              )}
+
+              {/* Indikator Tersimpan di Bar Aksi Bawah */}
+              {lastSavedTime && (
+                <div className="flex items-center space-x-2 px-4 py-2.5 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-900 text-xs font-black shadow-2xs animate-in fade-in">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <span>Tersimpan ({lastSavedTime})</span>
+                </div>
               )}
 
               {isLocked ? (
