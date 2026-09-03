@@ -68,19 +68,19 @@ export function Sidebar() {
       name: 'Dashboard',
       href: '/',
       icon: <LayoutDashboard className="w-4 h-4" />,
-      roles: ['sa', 'admin', 'owner'],
+      roles: ['sa', 'admin', 'owner', 'estimator'],
     },
     {
       name: 'SPK & Intake Baru',
       href: '/spk',
       icon: <ClipboardList className="w-4 h-4" />,
-      roles: ['sa', 'admin', 'owner'],
+      roles: ['sa', 'admin', 'owner', 'estimator'],
     },
     {
       name: 'Checklist Quality Control (Tune Up & AC)',
       href: '/checkup',
       icon: <ShieldCheck className="w-4 h-4 text-amber-400" />,
-      roles: ['sa', 'admin', 'owner', 'mekanik'],
+      roles: ['sa', 'admin', 'owner', 'mekanik', 'estimator'],
       badge: checkupsCount > 0 ? checkupsCount : undefined,
       badgeColor: 'bg-red-600 text-white',
     },
@@ -88,7 +88,7 @@ export function Sidebar() {
       name: 'Antrean Servis',
       href: '/antrean',
       icon: <Kanban className="w-4 h-4" />,
-      roles: ['sa', 'admin', 'owner'],
+      roles: ['sa', 'admin', 'owner', 'estimator'],
       badge: activeQueuesCount > 0 ? activeQueuesCount : undefined,
       badgeColor: 'bg-amber-500 text-white',
     },
@@ -102,13 +102,13 @@ export function Sidebar() {
       name: 'Kasir & Nota Servis',
       href: '/kasir',
       icon: <Receipt className="w-4 h-4" />,
-      roles: ['admin', 'owner'],
+      roles: ['admin', 'owner', 'estimator'],
     },
     {
       name: 'Inventaris & Sparepart',
       href: '/inventaris',
       icon: <Package className="w-4 h-4" />,
-      roles: ['admin', 'owner'],
+      roles: ['admin', 'owner', 'estimator'],
       badge: lowStockCount > 0 ? `${lowStockCount} tipis` : undefined,
       badgeColor: 'bg-red-500 text-white',
     },
@@ -116,7 +116,7 @@ export function Sidebar() {
       name: 'Arsip & Riwayat',
       href: '/riwayat',
       icon: <History className="w-4 h-4" />,
-      roles: ['sa', 'admin', 'owner'],
+      roles: ['sa', 'admin', 'owner', 'estimator'],
     },
     {
       name: 'CRM & Reminder',
@@ -130,7 +130,7 @@ export function Sidebar() {
       name: 'Laporan & Keuangan',
       href: '/laporan',
       icon: <BarChart3 className="w-4 h-4" />,
-      roles: ['owner'],
+      roles: ['owner', 'estimator'],
     },
     {
       name: 'Pengaturan',
@@ -181,8 +181,6 @@ export function Sidebar() {
   const displayedNavItems =
     currentRole === 'mekanik'
       ? navItems.filter((item) => item.roles.includes('mekanik'))
-      : currentRole === 'estimator'
-      ? navItems.filter((item) => item.href === '/estimasi' || item.href === '/crm')
       : navItems;
 
   return (
@@ -324,7 +322,7 @@ export function Sidebar() {
           <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900 border border-slate-800">
             <div className="flex items-center space-x-2.5 overflow-hidden">
               <div className="w-8 h-8 rounded-lg bg-maroon-900 border border-maroon-700 flex items-center justify-center text-amber-300 font-black text-xs flex-shrink-0">
-                {currentRole === 'owner' ? 'OW' : currentRole === 'admin' ? 'AD' : currentRole === 'mekanik' ? 'MK' : 'SA'}
+                {currentRole === 'owner' ? 'OW' : currentRole === 'admin' ? 'AD' : currentRole === 'estimator' ? 'VR' : currentRole === 'mekanik' ? 'MK' : 'SA'}
               </div>
               <div className="overflow-hidden">
                 <div className="text-xs font-bold text-white truncate">

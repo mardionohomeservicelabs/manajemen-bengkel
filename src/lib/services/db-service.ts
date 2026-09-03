@@ -381,6 +381,16 @@ export class DBService {
       localStorage.setItem(CLEAN_MHS1_FLAG, 'true');
     }
 
+    // Pastikan data inventaris MHS 2 dan MHS 3 bersih dan kosong dari data dummy/mock bawaan
+    const CLEAN_MHS23_INVENTORY_FLAG = 'acwms_mhs23_inventory_cleared_v2';
+    if (!localStorage.getItem(CLEAN_MHS23_INVENTORY_FLAG)) {
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.INVENTORY, 'MHS 2'), []);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.INVENTORY, 'MHS 3'), []);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.MOVEMENTS, 'MHS 2'), []);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.MOVEMENTS, 'MHS 3'), []);
+      localStorage.setItem(CLEAN_MHS23_INVENTORY_FLAG, 'true');
+    }
+
     const branches: BranchId[] = targetBranch ? [targetBranch] : ['MHS 1', 'MHS 2', 'MHS 3'];
 
     branches.forEach((branch) => {
@@ -784,6 +794,53 @@ export class DBService {
     return true;
   }
 
+  static deleteInventoryItem(
+    id: string,
+    userRole: UserRole = 'owner',
+    branch?: BranchId
+  ): boolean {
+    const key = getBranchKey(BASE_STORAGE_KEYS.INVENTORY, branch);
+    const inventory = this.getInventory(branch);
+    const itemToDelete = inventory.find((i) => i.id === id);
+    if (!itemToDelete) return false;
+
+    const filtered = inventory.filter((i) => i.id !== id);
+    setLocal(key, filtered);
+
+    this.logAudit(
+      'User',
+      userRole,
+      'DELETE_ITEM',
+      'inventory',
+      id,
+      { item_code: itemToDelete.item_code, name: itemToDelete.name },
+      branch
+    );
+
+    return true;
+  }
+
+  static clearBranchInventory(
+    branch?: BranchId,
+    userRole: UserRole = 'owner'
+  ): boolean {
+    const targetBranch = branch || this.getActiveBranch();
+    const keyInv = getBranchKey(BASE_STORAGE_KEYS.INVENTORY, targetBranch);
+    const keyMov = getBranchKey(BASE_STORAGE_KEYS.MOVEMENTS, targetBranch);
+    setLocal(keyInv, []);
+    setLocal(keyMov, []);
+    this.logAudit(
+      'User',
+      userRole,
+      'CLEAR_INVENTORY',
+      'inventory',
+      targetBranch,
+      { action: 'CLEAR_ALL_BRANCH_INVENTORY', branch: targetBranch },
+      targetBranch
+    );
+    return true;
+  }
+
   // --- STOCK MOVEMENTS (PER CABANG) ---
   static getStockMovements(branch?: BranchId): StockMovement[] {
     const key = getBranchKey(BASE_STORAGE_KEYS.MOVEMENTS, branch);
@@ -1061,6 +1118,10 @@ export class DBService {
     userRole: UserRole = 'owner',
     branch?: BranchId
   ): Promise<boolean> {
+    if (userRole !== 'owner') {
+      console.warn('Akses ditolak: Hanya peran Owner yang berwenang membuka kunci data SPK.');
+      return false;
+    }
     const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, branch);
     const orders = getLocal<WorkOrder[]>(key, []);
     const idx = orders.findIndex((o) => o.id === id);

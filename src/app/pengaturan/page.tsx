@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   ExternalLink,
+  Lock,
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -30,6 +31,21 @@ export default function SettingsPage() {
   React.useEffect(() => {
     setForm({ ...settings });
   }, [settings]);
+
+  // Proteksi hak akses Pengaturan (Hanya Admin dan Owner)
+  if (currentRole === 'estimator' || (currentRole !== 'owner' && currentRole !== 'admin')) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-12 text-center max-w-lg mx-auto space-y-4 my-12">
+        <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+          <Lock className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-black text-slate-900">Akses Terbatas: Menu Pengaturan</h2>
+        <p className="text-xs text-slate-500 leading-relaxed">
+          Halaman konfigurasi profil bengkel dan integrasi database hanya dapat diakses oleh peran <strong>Admin &amp; Owner</strong>.
+        </p>
+      </div>
+    );
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

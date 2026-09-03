@@ -22,19 +22,16 @@ import Link from 'next/link';
 export default function ReportsPage() {
   const { currentRole, invoices, workOrders, inventory } = useApp();
 
-  // If not owner, show restricted view
-  if (currentRole !== 'owner') {
+  // If not owner or estimator, show restricted view
+  if (currentRole !== 'owner' && currentRole !== 'estimator') {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-12 text-center max-w-lg mx-auto space-y-4">
         <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
           <Lock className="w-8 h-8" />
         </div>
-        <h2 className="text-xl font-bold text-slate-900">Akses Terbatas: Khusus Owner</h2>
+        <h2 className="text-xl font-bold text-slate-900">Akses Terbatas: Khusus Owner &amp; Estimator</h2>
         <p className="text-xs text-slate-500 leading-relaxed">
-          Modul Laporan Keuangan, Analisis Laba Kotor, dan Global Audit Log hanya dapat diakses oleh peran <strong>Owner</strong>.
-        </p>
-        <p className="text-xs text-slate-400">
-          Gunakan Role Switcher di pojok kanan atas untuk beralih ke peran Owner jika ingin meninjau data ini.
+          Modul Laporan Keuangan, Analisis Laba Kotor, dan Global Audit Log hanya dapat diakses oleh peran <strong>Owner</strong> dan <strong>Estimator</strong>.
         </p>
       </div>
     );

@@ -20,10 +20,11 @@ import {
   CheckCircle2,
   Sliders,
   DollarSign,
+  Trash2,
 } from 'lucide-react';
 
 export default function InventoryPage() {
-  const { inventory, refreshData, showToast, currentRole } = useApp();
+  const { inventory, refreshData, showToast, currentRole, deleteInventoryItem, clearBranchInventory } = useApp();
 
   const [activeTab, setActiveTab] = useState<'catalog' | 'movement' | 'opname' | 'pricing'>('catalog');
   const [searchQuery, setSearchQuery] = useState('');
@@ -147,27 +148,44 @@ export default function InventoryPage() {
           </p>
         </div>
 
-        {currentRole === 'owner' && (
-          <button
-            onClick={() => {
-              setEditingItem({
-                item_code: `PRT-${Date.now().toString().slice(-4)}`,
-                name: '',
-                category: 'oli_cairan',
-                is_service: false,
-                stock_qty: 10,
-                min_stock_alert: 5,
-                unit: 'Pcs',
-                buy_price: 50000,
-                sell_price: 75000,
-              });
-              setIsItemModalOpen(true);
-            }}
-            className="inline-flex items-center space-x-2 bg-maroon-700 hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm transition"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>+ Tambah Sparepart / Jasa</span>
-          </button>
+        {(currentRole === 'owner' || currentRole === 'estimator' || currentRole === 'admin') && (
+          <div className="flex items-center space-x-2 flex-wrap gap-2">
+            {inventory.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('Apakah Anda yakin ingin mengosongkan SELURUH item inventaris di cabang ini?')) {
+                    clearBranchInventory();
+                  }
+                }}
+                className="inline-flex items-center space-x-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs px-3 py-2 rounded-xl transition shadow-xs"
+                title="Hapus semua item inventaris pada cabang aktif saat ini"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Kosongkan Inventaris Cabang</span>
+              </button>
+            )}
+            <button
+              onClick={() => {
+                setEditingItem({
+                  item_code: `PRT-${Date.now().toString().slice(-4)}`,
+                  name: '',
+                  category: 'oli_cairan',
+                  is_service: false,
+                  stock_qty: 10,
+                  min_stock_alert: 5,
+                  unit: 'Pcs',
+                  buy_price: 50000,
+                  sell_price: 75000,
+                });
+                setIsItemModalOpen(true);
+              }}
+              className="inline-flex items-center space-x-2 bg-maroon-700 hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm transition"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>+ Tambah Sparepart / Jasa</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -197,7 +215,7 @@ export default function InventoryPage() {
           <span>Riwayat Mutasi Stok</span>
         </button>
 
-        {currentRole === 'owner' && (
+        {(currentRole === 'owner' || currentRole === 'estimator') && (
           <>
             <button
               onClick={() => setActiveTab('opname')}
@@ -329,15 +347,29 @@ export default function InventoryPage() {
                               Restock
                             </button>
                           )}
-                          {currentRole === 'owner' && (
+                          {(currentRole === 'owner' || currentRole === 'estimator' || currentRole === 'admin') && (
                             <button
                               onClick={() => {
                                 setEditingItem(item);
                                 setIsItemModalOpen(true);
                               }}
-                              className="p-1 text-slate-400 hover:text-maroon-700 rounded"
+                              className="p-1 text-slate-400 hover:text-maroon-700 rounded transition"
+                              title="Edit Data Item"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {(currentRole === 'owner' || currentRole === 'estimator' || currentRole === 'admin') && (
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Hapus item suku cadang "${item.name}"?`)) {
+                                  deleteInventoryItem(item.id);
+                                }
+                              }}
+                              className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
+                              title="Hapus Item dari Inventaris"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </td>
@@ -411,8 +443,8 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* TAB 3: STOCK OPNAME (Owner only) */}
-      {activeTab === 'opname' && currentRole === 'owner' && (
+      {/* TAB 3: STOCK OPNAME (Owner & Estimator) */}
+      {activeTab === 'opname' && (currentRole === 'owner' || currentRole === 'estimator') && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-6 bg-white p-5 rounded-2xl border border-slate-200 shadow-card space-y-4">
             <div className="flex items-center space-x-2 pb-2 border-b border-slate-100">
@@ -527,8 +559,8 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* TAB 4: DYNAMIC PRICE MASTER (Owner only) */}
-      {activeTab === 'pricing' && currentRole === 'owner' && (
+      {/* TAB 4: DYNAMIC PRICE MASTER (Owner & Estimator) */}
+      {activeTab === 'pricing' && (currentRole === 'owner' || currentRole === 'estimator') && (
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-card space-y-4">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100">
             <div>

@@ -51,6 +51,8 @@ interface AppContextType {
   updateWorkOrderStatusAsync: (id: string, status: WorkOrderStatus) => Promise<boolean>;
   unlockWorkOrderAsync: (id: string, targetStatus?: WorkOrderStatus) => Promise<boolean>;
   updateVehiclePlateAsync: (vehicleId: string, newPlate: string) => Promise<boolean>;
+  deleteInventoryItem: (id: string) => boolean;
+  clearBranchInventory: () => boolean;
   toasts: ToastMessage[];
   showToast: (message: string, type?: ToastMessage['type'], title?: string) => void;
   removeToast: (id: string) => void;
@@ -246,6 +248,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return ok;
   };
 
+  const deleteInventoryItem = (id: string): boolean => {
+    const ok = DBService.deleteInventoryItem(id, currentRole, activeBranch);
+    if (ok) {
+      refreshData();
+      showToast('Item suku cadang berhasil dihapus', 'success');
+    }
+    return ok;
+  };
+
+  const clearBranchInventory = (): boolean => {
+    const ok = DBService.clearBranchInventory(activeBranch, currentRole);
+    if (ok) {
+      refreshData();
+      showToast(`Seluruh item inventaris ${activeBranch} berhasil dikosongkan`, 'success');
+    }
+    return ok;
+  };
+
   const showToast = (message: string, type: ToastMessage['type'] = 'info', title?: string) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
     const newToast: ToastMessage = { id, message, type, title };
@@ -295,6 +315,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateWorkOrderStatusAsync,
         unlockWorkOrderAsync,
         updateVehiclePlateAsync,
+        deleteInventoryItem,
+        clearBranchInventory,
         toasts,
         showToast,
         removeToast,
