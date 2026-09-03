@@ -1214,12 +1214,12 @@ function EstimationBuilderContent() {
         total_opsi2_max: totalFinalOpsi2Max,
         tab_id: activeTabId,
         tabs: updatedTabList,
-        ttd_status: customerSignature ? 'signed' : (currentEstimationRecord?.ttd_status || 'pending'),
+        ttd_status: customerSignature ? (customerResponse === 'batal' ? 'rejected' : 'signed') : (currentEstimationRecord?.ttd_status || 'pending'),
         customer_signature: customerSignature || currentEstimationRecord?.customer_signature,
         signature_customer_url: customerSignature || currentEstimationRecord?.signature_customer_url,
         customer_signed_at: customerSignature ? (currentEstimationRecord?.customer_signed_at || new Date().toISOString()) : undefined,
         customer_signed_name: customerSignedName || currentEstimationRecord?.customer_signed_name || selectedSpk?.vehicle?.customer_name,
-        customer_approved_option: (customerResponse === 'opsi1' || customerResponse === 'opsi2') ? customerResponse : currentEstimationRecord?.customer_approved_option,
+        customer_approved_option: (customerResponse === 'opsi1' || customerResponse === 'opsi2' || customerResponse === 'batal') ? customerResponse : currentEstimationRecord?.customer_approved_option,
       } as any;
 
       const targetBranch = (selectedSpk.received_at_branch as any) || DBService.getActiveBranch();
@@ -1431,6 +1431,82 @@ function EstimationBuilderContent() {
             <span>Kirim Link TTD Customer</span>
           </button>
         </div>
+
+        {/* PROMINENT BANNER STATUS RESPON CUSTOMER DARI LINK ONLINE */}
+        {customerResponse === 'opsi1' && (
+          <div className="bg-emerald-50 border-2 border-emerald-400 text-emerald-950 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in duration-150">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs font-black text-lg">
+                ✓
+              </div>
+              <div>
+                <h4 className="font-black text-sm text-emerald-950 flex items-center space-x-2">
+                  <span>STATUS: DISETUJUI CUSTOMER — OPSI 1</span>
+                  <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full font-bold">Online TTD</span>
+                </h4>
+                <p className="text-xs text-emerald-800 mt-0.5 leading-relaxed">
+                  Pelanggan <strong>{customerSignedName || selectedSpk?.vehicle?.customer_name || 'Customer'}</strong> telah menyetujui dan menandatangani estimasi <strong>Opsi 1</strong> secara digital.
+                </p>
+              </div>
+            </div>
+            {!isLocked && (
+              <button
+                type="button"
+                onClick={handleApproveAndProceedToServicing}
+                className="inline-flex items-center space-x-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer flex-shrink-0"
+              >
+                <span>Mulai Pengerjaan Servis →</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {customerResponse === 'opsi2' && (
+          <div className="bg-blue-50 border-2 border-blue-400 text-blue-950 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in duration-150">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs font-black text-lg">
+                ✓
+              </div>
+              <div>
+                <h4 className="font-black text-sm text-blue-950 flex items-center space-x-2">
+                  <span>STATUS: DISETUJUI CUSTOMER — OPSI 2</span>
+                  <span className="text-[10px] bg-blue-200 text-blue-900 px-2 py-0.5 rounded-full font-bold">Online TTD</span>
+                </h4>
+                <p className="text-xs text-blue-800 mt-0.5 leading-relaxed">
+                  Pelanggan <strong>{customerSignedName || selectedSpk?.vehicle?.customer_name || 'Customer'}</strong> telah menyetujui dan menandatangani estimasi <strong>Opsi 2</strong> secara digital.
+                </p>
+              </div>
+            </div>
+            {!isLocked && (
+              <button
+                type="button"
+                onClick={handleApproveAndProceedToServicing}
+                className="inline-flex items-center space-x-1.5 px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer flex-shrink-0"
+              >
+                <span>Mulai Pengerjaan Servis →</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {customerResponse === 'batal' && (
+          <div className="bg-rose-50 border-2 border-rose-400 text-rose-950 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in duration-150">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs font-black text-lg">
+                ✕
+              </div>
+              <div>
+                <h4 className="font-black text-sm text-rose-950 flex items-center space-x-2">
+                  <span>STATUS: ESTIMASI DIBATALKAN / DITOLAK CUSTOMER</span>
+                  <span className="text-[10px] bg-rose-200 text-rose-900 px-2 py-0.5 rounded-full font-bold">Online TTD</span>
+                </h4>
+                <p className="text-xs text-rose-800 mt-0.5 leading-relaxed">
+                  Pelanggan <strong>{customerSignedName || selectedSpk?.vehicle?.customer_name || 'Customer'}</strong> telah menandatangani penolakan / pembatalan estimasi ini.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* PROMINENT LOCKING BANNER WHEN JOB IS COMPLETED */}
         {isCompleted && currentRole === 'owner' && (
@@ -2254,18 +2330,18 @@ function EstimationBuilderContent() {
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black ${
                   customerResponse === 'opsi1' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                   : customerResponse === 'opsi2' ? 'bg-blue-100 text-blue-800 border border-blue-300'
-                  : customerResponse === 'pending' ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                  : (customerResponse === 'batal' || customerResponse === 'pending') ? 'bg-rose-100 text-rose-800 border border-rose-300'
                   : 'bg-purple-100 text-purple-800 border border-purple-300'
                 }`}>
-                  {customerResponse === 'opsi1' ? '✅ Pilih Opsi 1' : customerResponse === 'opsi2' ? '✅ Pilih Opsi 2' : customerResponse === 'pending' ? '⏸ Pending/Tidak Jadi' : '📝 Lain-lainnya'}
+                  {customerResponse === 'opsi1' ? '✅ Disetujui Opsi 1' : customerResponse === 'opsi2' ? '✅ Disetujui Opsi 2' : (customerResponse === 'batal' || customerResponse === 'pending') ? '❌ Batal / Tidak Setuju' : '📝 Lain-lainnya'}
                 </span>
               )}
             </div>
             <div className="flex flex-wrap gap-2">
               {[
-                { value: 'opsi1', label: '✅ Pilih Opsi 1', cls: customerResponse === 'opsi1' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400' },
-                { value: 'opsi2', label: '✅ Pilih Opsi 2', cls: customerResponse === 'opsi2' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400' },
-                { value: 'pending', label: '⏸ Pending / Tidak Jadi', cls: customerResponse === 'pending' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-600 border-slate-200 hover:border-amber-400' },
+                { value: 'opsi1', label: '✅ Setuju Opsi 1', cls: customerResponse === 'opsi1' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400' },
+                { value: 'opsi2', label: '✅ Setuju Opsi 2', cls: customerResponse === 'opsi2' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400' },
+                { value: 'batal', label: '❌ Batal / Menolak', cls: (customerResponse === 'batal' || customerResponse === 'pending') ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-slate-600 border-slate-200 hover:border-rose-400' },
                 { value: 'lain_lain', label: '📝 Lain-lainnya', cls: customerResponse === 'lain_lain' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-200 hover:border-purple-400' },
               ].map((opt) => (
                 <button
@@ -2336,8 +2412,20 @@ function EstimationBuilderContent() {
                   </label>
                 </div>
                 {customerSignature ? (
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                    ✓ TTD Pelanggan Ada
+                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                    customerResponse === 'batal'
+                      ? 'text-rose-700 bg-rose-50 border-rose-200'
+                      : customerResponse === 'opsi2'
+                      ? 'text-blue-700 bg-blue-50 border-blue-200'
+                      : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                  }`}>
+                    {customerResponse === 'batal'
+                      ? '✕ TTD Pembatalan'
+                      : customerResponse === 'opsi2'
+                      ? '✓ TTD Setuju Opsi 2'
+                      : customerResponse === 'opsi1'
+                      ? '✓ TTD Setuju Opsi 1'
+                      : '✓ TTD Pelanggan Ada'}
                   </span>
                 ) : (
                   <span className="text-[10px] text-amber-600 font-medium">

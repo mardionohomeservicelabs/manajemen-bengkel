@@ -1638,18 +1638,21 @@ export class DBService {
   }
 
   /**
-   * Menyimpan tanda tangan digital pelanggan dan status persetujuan opsi estimasi
+   * Menyimpan tanda tangan digital pelanggan dan status persetujuan opsi estimasi (opsi1, opsi2, atau batal)
    */
   static async approveEstimationSignature(
     idOrToken: string,
     signatureDataUrl: string,
     customerName: string,
-    approvedOption: 'opsi1' | 'opsi2',
+    approvedOption: 'opsi1' | 'opsi2' | 'batal',
     branch?: BranchId
   ): Promise<Invoice | null> {
     const target = await this.findEstimationByIdOrTokenAsync(idOrToken);
     const activeBranch = branch || (target ? target.branch : this.getActiveBranch());
     const now = new Date().toISOString();
+    const isBatal = approvedOption === 'batal';
+    const newTtdStatus = isBatal ? 'rejected' : 'signed';
+    const newWoStatus = isBatal ? 'cancelled' : 'approved';
 
     let targetInvoice: Invoice | null = target ? target.estimation : null;
 
@@ -1662,7 +1665,7 @@ export class DBService {
         customer_signed_at: now,
         customer_approved_option: approvedOption,
         customer_response: approvedOption,
-        ttd_status: 'signed',
+        ttd_status: newTtdStatus,
         updated_at: now,
       };
     }
@@ -1691,13 +1694,17 @@ export class DBService {
         const tabKey = (targetInvoice as any).tab_id || targetInvoice.estimation_tab || 'tab_1';
         workOrders[woIdx] = {
           ...workOrders[woIdx],
-          status: workOrders[woIdx].status === 'completed' ? 'completed' : 'approved',
+          status: workOrders[woIdx].status === 'completed' ? 'completed' : newWoStatus,
           signature_customer_url: signatureDataUrl,
           checklist_data: {
             ...(workOrders[woIdx].checklist_data || {}),
             estimation: targetInvoice,
             [`estimation_${tabKey}`]: targetInvoice,
             signature_customer_url: signatureDataUrl,
+            customer_signed_name: customerName,
+            customer_signed_at: now,
+            customer_approved_option: approvedOption,
+            customer_response: approvedOption,
           },
           updated_at: now,
         };
@@ -1725,7 +1732,7 @@ export class DBService {
           await supabase
             .from('work_orders')
             .update({
-              status: remoteWo.status === 'completed' ? 'completed' : 'approved',
+              status: remoteWo.status === 'completed' ? 'completed' : newWoStatus,
               signature_url: signatureDataUrl,
               checklist_data: {
                 ...existingChecklist,
@@ -1735,6 +1742,7 @@ export class DBService {
                 customer_signed_name: customerName,
                 customer_signed_at: now,
                 customer_approved_option: approvedOption,
+                customer_response: approvedOption,
               },
               updated_at: now,
             })
@@ -1755,14 +1763,14 @@ export class DBService {
     }
 
     if (targetInvoice?.work_order_id) {
-      this.updateWorkOrderStatus(targetInvoice.work_order_id, 'approved', 'sa', activeBranch);
+      this.updateWorkOrderStatus(targetInvoice.work_order_id, newWoStatus, 'sa', activeBranch);
     }
 
     // Log audit
     this.logAudit(
       customerName || 'Customer via Link TTD',
       'sa',
-      'CUSTOMER_SIGN_ESTIMATION',
+      isBatal ? 'CUSTOMER_REJECT_ESTIMATION' : 'CUSTOMER_SIGN_ESTIMATION',
       'invoices',
       targetInvoice?.invoice_number || idOrToken,
       { approvedOption, invoice_number: targetInvoice?.invoice_number },

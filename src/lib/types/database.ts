@@ -366,12 +366,12 @@ export interface Invoice {
   customer_signature?: string; // Base64 data URL
   customer_signed_at?: string; // ISO Timestamp
   customer_signed_name?: string;
-  customer_approved_option?: 'opsi1' | 'opsi2';
-  ttd_status?: 'pending' | 'signed' | 'declined';
+  customer_approved_option?: 'opsi1' | 'opsi2' | 'batal';
+  ttd_status?: 'pending' | 'signed' | 'declined' | 'rejected';
   ttd_token?: string;
 
   // --- Customer Response (filled by SA after customer responds) ---
-  customer_response?: 'opsi1' | 'opsi2' | 'pending' | 'lain_lain';
+  customer_response?: 'opsi1' | 'opsi2' | 'pending' | 'batal' | 'lain_lain';
   customer_response_note?: string; // Catatan bebas jika "Lain-lainnya"
 
   // --- Estimasi Lama Pekerjaan ---

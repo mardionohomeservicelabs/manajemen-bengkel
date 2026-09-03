@@ -6,10 +6,10 @@ import { DBService } from '@/lib/services/db-service';
 import { Invoice, WorkshopSettings } from '@/lib/types/database';
 import { formatCurrency, formatPlate, formatDateTime, formatNumberOrText } from '@/lib/utils';
 import { SignatureCanvas } from '@/components/ui/SignatureCanvas';
-import { CheckCircle2, Clock, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle, ShieldCheck } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-type CustomerChoice = 'opsi1' | 'opsi2' | 'pending';
+type CustomerChoice = 'opsi1' | 'opsi2' | 'batal';
 
 // Helper: parse price field yang bisa berupa kisaran "150000 - 160000" atau angka biasa
 const parseRangePrice = (val: any): { min: number; max: number } => {
@@ -62,12 +62,20 @@ export default function CustomerSignatureApprovalPage() {
             result.estimation.vehicle?.customer_name ||
             ''
           );
+
           if (result.estimation.customer_approved_option) {
             setSelectedOption(result.estimation.customer_approved_option as CustomerChoice);
           } else if (result.estimation.customer_response === 'opsi2') {
             setSelectedOption('opsi2');
+          } else if (result.estimation.customer_response === 'batal') {
+            setSelectedOption('batal');
           }
-          if (result.estimation.ttd_status === 'signed' || result.estimation.customer_signature) {
+
+          if (
+            result.estimation.ttd_status === 'signed' ||
+            result.estimation.ttd_status === 'rejected' ||
+            result.estimation.customer_signature
+          ) {
             setIsSubmittedSuccess(true);
           }
         } else {
@@ -90,46 +98,37 @@ export default function CustomerSignatureApprovalPage() {
     e.preventDefault();
     if (!estimation) return;
 
-    if (selectedOption !== 'pending' && !signatureDataUrl) {
+    if (!signatureDataUrl) {
       alert('Silakan bubuhkan tanda tangan Anda pada kanvas terlebih dahulu.');
       return;
     }
     if (!agreedTerms) {
-      alert('Harap centang persetujuan ketentuan estimasi.');
+      alert('Harap centang persetujuan pernyataan konfirmasi estimasi.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      if (selectedOption === 'pending') {
-        // Untuk Pending: simpan pilihan tanpa TTD ke cloud Supabase
-        const saved = await DBService.savePendingResponse(
-          rawId,
-          signerName || estimation.vehicle?.customer_name || 'Customer'
-        );
-        if (saved) setEstimation(saved);
-        setIsSubmittedSuccess(true);
-        return;
-      }
-
-      // Opsi 1 atau Opsi 2: simpan TTD + pilihan ke cloud Supabase
       const updated = await DBService.approveEstimationSignature(
         rawId,
         signatureDataUrl,
         signerName.trim() || estimation.vehicle?.customer_name || 'Customer',
-        selectedOption as 'opsi1' | 'opsi2'
+        selectedOption
       );
 
       if (updated) {
         const finalUpdated: Invoice = {
           ...updated,
-          customer_response: selectedOption as 'opsi1' | 'opsi2',
+          customer_response: selectedOption,
         };
         setEstimation(finalUpdated);
         setIsSubmittedSuccess(true);
-        try {
-          confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
-        } catch { /* ignore */ }
+
+        if (selectedOption !== 'batal') {
+          try {
+            confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+          } catch { /* ignore */ }
+        }
       }
     } catch (err) {
       console.error(err);
@@ -168,13 +167,11 @@ export default function CustomerSignatureApprovalPage() {
   const vehicle = estimation.vehicle;
   const items = estimation.items || [];
   
-  // Opsi 2 aktif jika explicitly true atau tidak false
-  const hasOpsi2 = estimation.has_opsi2 !== false;
-  const showRangePrice = estimation.has_range_price || items.some(it => {
-    const s1 = String(it.price_opsi1 || '');
-    const s2 = String(it.price_opsi2 || '');
-    return s1.includes('-') || s1.includes('–') || s2.includes('-') || s2.includes('–');
-  });
+  // Opsi 2 aktif jika explicitly true atau terdapat item yang memiliki price_opsi2
+  const hasOpsi2 = Boolean(
+    estimation.has_opsi2 === true ||
+    (estimation.has_opsi2 !== false && items.some(it => it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0'))
+  );
 
   const discount = estimation.discount_amount || 0;
   const taxPercent = estimation.tax_percent || 0;
@@ -225,24 +222,31 @@ export default function CustomerSignatureApprovalPage() {
 
   /* ─── Success Page ─── */
   if (isSubmittedSuccess) {
-    const isPending = estimation.customer_response === 'pending' || selectedOption === 'pending';
+    const isBatal = estimation.customer_response === 'batal' || estimation.customer_approved_option === 'batal' || selectedOption === 'batal';
+    const isOpsi2 = estimation.customer_response === 'opsi2' || estimation.customer_approved_option === 'opsi2' || selectedOption === 'opsi2';
+
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center p-4">
         <div className="max-w-sm w-full space-y-5 text-center">
-          <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto shadow-lg ${isPending ? 'bg-amber-500' : 'bg-emerald-500'}`}>
-            {isPending
-              ? <Clock className="w-8 h-8 text-white" />
-              : <CheckCircle2 className="w-8 h-8 text-white" />
-            }
+          <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto shadow-lg ${
+            isBatal ? 'bg-rose-500' : isOpsi2 ? 'bg-blue-600' : 'bg-emerald-500'
+          }`}>
+            {isBatal ? (
+              <XCircle className="w-8 h-8 text-white" />
+            ) : (
+              <CheckCircle2 className="w-8 h-8 text-white" />
+            )}
           </div>
           <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-3">
-            <h2 className={`text-base font-black ${isPending ? 'text-amber-800' : 'text-emerald-800'}`}>
-              {isPending ? 'Respon Diterima: Pending' : 'Persetujuan Berhasil Dikonfirmasi!'}
+            <h2 className={`text-base font-black ${
+              isBatal ? 'text-rose-800' : isOpsi2 ? 'text-blue-900' : 'text-emerald-800'
+            }`}>
+              {isBatal ? 'Estimasi Telah Dibatalkan' : 'Persetujuan Berhasil Dikonfirmasi!'}
             </h2>
             <p className="text-xs text-slate-600 leading-relaxed">
-              {isPending
-                ? `Terima kasih, ${signerName || vehicle?.customer_name}. Kami akan menunggu keputusan Anda. Silakan hubungi SA kami untuk konfirmasi selanjutnya.`
-                : `Terima kasih, ${estimation.customer_signed_name || signerName || vehicle?.customer_name}. Anda telah menyetujui dengan pilihan ${selectedOption === 'opsi2' ? 'Opsi 2' : 'Opsi 1'}.`
+              {isBatal
+                ? `Terima kasih, ${estimation.customer_signed_name || signerName || vehicle?.customer_name}. Konfirmasi pembatalan estimasi telah kami terima. Tanda tangan Anda telah dicatat secara resmi di sistem.`
+                : `Terima kasih, ${estimation.customer_signed_name || signerName || vehicle?.customer_name}. Anda telah menyetujui estimasi ini dengan pilihan ${isOpsi2 ? 'Opsi 2' : 'Opsi 1'}. Pekerjaan servis akan segera diproses oleh bengkel.`
               }
             </p>
             {estimation.customer_signed_at && (
@@ -250,11 +254,11 @@ export default function CustomerSignatureApprovalPage() {
                 Waktu: {formatDateTime(estimation.customer_signed_at)}
               </p>
             )}
-            {!isPending && estimation.customer_signature && (
+            {estimation.customer_signature && (
               <div className="mt-2 pt-3 border-t border-slate-100">
                 <span className="text-[10px] text-slate-400 block mb-1">Tanda Tangan Digital Tersimpan:</span>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={estimation.customer_signature} alt="TTD" className="h-16 mx-auto object-contain opacity-80" />
+                <img src={estimation.customer_signature} alt="TTD" className="h-16 mx-auto object-contain opacity-85" />
               </div>
             )}
           </div>
@@ -346,29 +350,41 @@ export default function CustomerSignatureApprovalPage() {
           )}
         </div>
 
-        {/* ── TABEL ESTIMASI ── */}
+        {/* ── TABEL RINCIAN ESTIMASI ── */}
         <div className="bg-white rounded-xl border border-slate-300 shadow-sm overflow-hidden">
           {/* Section header */}
-          <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5">
-            <h2 className="text-[11px] font-black text-slate-800 uppercase tracking-wider">
-              Estimasi: {estimation.estimation_type || 'Umum'}
-            </h2>
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              Harga berlaku sesuai dengan estimasi, dilangsungkan untuk jasa servis dengan ketersediaan sparepart di gudang.
-            </p>
+          <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between">
+            <div>
+              <h2 className="text-[11px] font-black text-slate-800 uppercase tracking-wider">
+                Rincian Estimasi: {estimation.estimation_type || 'Umum'}
+              </h2>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                Harga berlaku sesuai ketersediaan suku cadang dan kesepakatan servis.
+              </p>
+            </div>
+            {hasOpsi2 && (
+              <span className="text-[9.5px] bg-blue-100 text-blue-900 font-bold px-2 py-0.5 rounded-md border border-blue-200">
+                Tersedia 2 Pilihan (Opsi 1 &amp; Opsi 2)
+              </span>
+            )}
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-[11px] border-collapse min-w-[480px]">
+            <table className="w-full text-left text-[11px] border-collapse min-w-[540px]">
               <thead>
                 <tr className="bg-slate-800 text-white text-[10px] font-black uppercase">
                   <th className="p-2 w-7 text-center border-r border-slate-600">No</th>
-                  <th className="p-2 border-r border-slate-600">Item</th>
-                  <th className="p-2 w-10 text-center border-r border-slate-600">Qty</th>
-                  <th className="p-2 w-14 text-center border-r border-slate-600">Satuan</th>
-                  <th className="p-2 w-24 text-right border-r border-slate-600">Harga</th>
+                  <th className="p-2 border-r border-slate-600">Saran / Sparepart / Jasa</th>
+                  <th className="p-2 w-9 text-center border-r border-slate-600">Qty</th>
+                  <th className="p-2 w-12 text-center border-r border-slate-600">Satuan</th>
+                  <th className="p-2 w-20 text-right border-r border-slate-600">Harga 1</th>
                   <th className="p-2 w-24 text-right border-r border-slate-600">Total 1</th>
-                  {hasOpsi2 && <th className="p-2 w-24 text-right bg-blue-900">Total 2</th>}
+                  {hasOpsi2 && (
+                    <>
+                      <th className="p-2 w-20 text-right border-r border-slate-600 bg-blue-950">Harga 2</th>
+                      <th className="p-2 w-24 text-right bg-blue-900">Total 2</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -402,7 +418,10 @@ export default function CustomerSignatureApprovalPage() {
                       <td className="p-2 text-right font-mono text-slate-700 border-r border-slate-100">{p1Display}</td>
                       <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-100">{tot1Display}</td>
                       {hasOpsi2 && (
-                        <td className="p-2 text-right font-mono font-black text-blue-900 bg-blue-50/30">{tot2Display}</td>
+                        <>
+                          <td className="p-2 text-right font-mono text-blue-800 border-r border-slate-100 bg-blue-50/20">{p2Display}</td>
+                          <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">{tot2Display}</td>
+                        </>
                       )}
                     </tr>
                   );
@@ -410,16 +429,20 @@ export default function CustomerSignatureApprovalPage() {
               </tbody>
               <tfoot>
                 <tr className="bg-slate-100 border-t-2 border-slate-300 font-black text-[11px]">
-                  <td colSpan={5} className="p-2 text-center uppercase tracking-wider text-slate-800 border-r border-slate-200">
-                    Total Cost
+                  <td colSpan={4} className="p-2 text-center uppercase tracking-wider text-slate-800 border-r border-slate-200">
+                    JUMLAH KESELURUHAN
                   </td>
+                  <td className="p-2 border-r border-slate-200"></td>
                   <td className="p-2 text-right font-mono text-slate-950 border-r border-slate-200">
                     {formatRangeDisplay(totalFinalOpsi1Min, totalFinalOpsi1Max)}
                   </td>
                   {hasOpsi2 && (
-                    <td className="p-2 text-right font-mono text-blue-950 bg-blue-50/30">
-                      {formatRangeDisplay(totalFinalOpsi2Min, totalFinalOpsi2Max)}
-                    </td>
+                    <>
+                      <td className="p-2 border-r border-slate-200 bg-blue-50/20"></td>
+                      <td className="p-2 text-right font-mono text-blue-950 bg-blue-50/30">
+                        {formatRangeDisplay(totalFinalOpsi2Min, totalFinalOpsi2Max)}
+                      </td>
+                    </>
                   )}
                 </tr>
               </tfoot>
@@ -427,16 +450,18 @@ export default function CustomerSignatureApprovalPage() {
           </div>
         </div>
 
-        {/* ── FORM PERSETUJUAN & TTD ── */}
+        {/* ── FORM KEPUTUSAN & TANDA TANGAN ── */}
         <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-300 shadow-sm overflow-hidden">
-          {/* Keputusan Anda */}
-          <div className="border-b border-slate-200 px-4 py-3 bg-slate-50">
-            <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-700">Keputusan Anda</h3>
+          {/* Header Keputusan */}
+          <div className="border-b border-slate-200 px-4 py-3 bg-slate-50 flex items-center justify-between">
+            <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-700">Pilih Keputusan Persetujuan:</h3>
+            <span className="text-[10px] text-slate-400">Pilih salah satu dari opsi di bawah</span>
           </div>
-          <div className="p-4 space-y-2">
-            {/* Opsi 1 */}
-            <label className={`flex items-center space-x-3 p-3 rounded-xl border-2 cursor-pointer transition ${
-              selectedOption === 'opsi1' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:border-slate-300'
+
+          <div className="p-4 space-y-2.5">
+            {/* 1. Opsi 1 */}
+            <label className={`flex items-center space-x-3 p-3.5 rounded-xl border-2 cursor-pointer transition ${
+              selectedOption === 'opsi1' ? 'border-emerald-500 bg-emerald-50/80 shadow-xs' : 'border-slate-200 hover:border-slate-300'
             }`}>
               <input
                 type="radio"
@@ -447,18 +472,18 @@ export default function CustomerSignatureApprovalPage() {
                 className="w-4 h-4 accent-emerald-600"
               />
               <div className="flex-1">
-                <span className="text-xs font-black text-slate-900">Setuju → Opsi 1</span>
+                <span className="text-xs font-black text-slate-900 block">Setuju → Opsi 1</span>
                 <span className="block text-[11px] text-slate-500">
-                  Total: <strong className="text-slate-800 font-mono">{formatRangeDisplay(totalFinalOpsi1Min, totalFinalOpsi1Max)}</strong>
+                  Total Estimasi: <strong className="text-slate-900 font-mono">{formatRangeDisplay(totalFinalOpsi1Min, totalFinalOpsi1Max)}</strong>
                 </span>
               </div>
-              {selectedOption === 'opsi1' && <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />}
+              {selectedOption === 'opsi1' && <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />}
             </label>
 
-            {/* Opsi 2 */}
+            {/* 2. Opsi 2 (jika tersedia) */}
             {hasOpsi2 && (
-              <label className={`flex items-center space-x-3 p-3 rounded-xl border-2 cursor-pointer transition ${
-                selectedOption === 'opsi2' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
+              <label className={`flex items-center space-x-3 p-3.5 rounded-xl border-2 cursor-pointer transition ${
+                selectedOption === 'opsi2' ? 'border-blue-500 bg-blue-50/80 shadow-xs' : 'border-slate-200 hover:border-slate-300'
               }`}>
                 <input
                   type="radio"
@@ -469,32 +494,34 @@ export default function CustomerSignatureApprovalPage() {
                   className="w-4 h-4 accent-blue-600"
                 />
                 <div className="flex-1">
-                  <span className="text-xs font-black text-slate-900">Setuju → Opsi 2</span>
+                  <span className="text-xs font-black text-slate-900 block">Setuju → Opsi 2</span>
                   <span className="block text-[11px] text-slate-500">
-                    Total: <strong className="text-blue-900 font-mono">{formatRangeDisplay(totalFinalOpsi2Min, totalFinalOpsi2Max)}</strong>
+                    Total Estimasi: <strong className="text-blue-900 font-mono">{formatRangeDisplay(totalFinalOpsi2Min, totalFinalOpsi2Max)}</strong>
                   </span>
                 </div>
-                {selectedOption === 'opsi2' && <CheckCircle2 className="w-4 h-4 text-blue-600 flex-shrink-0" />}
+                {selectedOption === 'opsi2' && <CheckCircle2 className="w-5 h-5 text-blue-600 flex-shrink-0" />}
               </label>
             )}
 
-            {/* Pending */}
-            <label className={`flex items-center space-x-3 p-3 rounded-xl border-2 cursor-pointer transition ${
-              selectedOption === 'pending' ? 'border-amber-400 bg-amber-50' : 'border-slate-200 hover:border-slate-300'
+            {/* 3. Batal / Menolak Estimasi */}
+            <label className={`flex items-center space-x-3 p-3.5 rounded-xl border-2 cursor-pointer transition ${
+              selectedOption === 'batal' ? 'border-rose-500 bg-rose-50/80 shadow-xs' : 'border-slate-200 hover:border-slate-300'
             }`}>
               <input
                 type="radio"
                 name="choice"
-                value="pending"
-                checked={selectedOption === 'pending'}
-                onChange={() => setSelectedOption('pending')}
-                className="w-4 h-4 accent-amber-500"
+                value="batal"
+                checked={selectedOption === 'batal'}
+                onChange={() => setSelectedOption('batal')}
+                className="w-4 h-4 accent-rose-600"
               />
               <div className="flex-1">
-                <span className="text-xs font-black text-slate-900">Pending / Tidak pilih dulu</span>
-                <span className="block text-[11px] text-slate-500">Saya perlu waktu untuk mempertimbangkan</span>
+                <span className="text-xs font-black text-rose-900 block">✕ Batal / Menolak Estimasi</span>
+                <span className="block text-[11px] text-slate-500">
+                  Saya memutuskan untuk membatalkan atau tidak melanjutkan perbaikan/servis ini
+                </span>
               </div>
-              {selectedOption === 'pending' && <Clock className="w-4 h-4 text-amber-500 flex-shrink-0" />}
+              {selectedOption === 'batal' && <XCircle className="w-5 h-5 text-rose-600 flex-shrink-0" />}
             </label>
           </div>
 
@@ -502,46 +529,54 @@ export default function CustomerSignatureApprovalPage() {
           <div className="border-t border-b border-slate-200 px-4 py-3 bg-slate-50">
             <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-700 mb-2">KETENTUAN ESTIMASI:</h3>
             <ol className="text-[10.5px] text-slate-600 space-y-1.5 leading-relaxed list-decimal list-inside">
-              <li>Membawa customer tidak diperkenankan membawa sparepart sendiri pada Kami / Teknisi.</li>
-              <li>Apabila daya dari sendiri, dalam maksimal 2 hari, setelah pembayaran parkir Rp 20.000/hari.</li>
-              <li>Apabila Anda memutuskan untuk melihat sendiri / Dan tidak bertanggung jawab atas kerusakan yang terjadi selama proses.</li>
-              <li>Jika Membawa Part Sendiri Tidak Ada Garansi Dalam Bentuk Apapun.</li>
-              <li className="font-bold text-slate-800">Apabila Sparepart Sudah Terpasang Dan Tidak Berfungsi, Kami Tidak Bisa Diretur.</li>
-              <li className="font-bold text-slate-800">Harga Yang Estimasi Yang Muncul Berlaku 1 Minggu Dari Tanggal Estimasi Di Keluarkan.</li>
-              <li>Apabila Harga Sparepart Ada Kenaikan Akan Kami Informasikan / Kembali Dengan Estimasi Terbaru.</li>
+              <li>Customer tidak diperkenankan membawa sparepart sendiri ke Teknisi kami.</li>
+              <li>Jika membawa part sendiri, tidak ada garansi dalam bentuk apapun.</li>
+              <li className="font-bold text-slate-800">Apabila sparepart sudah terpasang dan tidak berfungsi, barang tidak dapat diretur.</li>
+              <li className="font-bold text-slate-800">Harga estimasi yang tercantum berlaku 1 minggu sejak tanggal estimasi diterbitkan.</li>
+              <li>Apabila terjadi kenaikan harga suku cadang dari distributor, akan kami informasikan estimasi revisi terbaru.</li>
             </ol>
           </div>
 
-          {/* Nama Penanda Tangan */}
+          {/* Nama Penanda Tangan & Canvas TTD */}
           <div className="p-4 space-y-4">
             <div>
               <label className="block text-[10.5px] font-black uppercase tracking-wider text-slate-700 mb-1.5">
-                Nama Lengkap:
+                Nama Lengkap Pelanggan: <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={signerName}
                 onChange={(e) => setSignerName(e.target.value)}
-                placeholder="Nama penanda tangan..."
+                placeholder="Masukkan nama lengkap Anda..."
                 className="w-full text-xs p-3 rounded-xl border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none"
               />
             </div>
 
-            {/* Tanda Tangan — hanya tampil jika bukan Pending */}
-            {selectedOption !== 'pending' && (
-              <div>
-                <label className="block text-[10.5px] font-black uppercase tracking-wider text-slate-700 mb-1.5">
-                  Tanda Tangan: <span className="text-red-500">*</span>
+            {/* Canvas TTD — Wajib untuk Setuju maupun Batal */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[10.5px] font-black uppercase tracking-wider text-slate-700 flex items-center space-x-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                  <span>
+                    {selectedOption === 'batal'
+                      ? 'Tanda Tangan Konfirmasi Pembatalan:'
+                      : selectedOption === 'opsi2'
+                      ? 'Tanda Tangan Persetujuan Opsi 2:'
+                      : 'Tanda Tangan Persetujuan Opsi 1:'} <span className="text-red-500">*</span>
+                  </span>
                 </label>
-                <div className="text-[10px] text-slate-400 mb-2">
-                  Saya telah Membaca dan Menyetujui Ketentuan Di Atas
-                </div>
-                <SignatureCanvas onSave={(dataUrl) => setSignatureDataUrl(dataUrl)} />
+                <span className="text-[10px] text-slate-400 font-medium">Goreskan tanda tangan di kotak</span>
               </div>
-            )}
+              <div className="text-[10.5px] text-slate-500 mb-2">
+                {selectedOption === 'batal'
+                  ? 'Dengan menandatangani ini, saya menyatakan membatalkan perbaikan kendaraan sesuai estimasi di atas.'
+                  : 'Dengan menandatangani ini, saya menyatakan telah membaca, memahami, dan menyetujui seluruh ketentuan estimasi di atas.'}
+              </div>
+              <SignatureCanvas onSave={(dataUrl) => setSignatureDataUrl(dataUrl)} />
+            </div>
 
-            {/* Agree Terms */}
-            <label className="flex items-start space-x-2.5 cursor-pointer">
+            {/* Persetujuan Checkbox */}
+            <label className="flex items-start space-x-2.5 cursor-pointer pt-1">
               <input
                 type="checkbox"
                 id="terms"
@@ -549,42 +584,49 @@ export default function CustomerSignatureApprovalPage() {
                 onChange={(e) => setAgreedTerms(e.target.checked)}
                 className="mt-0.5 w-4 h-4 rounded accent-blue-600"
               />
-              <span className="text-xs text-slate-600 leading-relaxed font-medium">
-                Saya menyatakan telah membaca dan menyetujui seluruh <strong>Ketentuan Estimasi</strong> di atas.
+              <span className="text-xs text-slate-700 leading-relaxed font-semibold">
+                Saya menyatakan pilihan dan tanda tangan yang saya berikan di atas adalah benar dan sah.
               </span>
             </label>
 
-            {/* Warning jika pending tapi tidak ada TTD */}
-            {selectedOption === 'pending' && (
-              <div className="flex items-start space-x-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-[11px] text-amber-800">
-                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500" />
-                <span>Anda memilih <strong>Pending</strong>. Pekerjaan belum akan dimulai. Silakan hubungi SA kami untuk konfirmasi.</span>
+            {/* Alert info bila batal */}
+            {selectedOption === 'batal' && (
+              <div className="flex items-start space-x-2 bg-rose-50 border border-rose-200 rounded-xl p-3 text-[11px] text-rose-800">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-600" />
+                <span>Anda memilih untuk <strong>Membatalkan Estimasi</strong>. Bengkel tidak akan memulai pengerjaan dan status estimasi akan langsung tercatat sebagai Dibatalkan.</span>
               </div>
             )}
 
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isSubmitting || !agreedTerms || (selectedOption !== 'pending' && !signatureDataUrl)}
+              disabled={isSubmitting || !agreedTerms || !signatureDataUrl}
               className={`w-full font-black text-sm py-3.5 rounded-xl transition shadow-md flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                selectedOption === 'pending'
-                  ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                  : 'bg-[#1E40AF] hover:bg-[#1E3A8A] text-white'
+                selectedOption === 'batal'
+                  ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                  : selectedOption === 'opsi2'
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
               }`}
             >
               {isSubmitting ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Mengirim...</span>
+                  <span>Mengirim Keputusan...</span>
                 </>
               ) : (
                 <>
-                  {selectedOption === 'pending'
-                    ? <Clock className="w-4 h-4" />
-                    : <CheckCircle2 className="w-4 h-4" />
-                  }
+                  {selectedOption === 'batal' ? (
+                    <XCircle className="w-4 h-4" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
+                  )}
                   <span>
-                    {selectedOption === 'pending' ? 'Kirim Respon Pending' : '✓ Simpan Persetujuan'}
+                    {selectedOption === 'batal'
+                      ? '✕ Konfirmasi Batalkan & Kirim Tanda Tangan'
+                      : selectedOption === 'opsi2'
+                      ? '✓ Setujui Opsi 2 & Kirim Tanda Tangan'
+                      : '✓ Setujui Opsi 1 & Kirim Tanda Tangan'}
                   </span>
                 </>
               )}
