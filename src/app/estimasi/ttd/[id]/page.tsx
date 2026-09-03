@@ -200,15 +200,15 @@ export default function CustomerSignatureApprovalPage() {
 
   // Kalkulasi Opsi 2
   const subtotalOpsi2Min = items.reduce((sum, it) => {
-    const hasCustomP2 = it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0';
-    const p = hasCustomP2 ? it.price_opsi2 : (it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : it.price || 0);
+    if (it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0') return sum;
+    const p = it.price_opsi2 !== undefined ? it.price_opsi2 : (it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : it.price || 0);
     const { min } = parseRangePrice(p);
     return sum + min * (it.qty || 1);
   }, 0);
 
   const subtotalOpsi2Max = items.reduce((sum, it) => {
-    const hasCustomP2 = it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0';
-    const p = hasCustomP2 ? it.price_opsi2 : (it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : it.price || 0);
+    if (it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0') return sum;
+    const p = it.price_opsi2 !== undefined ? it.price_opsi2 : (it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : it.price || 0);
     const { max } = parseRangePrice(p);
     return sum + max * (it.qty || 1);
   }, 0);
@@ -374,8 +374,8 @@ export default function CustomerSignatureApprovalPage() {
               <tbody className="divide-y divide-slate-100">
                 {items.map((item, idx) => {
                   const p1Raw = item.price_opsi1 !== undefined && item.price_opsi1 !== '' ? item.price_opsi1 : (item.price !== undefined ? item.price : 0);
-                  const hasCustomP2 = item.price_opsi2 !== undefined && item.price_opsi2 !== '' && item.price_opsi2 !== 0 && item.price_opsi2 !== '0';
-                  const p2Raw = hasCustomP2 ? item.price_opsi2 : p1Raw;
+                  const isP2Empty = item.price_opsi2 === '' || item.price_opsi2 === 0 || item.price_opsi2 === '0';
+                  const p2Raw = isP2Empty ? 0 : (item.price_opsi2 !== undefined ? item.price_opsi2 : p1Raw);
 
                   const { min: p1Min, max: p1Max } = parseRangePrice(p1Raw);
                   const { min: p2Min, max: p2Max } = parseRangePrice(p2Raw);
@@ -383,13 +383,13 @@ export default function CustomerSignatureApprovalPage() {
                   const qty = item.qty || 1;
                   const tot1Min = p1Min * qty;
                   const tot1Max = p1Max * qty;
-                  const tot2Min = p2Min * qty;
-                  const tot2Max = p2Max * qty;
+                  const tot2Min = isP2Empty ? 0 : p2Min * qty;
+                  const tot2Max = isP2Empty ? 0 : p2Max * qty;
 
                   const p1Display = p1Min === p1Max ? formatNumberOrText(p1Min) : `${formatNumberOrText(p1Min)} – ${formatNumberOrText(p1Max)}`;
                   const tot1Display = tot1Min === tot1Max ? formatNumberOrText(tot1Min) : `${formatNumberOrText(tot1Min)} – ${formatNumberOrText(tot1Max)}`;
-                  const p2Display = p2Min === p2Max ? formatNumberOrText(p2Min) : `${formatNumberOrText(p2Min)} – ${formatNumberOrText(p2Max)}`;
-                  const tot2Display = tot2Min === tot2Max ? formatNumberOrText(tot2Min) : `${formatNumberOrText(tot2Min)} – ${formatNumberOrText(tot2Max)}`;
+                  const p2Display = isP2Empty ? '-' : (p2Min === p2Max ? formatNumberOrText(p2Min) : `${formatNumberOrText(p2Min)} – ${formatNumberOrText(p2Max)}`);
+                  const tot2Display = isP2Empty ? '-' : (tot2Min === tot2Max ? formatNumberOrText(tot2Min) : `${formatNumberOrText(tot2Min)} – ${formatNumberOrText(tot2Max)}`);
 
                   return (
                     <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>

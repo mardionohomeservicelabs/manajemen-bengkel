@@ -81,13 +81,14 @@ export function PrintableEstimation({
           : (typeof it.price_opsi1 === 'number' ? (it.qty || 1) * it.price_opsi1 : (typeof it.price === 'number' ? (it.qty || 1) * it.price : 0));
         return sum + (Number.isNaN(val) ? 0 : val);
       } else {
-        const hasCustomP2 = it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0';
-        const p2Effective = hasCustomP2 ? it.price_opsi2 : (it.price_opsi1 !== undefined ? it.price_opsi1 : (it.price || 0));
-        const val = typeof it.total_opsi2 === 'number' && hasCustomP2 && it.total_opsi2 > 0
+        const isP2Empty = it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0';
+        if (isP2Empty) return sum;
+        const p2Effective = it.price_opsi2 !== undefined ? it.price_opsi2 : (it.price_opsi1 !== undefined ? it.price_opsi1 : (it.price || 0));
+        const val = typeof it.total_opsi2 === 'number' && it.total_opsi2 > 0
           ? it.total_opsi2
           : (typeof p2Effective === 'number'
             ? (it.qty || 1) * p2Effective
-            : (typeof it.total_opsi1 === 'number' ? it.total_opsi1 : 0));
+            : 0);
         return sum + (Number.isNaN(val) ? 0 : val);
       }
     }, 0);
@@ -266,9 +267,9 @@ export function PrintableEstimation({
                 {estimation.items.map((item, idx) => {
                   const p1 = item.price_opsi1 !== undefined ? item.price_opsi1 : item.price;
                   const tot1 = item.total_opsi1 !== undefined ? item.total_opsi1 : (typeof p1 === 'number' ? (item.qty || 1) * p1 : p1);
-                  const hasCustomP2 = item.price_opsi2 !== undefined && item.price_opsi2 !== '' && item.price_opsi2 !== 0 && item.price_opsi2 !== '0';
-                  const p2 = hasCustomP2 ? item.price_opsi2 : p1;
-                  const tot2 = hasCustomP2 && item.total_opsi2 !== undefined && item.total_opsi2 !== 0 ? item.total_opsi2 : (typeof p2 === 'number' ? (item.qty || 1) * p2 : tot1);
+                  const isP2Empty = item.price_opsi2 === '' || item.price_opsi2 === 0 || item.price_opsi2 === '0';
+                  const p2 = isP2Empty ? '-' : (item.price_opsi2 !== undefined ? item.price_opsi2 : p1);
+                  const tot2 = isP2Empty ? '-' : (item.total_opsi2 !== undefined && item.total_opsi2 !== 0 ? item.total_opsi2 : (typeof p2 === 'number' ? (item.qty || 1) * p2 : tot1));
 
                   return (
                     <tr key={idx} className="hover:bg-slate-50 estimation-item-row">
@@ -287,10 +288,10 @@ export function PrintableEstimation({
                       {hasOpsi2 && (
                         <>
                           <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold bg-blue-50/20 text-blue-900">
-                            {formatCurrency(p2)}
+                            {p2 === '-' ? '-' : formatCurrency(p2)}
                           </td>
                           <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
-                            {formatCurrency(tot2)}
+                            {tot2 === '-' ? '-' : formatCurrency(tot2)}
                           </td>
                         </>
                       )}
