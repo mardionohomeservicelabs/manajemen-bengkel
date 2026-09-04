@@ -46,6 +46,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const now = Date.now();
         // Cek apakah session masih valid (12 jam)
         if (parsed.user && (now - parsed.timestamp) < SESSION_DURATION_MS) {
+          // Pastikan canAccessAllBranches selalu sinkron dengan definisi user terbaru
+          // (agar session lama tidak kehilangan hak akses semua cabang)
+          const viaEmails = ['via@mhs2.mardiono', 'via@mardiono', 'via@estimasi.mardiono'];
+          if (
+            viaEmails.includes(parsed.user.email?.toLowerCase() || '') ||
+            parsed.user.id === 'mhs2-estimator-via' ||
+            parsed.user.id === 'global-estimator-via'
+          ) {
+            parsed.user.canAccessAllBranches = true;
+          }
           setCurrentUser(parsed.user);
           setActiveBranchState(parsed.activeBranch || parsed.user.branch);
         } else {

@@ -2308,30 +2308,46 @@ export class DBService {
           }
 
           // Extract checkup records
-          if (checklist.checkup_record) {
-            cloudCheckups[branchKey].push(checklist.checkup_record);
-          } else if (isStandaloneCheckup) {
+          // PENTING: hanya masukkan ke cloudCheckups jika ini benar-benar checkup standalone
+          // (QC-/AC-/UND-). SPK biasa yang memiliki checkup_record di checklist_data
+          // TIDAK boleh masuk ke halaman Checkup.
+          if (isStandaloneCheckup) {
             const checkupType: CheckupType = row.spk_number.startsWith('AC-')
               ? 'ac_specialist'
               : (row.spk_number.startsWith('UND-') ? 'understeel' : 'qc_general');
-            const rec: CheckupRecord = {
-              id: row.id,
-              type: checklist.checkup_type || checkupType,
-              document_number: row.spk_number,
-              vehicle_id: row.vehicle_id,
-              customer_name: vehicle?.customer_name || 'Pelanggan',
-              license_plate: vehicle?.license_plate || 'W 0000 XX',
-              car_model: vehicle ? `${vehicle.car_brand} ${vehicle.car_model}` : 'Mobil',
-              technician_name: row.mechanic_name || 'Mekanik',
-              check_date: row.entry_date?.slice(0, 10) || new Date().toISOString().slice(0, 10),
-              qc_data: checklist.qc_data || undefined,
-              ac_data: checklist.ac_data || undefined,
-              understeel_data: checklist.understeel_data || undefined,
-              created_at: row.created_at,
-              updated_at: row.updated_at,
-            };
-            cloudCheckups[branchKey].push(rec);
+            // Jika ada checkup_record tersimpan di checklist_data, gunakan itu
+            if (checklist.checkup_record) {
+              const stored = checklist.checkup_record;
+              // Validasi: pastikan document_number adalah format checkup, bukan SPK
+              const docNum = stored.document_number || row.spk_number;
+              const isValidCheckup = docNum.startsWith('QC-') || docNum.startsWith('AC-') || docNum.startsWith('UND-');
+              if (isValidCheckup) {
+                cloudCheckups[branchKey].push({ ...stored, id: stored.id || row.id });
+              }
+            } else {
+              // Buat CheckupRecord dari data baris work_orders langsung
+              const rec: CheckupRecord = {
+                id: row.id,
+                type: checklist.checkup_type || checkupType,
+                document_number: row.spk_number,
+                vehicle_id: row.vehicle_id,
+                customer_name: vehicle?.customer_name || 'Pelanggan',
+                license_plate: vehicle?.license_plate || 'W 0000 XX',
+                car_model: vehicle ? `${vehicle.car_brand} ${vehicle.car_model}` : 'Mobil',
+                technician_name: row.mechanic_name || 'Mekanik',
+                check_date: row.entry_date?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+                qc_data: checklist.qc_data || undefined,
+                ac_data: checklist.ac_data || undefined,
+                understeel_data: checklist.understeel_data || undefined,
+                created_at: row.created_at,
+                updated_at: row.updated_at,
+              };
+              cloudCheckups[branchKey].push(rec);
+            }
           }
+          // CATATAN: SPK biasa (!isStandaloneCheckup) yang punya checklist.checkup_record
+          // sengaja TIDAK dimasukkan ke cloudCheckups. Data QC-nya tetap tersimpan di
+          // dalam work_order.checklist_data dan bisa diakses dari detail SPK.
         });
 
         // SMART MERGE: gabungkan work orders cloud dengan lokal dengan rekonsiliasi SPK number & UUID
