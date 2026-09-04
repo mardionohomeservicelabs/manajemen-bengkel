@@ -55,6 +55,12 @@ export function DocumentImageModal({
         await document.fonts.ready;
       }
 
+      const targetHeight = Math.max(
+        documentRef.current.scrollHeight || 0,
+        documentRef.current.offsetHeight || 0,
+        1250
+      );
+
       const canvas = await html2canvas(documentRef.current, {
         scale: 2,              // 2x resolusi tinggi untuk teks tajam & jernih
         useCORS: true,         // Izinkan gambar cross-origin (logo, ttd)
@@ -63,9 +69,9 @@ export function DocumentImageModal({
         logging: false,
         scrollX: 0,
         scrollY: 0,
-        // Sesuaikan windowWidth dengan lebar konten aktual (820px + padding)
-        // agar Tailwind responsive classes tidak memicu breakpoint yang salah
-        windowWidth: 820,
+        windowWidth: 850,
+        windowHeight: targetHeight + 200,
+        height: targetHeight,
         onclone: (clonedDoc, clonedElement) => {
           // 0. Inject style defaults ke cloned document untuk mencegah font fallback & teks vertikal
           const styleTag = clonedDoc.createElement('style');
@@ -74,14 +80,20 @@ export function DocumentImageModal({
               writing-mode: horizontal-tb !important;
               direction: ltr !important;
               box-sizing: border-box !important;
+              word-break: normal !important;
+              overflow-wrap: normal !important;
             }
             html, body, * {
               font-family: 'Montserrat', system-ui, -apple-system, sans-serif !important;
             }
-            .w-3\\.5, .h-3\\.5 { width: 14px !important; height: 14px !important; }
+            .w-3\\.5, .h-3\\.5 { width: 14px !important; height: 14px !important; min-width: 14px !important; min-height: 14px !important; }
+            .w-2\\.5, .h-2\\.5 { width: 10px !important; height: 10px !important; }
             .flex { display: flex !important; }
             .items-center { align-items: center !important; }
             .justify-center { justify-content: center !important; }
+            .grid-cols-12 { display: flex !important; flex-direction: row !important; width: 100% !important; }
+            .col-span-4 { width: 33.333% !important; flex-shrink: 0 !important; }
+            .col-span-8 { width: 66.667% !important; flex-grow: 1 !important; }
           `;
           clonedDoc.head.appendChild(styleTag);
 
@@ -90,6 +102,7 @@ export function DocumentImageModal({
           clonedDoc.documentElement.style.padding = '0';
           clonedDoc.documentElement.style.width = '820px';
           clonedDoc.documentElement.style.minWidth = '820px';
+          clonedDoc.documentElement.style.height = 'auto';
           clonedDoc.documentElement.style.background = '#ffffff';
           clonedDoc.documentElement.style.writingMode = 'horizontal-tb';
           clonedDoc.documentElement.style.direction = 'ltr';
@@ -98,6 +111,7 @@ export function DocumentImageModal({
           clonedDoc.body.style.padding = '0';
           clonedDoc.body.style.width = '820px';
           clonedDoc.body.style.minWidth = '820px';
+          clonedDoc.body.style.height = 'auto';
           clonedDoc.body.style.background = '#ffffff';
           clonedDoc.body.style.overflow = 'visible';
           clonedDoc.body.style.writingMode = 'horizontal-tb';
@@ -124,6 +138,7 @@ export function DocumentImageModal({
           clonedElement.style.width = '820px';
           clonedElement.style.maxWidth = '820px';
           clonedElement.style.minWidth = '820px';
+          clonedElement.style.height = 'auto';
           clonedElement.style.margin = '0 auto';
           clonedElement.style.padding = '28px 32px';
           clonedElement.style.boxSizing = 'border-box';

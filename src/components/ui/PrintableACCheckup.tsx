@@ -139,33 +139,33 @@ export function PrintableACCheckup({
           <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50/70 p-2.5 rounded-xl border border-slate-800 font-medium">
             {/* Kolom Kiri */}
             <div className="space-y-1 border-r border-slate-300 pr-3">
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 text-slate-600 font-bold">Pelanggan</span>
-                <span className="col-span-8 font-bold text-slate-950">: {checkup.customer_name || 'Pelanggan'}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-24 shrink-0 font-bold text-slate-600 whitespace-nowrap">Pelanggan</span>
+                <span className="font-bold text-slate-950 truncate">: {checkup.customer_name || 'Pelanggan'}</span>
               </div>
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 text-slate-600 font-bold">Unit / Tipe</span>
-                <span className="col-span-8 font-bold text-slate-950">: {checkup.car_model || '-'}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-24 shrink-0 font-bold text-slate-600 whitespace-nowrap">Unit / Tipe</span>
+                <span className="font-bold text-slate-950 truncate">: {checkup.car_model || '-'}</span>
               </div>
             </div>
 
             {/* Kolom Kanan */}
             <div className="space-y-1 pl-1">
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 text-slate-600 font-bold">No Pol</span>
-                <span className="col-span-8 font-mono font-black text-[#8B0000] text-sm">: {formatPlate(checkup.license_plate)}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">No Pol</span>
+                <span className="font-mono font-black text-[#8B0000] text-sm">: {formatPlate(checkup.license_plate)}</span>
               </div>
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 text-slate-600 font-bold">No PKB</span>
-                <span className="col-span-8 font-mono font-bold text-[#8B0000]">: {checkup.document_number}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">No PKB</span>
+                <span className="font-mono font-bold text-[#8B0000] truncate">: {checkup.document_number}</span>
               </div>
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 text-slate-600 font-bold">Tanggal</span>
-                <span className="col-span-8 font-bold text-slate-950">: {formatDate(checkup.check_date)}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">Tanggal</span>
+                <span className="font-bold text-slate-950">: {formatDate(checkup.check_date)}</span>
               </div>
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 text-slate-600 font-bold">KM</span>
-                <span className="col-span-8 font-mono font-bold text-slate-950">: {formatKM(checkup.mileage, false)}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">KM</span>
+                <span className="font-mono font-bold text-slate-950">: {formatKM(checkup.mileage, false)}</span>
               </div>
             </div>
           </div>

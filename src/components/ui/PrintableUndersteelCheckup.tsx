@@ -142,34 +142,34 @@ export function PrintableUndersteelCheckup({
           </div>
 
           {/* Vehicle Metadata Box */}
-          <div className="border border-slate-900 text-xs p-2 grid grid-cols-2 gap-2 bg-white">
-            <div className="space-y-0.5 border-r border-slate-300 pr-2">
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 font-bold text-slate-800">Merk:</span>
-                <span className="col-span-8 font-bold">{checkup.car_brand || '-'}</span>
+          <div className="border border-slate-900 text-xs p-2 grid grid-cols-2 gap-3 bg-white">
+            <div className="space-y-1 border-r border-slate-300 pr-2">
+              <div className="flex items-center gap-1.5">
+                <span className="w-24 shrink-0 font-bold text-slate-800 whitespace-nowrap">Merk:</span>
+                <span className="font-bold text-slate-950 truncate">{checkup.car_brand || '-'}</span>
               </div>
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 font-bold text-slate-800">Tipe Mobil:</span>
-                <span className="col-span-8 font-bold">{checkup.car_model || '-'}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-24 shrink-0 font-bold text-slate-800 whitespace-nowrap">Tipe Mobil:</span>
+                <span className="font-bold text-slate-950 truncate">{checkup.car_model || '-'}</span>
               </div>
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 font-bold text-slate-800">Tahun/Warna:</span>
-                <span className="col-span-8 font-bold">{checkup.car_year || '-'} / {checkup.car_color || '-'}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-24 shrink-0 font-bold text-slate-800 whitespace-nowrap">Tahun/Warna:</span>
+                <span className="font-bold text-slate-950 truncate">{checkup.car_year || '-'} / {checkup.car_color || '-'}</span>
               </div>
             </div>
 
-            <div className="space-y-0.5 pl-1">
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 font-bold text-slate-800">No. Polisi:</span>
-                <span className="col-span-8 font-mono font-black text-[#8B0000]">{formatPlate(checkup.license_plate)}</span>
+            <div className="space-y-1 pl-1">
+              <div className="flex items-center gap-1.5">
+                <span className="w-20 shrink-0 font-bold text-slate-800 whitespace-nowrap">No. Polisi:</span>
+                <span className="font-mono font-black text-[#8B0000] text-[13px]">{formatPlate(checkup.license_plate)}</span>
               </div>
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 font-bold text-slate-800">Pelanggan:</span>
-                <span className="col-span-8 font-bold">{checkup.customer_name || 'Pelanggan'}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-20 shrink-0 font-bold text-slate-800 whitespace-nowrap">Pelanggan:</span>
+                <span className="font-bold text-slate-950 truncate">{checkup.customer_name || 'Pelanggan'}</span>
               </div>
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 font-bold text-slate-800">Tanggal:</span>
-                <span className="col-span-8 font-bold">{formatDate(checkup.check_date)}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-20 shrink-0 font-bold text-slate-800 whitespace-nowrap">Tanggal:</span>
+                <span className="font-bold text-slate-950">{formatDate(checkup.check_date)}</span>
               </div>
             </div>
           </div>
@@ -194,15 +194,23 @@ export function PrintableUndersteelCheckup({
                     </td>
                     <td className="p-0.5 border-r border-slate-900 text-center align-middle">
                       <div className="flex items-center justify-center">
-                        <div className="w-3.5 h-3.5 border border-slate-900 flex items-center justify-center bg-white">
-                          {item.replace ? <span className="text-slate-950 font-black text-xs leading-none">✓</span> : null}
+                        <div className="w-3.5 h-3.5 border border-slate-900 flex items-center justify-center bg-white rounded-[2px]">
+                          {item.replace ? (
+                            <svg className="w-2.5 h-2.5 text-slate-950" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="2 6 5 9 10 3" />
+                            </svg>
+                          ) : null}
                         </div>
                       </div>
                     </td>
                     <td className="p-0.5 border-r border-slate-900 text-center align-middle">
                       <div className="flex items-center justify-center">
-                        <div className="w-3.5 h-3.5 border border-slate-900 flex items-center justify-center bg-white">
-                          {item.service ? <span className="text-slate-950 font-black text-xs leading-none">✓</span> : null}
+                        <div className="w-3.5 h-3.5 border border-slate-900 flex items-center justify-center bg-white rounded-[2px]">
+                          {item.service ? (
+                            <svg className="w-2.5 h-2.5 text-slate-950" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="2 6 5 9 10 3" />
+                            </svg>
+                          ) : null}
                         </div>
                       </div>
                     </td>
@@ -227,15 +235,23 @@ export function PrintableUndersteelCheckup({
                     </td>
                     <td className="p-0.5 border-r border-slate-900 text-center align-middle">
                       <div className="flex items-center justify-center">
-                        <div className="w-3.5 h-3.5 border border-slate-900 flex items-center justify-center bg-white">
-                          {c.replace ? <span className="text-slate-950 font-black text-xs leading-none">✓</span> : null}
+                        <div className="w-3.5 h-3.5 border border-slate-900 flex items-center justify-center bg-white rounded-[2px]">
+                          {c.replace ? (
+                            <svg className="w-2.5 h-2.5 text-slate-950" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="2 6 5 9 10 3" />
+                            </svg>
+                          ) : null}
                         </div>
                       </div>
                     </td>
                     <td className="p-0.5 border-r border-slate-900 text-center align-middle">
                       <div className="flex items-center justify-center">
-                        <div className="w-3.5 h-3.5 border border-slate-900 flex items-center justify-center bg-white">
-                          {c.service ? <span className="text-slate-950 font-black text-xs leading-none">✓</span> : null}
+                        <div className="w-3.5 h-3.5 border border-slate-900 flex items-center justify-center bg-white rounded-[2px]">
+                          {c.service ? (
+                            <svg className="w-2.5 h-2.5 text-slate-950" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="2 6 5 9 10 3" />
+                            </svg>
+                          ) : null}
                         </div>
                       </div>
                     </td>
@@ -261,21 +277,21 @@ export function PrintableUndersteelCheckup({
               </div>
             </div>
 
-            <div className="col-span-3 p-2 flex flex-col justify-between text-center">
+            <div className="col-span-3 p-2 pb-1.5 flex flex-col justify-between text-center min-h-[78px]">
               <div className="font-black text-[10px] uppercase">TTD MEKANIK:</div>
-              <div className="h-10 flex items-center justify-center">
+              <div className="h-9 flex items-center justify-center my-0.5">
                 {checkup.mechanic_signature_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={checkup.mechanic_signature_url}
                     alt="TTD Mekanik"
-                    className="max-h-9 object-contain"
+                    className="max-h-8 object-contain"
                   />
                 ) : (
                   <span className="text-[9px] text-slate-400 italic">(Tanda Tangan)</span>
                 )}
               </div>
-              <div className="text-[10px] font-bold border-t border-slate-300 pt-0.5 truncate">
+              <div className="text-[10px] font-bold border-t border-slate-300 pt-0.5 truncate leading-tight">
                 {signerTeknisi || 'Mekanik'}
               </div>
             </div>

@@ -132,37 +132,37 @@ export function PrintableGeneralCheckup({
           <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50/70 p-2.5 rounded-xl border border-slate-800 font-medium">
             {/* Kolom Kiri */}
             <div className="space-y-1 border-r border-slate-300 pr-3">
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 text-slate-600 font-bold">Pelanggan</span>
-                <span className="col-span-8 font-bold text-slate-950">: {checkup.customer_name || 'Pelanggan'}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-24 shrink-0 font-bold text-slate-600 whitespace-nowrap">Pelanggan</span>
+                <span className="font-bold text-slate-950 truncate">: {checkup.customer_name || 'Pelanggan'}</span>
               </div>
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 text-slate-600 font-bold">Unit / Tipe</span>
-                <span className="col-span-8 font-bold text-slate-950">: {checkup.car_model || '-'}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-24 shrink-0 font-bold text-slate-600 whitespace-nowrap">Unit / Tipe</span>
+                <span className="font-bold text-slate-950 truncate">: {checkup.car_model || '-'}</span>
               </div>
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 text-slate-600 font-bold">Teknisi PIC</span>
-                <span className="col-span-8 font-bold text-[#8B0000]">: {signerTeknisi || checkup.technician_name || 'Teknisi Pemeriksa'}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-24 shrink-0 font-bold text-slate-600 whitespace-nowrap">Teknisi PIC</span>
+                <span className="font-bold text-[#8B0000] truncate">: {signerTeknisi || checkup.technician_name || 'Teknisi Pemeriksa'}</span>
               </div>
             </div>
 
             {/* Kolom Kanan */}
             <div className="space-y-1 pl-1">
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 text-slate-600 font-bold">No Pol</span>
-                <span className="col-span-8 font-mono font-black text-[#8B0000] text-sm">: {formatPlate(checkup.license_plate)}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-24 shrink-0 font-bold text-slate-600 whitespace-nowrap">No Pol</span>
+                <span className="font-mono font-black text-[#8B0000] text-sm">: {formatPlate(checkup.license_plate)}</span>
               </div>
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 text-slate-600 font-bold">No PKB / QC</span>
-                <span className="col-span-8 font-mono font-bold text-[#8B0000]">: {checkup.document_number}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-24 shrink-0 font-bold text-slate-600 whitespace-nowrap">No PKB / QC</span>
+                <span className="font-mono font-bold text-[#8B0000] truncate">: {checkup.document_number}</span>
               </div>
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 text-slate-600 font-bold">Tanggal</span>
-                <span className="col-span-8 font-bold text-slate-950">: {formatDate(checkup.check_date)}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-24 shrink-0 font-bold text-slate-600 whitespace-nowrap">Tanggal</span>
+                <span className="font-bold text-slate-950">: {formatDate(checkup.check_date)}</span>
               </div>
-              <div className="grid grid-cols-12 gap-1">
-                <span className="col-span-4 text-slate-600 font-bold">KM Odometer</span>
-                <span className="col-span-8 font-mono font-bold text-slate-950">: {formatKM(checkup.mileage)}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-24 shrink-0 font-bold text-slate-600 whitespace-nowrap">KM Odometer</span>
+                <span className="font-mono font-bold text-slate-950">: {formatKM(checkup.mileage)}</span>
               </div>
             </div>
           </div>
@@ -192,9 +192,18 @@ export function PrintableGeneralCheckup({
 
               <div className="col-span-3 flex items-center space-x-1.5">
                 <span className="font-bold text-slate-700">Saran Ganti:</span>
-                <span className="font-black text-red-700 text-[11px]">
-                  {checkup.battery_suggest_replace ? '☑ YA' : '☐ TIDAK'}
-                </span>
+                <div className="inline-flex items-center gap-1 font-bold text-xs">
+                  <div className="w-3.5 h-3.5 border border-slate-900 rounded-[2px] flex items-center justify-center bg-white">
+                    {checkup.battery_suggest_replace ? (
+                      <svg className="w-2.5 h-2.5 text-slate-950" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="2 6 5 9 10 3" />
+                      </svg>
+                    ) : null}
+                  </div>
+                  <span className={checkup.battery_suggest_replace ? 'text-red-700 font-black' : 'text-slate-700'}>
+                    {checkup.battery_suggest_replace ? 'YA' : 'TIDAK'}
+                  </span>
+                </div>
               </div>
 
               <div className="col-span-4 text-slate-800 text-[11px] leading-snug">

@@ -218,6 +218,122 @@ function NewCheckupPageContent() {
 
   const [savedRecord, setSavedRecord] = useState<CheckupRecord | null>(null);
 
+  // Auto-load checklist values if the selected SPK already has inspection data
+  useEffect(() => {
+    if (!selectedSpkId || allWorkOrders.length === 0) return;
+    const spk = allWorkOrders.find((w) => w.id === selectedSpkId);
+    if (!spk || !spk.checklist_data) return;
+
+    const cl = spk.checklist_data;
+
+    if (checkupType === 'qc_general') {
+      const qcData: QCGeneralCheckupData | undefined =
+        cl.qc_data ||
+        cl.checkup_records?.['qc_general']?.qc_data ||
+        (cl.checkup_record?.type === 'qc_general' ? cl.checkup_record.qc_data : undefined);
+
+      if (qcData) {
+        if (qcData.battery_condition) setBatteryCondition(qcData.battery_condition === 'buruk' ? 'buruk' : 'baik');
+        if (qcData.battery_health_percent !== undefined) setBatteryHealth(Number(qcData.battery_health_percent));
+        if (qcData.battery_suggest_replace !== undefined) setBatterySuggestReplace(Boolean(qcData.battery_suggest_replace));
+        if (qcData.battery_notes) setBatteryNotes(qcData.battery_notes);
+
+        if (qcData.sensor_maf_damaged) setSensorMAF({ status: 'rusak', notes: qcData.sensor_maf_notes || '' });
+        else if (qcData.sensor_maf_suggest_replace) setSensorMAF({ status: 'saran_ganti', notes: qcData.sensor_maf_notes || '' });
+        else if (qcData.sensor_maf_cleaned !== undefined) setSensorMAF({ status: 'wajib_clean', notes: qcData.sensor_maf_notes || '' });
+
+        if (qcData.sensor_isc_damaged) setSensorISC({ status: 'rusak', notes: qcData.sensor_isc_notes || '' });
+        else if (qcData.sensor_isc_suggest_replace) setSensorISC({ status: 'saran_ganti', notes: qcData.sensor_isc_notes || '' });
+        else if (qcData.sensor_isc_cleaned !== undefined) setSensorISC({ status: 'wajib_clean', notes: qcData.sensor_isc_notes || '' });
+
+        if (qcData.sensor_airflow_damaged) setSensorAirflow({ status: 'rusak', notes: qcData.sensor_airflow_notes || '' });
+        else if (qcData.sensor_airflow_suggest_replace) setSensorAirflow({ status: 'saran_ganti', notes: qcData.sensor_airflow_notes || '' });
+        else if (qcData.sensor_airflow_cleaned !== undefined) setSensorAirflow({ status: 'wajib_clean', notes: qcData.sensor_airflow_notes || '' });
+
+        if (qcData.throttle_body_damaged) setThrottleBody({ status: 'rusak', notes: qcData.throttle_body_notes || '' });
+        else if (qcData.throttle_body_suggest_replace) setThrottleBody({ status: 'saran_ganti', notes: qcData.throttle_body_notes || '' });
+        else if (qcData.throttle_body_cleaned !== undefined) setThrottleBody({ status: 'wajib_clean', notes: qcData.throttle_body_notes || '' });
+
+        if (qcData.spark_plug_damaged) setSparkPlug({ status: 'rusak', notes: qcData.spark_plug_notes || '' });
+        else if (qcData.spark_plug_suggest_replace) setSparkPlug({ status: 'saran_ganti', notes: qcData.spark_plug_notes || '' });
+        else if (qcData.spark_plug_checked !== undefined) setSparkPlug({ status: 'wajib_clean', notes: qcData.spark_plug_notes || '' });
+
+        if (qcData.ignition_coil_damaged) setIgnitionCoil({ status: 'rusak', notes: qcData.ignition_coil_notes || '' });
+        else if (qcData.ignition_coil_suggest_replace) setIgnitionCoil({ status: 'saran_ganti', notes: qcData.ignition_coil_notes || '' });
+        else if (qcData.ignition_coil_checked !== undefined) setIgnitionCoil({ status: 'wajib_clean', notes: qcData.ignition_coil_notes || '' });
+
+        const pointKeys: (keyof QCGeneralCheckupData)[] = [
+          'filter_udara', 'volume_oli_engine', 'minyak_rem', 'minyak_kopling_transmisi',
+          'minyak_power_steering', 'air_radiator_coolant', 'vanbelt_engine_ac', 'kekencangan_mur_ban',
+          'fungsi_lampu_all', 'fungsi_tape_audio', 'klakson_horn', 'wheldop_velg',
+          'kebersihan_filter_cabin', 'tekanan_freon_ac', 'kebersihan_interior_plafon_stir', 'riset_km_oli_engine'
+        ];
+
+        setChecklistItems((prev) =>
+          prev.map((item, idx) => {
+            const k = pointKeys[idx];
+            const pData = (qcData as any)[k];
+            if (pData) {
+              return {
+                ...item,
+                status: pData.suggest_replace ? 'saran_ganti' : 'checklist',
+                notes: pData.notes || '',
+              };
+            }
+            return item;
+          })
+        );
+
+        if (qcData.fuel_level_fraction) setFuelLevelFraction(qcData.fuel_level_fraction);
+        if (qcData.improvement_suggestions && qcData.improvement_suggestions.length > 0) {
+          setSaranList(qcData.improvement_suggestions);
+        }
+        if (qcData.technician_signature_url) setSignatureTech(qcData.technician_signature_url);
+      }
+    } else if (checkupType === 'ac_specialist') {
+      const acData: ACCheckupData | undefined =
+        cl.ac_data ||
+        cl.checkup_records?.['ac_specialist']?.ac_data ||
+        (cl.checkup_record?.type === 'ac_specialist' ? cl.checkup_record.ac_data : undefined);
+
+      if (acData) {
+        if (acData.compressor_clutch) setAcCompressor(acData.compressor_clutch);
+        if (acData.drive_belt) setAcDriveBelt(acData.drive_belt);
+        if (acData.condenser_radiator) setAcCondenser(acData.condenser_radiator);
+        if (acData.hoses_pipes) setAcHoses(acData.hoses_pipes);
+        if (acData.air_coolant) setAcCoolant(acData.air_coolant);
+        if (acData.func_magnetic_clutch) setAcFuncClutch(acData.func_magnetic_clutch);
+        if (acData.radiator_condenser_fan) setAcRadiatorFan(acData.radiator_condenser_fan);
+        if (acData.blower_airflow) setAcBlower(acData.blower_airflow);
+        if (acData.sight_glass_odour) setAcSightGlass(acData.sight_glass_odour);
+        if (acData.air_vent_temperature) setAcVentTemp(acData.air_vent_temperature);
+        if (acData.low_pressure_psi) setAcLowPsi(acData.low_pressure_psi);
+        if (acData.high_pressure_psi) setAcHighPsi(acData.high_pressure_psi);
+        if (acData.cabin_filter_condition) setAcCabinFilter(acData.cabin_filter_condition);
+        if (acData.evaporator_drain_condition) setAcDrain(acData.evaporator_drain_condition);
+        if (acData.recommendations) setAcRecommendations(acData.recommendations);
+        if (acData.customer_signature_url) setSignatureCustomer(acData.customer_signature_url);
+        if (acData.technician_signature_url) setSignatureTech(acData.technician_signature_url);
+      }
+    } else if (checkupType === 'understeel') {
+      const undData: UndersteelCheckupData | undefined =
+        cl.understeel_data ||
+        cl.checkup_records?.['understeel']?.understeel_data ||
+        (cl.checkup_record?.type === 'understeel' ? cl.checkup_record.understeel_data : undefined);
+
+      if (undData) {
+        if (undData.items && undData.items.length > 0) setUndersteelItems(undData.items);
+        if (undData.custom_items && undData.custom_items.length > 0) setUndersteelCustomItems(undData.custom_items);
+        if (undData.technicians_assigned && undData.technicians_assigned.length > 0) {
+          setMech1(undData.technicians_assigned[0] || '');
+          setMech2(undData.technicians_assigned[1] || '');
+          setMech3(undData.technicians_assigned[2] || '');
+        }
+        if (undData.mechanic_signature_url) setSignatureTech(undData.mechanic_signature_url);
+      }
+    }
+  }, [selectedSpkId, checkupType, allWorkOrders]);
+
   const handlePlateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
     setLicensePlate(raw);

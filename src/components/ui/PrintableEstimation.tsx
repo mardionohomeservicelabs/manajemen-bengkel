@@ -351,40 +351,40 @@ export function PrintableEstimation({
             </h4>
 
             <div className="grid grid-cols-2 gap-4 text-center text-xs">
-              <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between h-[115px]">
+              <div className="border border-slate-300 rounded-lg p-2 pb-1.5 bg-slate-50 flex flex-col justify-between min-h-[110px]">
                 <p className="font-black text-[#001F7A] text-[10px] uppercase">Estimator</p>
-                <div className="h-14 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white my-0.5 overflow-hidden">
+                <div className="h-11 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white my-0.5 overflow-hidden">
                   {estimation.estimator_signature || (estimation as any).signature_admin_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={estimation.estimator_signature || (estimation as any).signature_admin_url}
                       alt="TTD Estimator"
-                      className="max-h-12 object-contain"
+                      className="max-h-10 object-contain"
                     />
                   ) : (
                     <span className="text-[9px] text-slate-400 italic">Tanda tangan Estimator</span>
                   )}
                 </div>
-                <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate">
+                <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate leading-tight">
                   {signerEstimator || estimation.estimator_name || 'Via Rizkiana'}
                 </p>
               </div>
 
-              <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between h-[115px]">
+              <div className="border border-slate-300 rounded-lg p-2 pb-1.5 bg-slate-50 flex flex-col justify-between min-h-[110px]">
                 <p className="font-black text-[#8B0000] text-[10px] uppercase">Persetujuan Pelanggan</p>
-                <div className="h-14 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white my-0.5 overflow-hidden">
+                <div className="h-11 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white my-0.5 overflow-hidden">
                   {estimation.customer_signature || estimation.signature_customer_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={estimation.customer_signature || estimation.signature_customer_url}
                       alt="TTD Customer"
-                      className="max-h-12 object-contain"
+                      className="max-h-10 object-contain"
                     />
                   ) : (
                     <span className="text-[9px] text-slate-400 italic">Tanda tangan persetujuan</span>
                   )}
                 </div>
-                <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate">
+                <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate leading-tight">
                   {estimation.customer_signed_name || vehicle?.customer_name || 'Pelanggan'}
                 </p>
               </div>

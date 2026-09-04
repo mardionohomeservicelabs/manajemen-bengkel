@@ -132,14 +132,14 @@ export default function CheckupPage() {
       }
     });
 
-    // 3. Attach checkups into corresponding car groups
-    checkups.forEach((rec) => {
+    // Helper untuk memasukkan checkup record ke dalam group mobil yang sesuai
+    const attachCheckupToGroup = (rec: CheckupRecord) => {
+      if (!rec || !rec.document_number) return;
       const normPlate = (rec.license_plate || '').trim().toUpperCase().replace(/\s+/g, '');
       const matchKey = rec.vehicle_id || normPlate;
 
       let group = map.get(matchKey);
       if (!group) {
-        // Cari by license plate jika vehicle_id berbeda
         for (const g of map.values()) {
           if (g.license_plate.replace(/\s+/g, '').toUpperCase() === normPlate) {
             group = g;
@@ -149,7 +149,6 @@ export default function CheckupPage() {
       }
 
       if (!group) {
-        // Buat group baru dari data checkup
         group = {
           key: matchKey || `rec-${rec.id}`,
           vehicleId: rec.vehicle_id,
@@ -168,10 +167,116 @@ export default function CheckupPage() {
         map.set(group.key, group);
       }
 
-      group.allRecords.push(rec);
-      if (rec.type === 'qc_general') group.qcGeneralList.push(rec);
-      else if (rec.type === 'ac_specialist') group.acList.push(rec);
-      else if (rec.type === 'understeel') group.understeelList.push(rec);
+      // Cegah duplikasi berdasarkan ID atau Nomor Dokumen
+      const isDuplicate = group.allRecords.some(
+        (r) => r.id === rec.id || r.document_number === rec.document_number
+      );
+      if (!isDuplicate) {
+        group.allRecords.push(rec);
+        if (rec.type === 'qc_general') group.qcGeneralList.push(rec);
+        else if (rec.type === 'ac_specialist') group.acList.push(rec);
+        else if (rec.type === 'understeel') group.understeelList.push(rec);
+      }
+    };
+
+    // 3. Attach checkups dari database storage
+    checkups.forEach(attachCheckupToGroup);
+
+    // 4. Attach checkups langsung dari work_orders (sinkronisasi instan antar device)
+    allWorkOrders.forEach((wo) => {
+      const cl = wo.checklist_data;
+      if (!cl || typeof cl !== 'object') return;
+
+      const vehicle = wo.vehicle;
+      const custName = vehicle?.customer_name || 'Pelanggan';
+      const plate = vehicle?.license_plate || 'W 0000 XX';
+      const model = vehicle ? `${vehicle.car_brand} ${vehicle.car_model}` : 'Mobil';
+      const dateStr = wo.entry_date?.slice(0, 10) || new Date().toISOString().slice(0, 10);
+
+      // 4a. Dari checklist_data.checkup_records
+      if (cl.checkup_records && typeof cl.checkup_records === 'object') {
+        Object.values(cl.checkup_records).forEach((r: any) => {
+          if (r && typeof r === 'object' && r.document_number) {
+            attachCheckupToGroup({
+              ...r,
+              work_order_id: wo.id,
+              vehicle_id: wo.vehicle_id,
+              customer_name: r.customer_name || custName,
+              license_plate: r.license_plate || plate,
+              car_model: r.car_model || model,
+            });
+          }
+        });
+      }
+
+      // 4b. Dari checklist_data.checkup_record
+      if (cl.checkup_record && typeof cl.checkup_record === 'object' && cl.checkup_record.document_number) {
+        attachCheckupToGroup({
+          ...cl.checkup_record,
+          work_order_id: wo.id,
+          vehicle_id: wo.vehicle_id,
+          customer_name: cl.checkup_record.customer_name || custName,
+          license_plate: cl.checkup_record.license_plate || plate,
+          car_model: cl.checkup_record.car_model || model,
+        });
+      }
+
+      // 4c. Dari qc_data
+      if (cl.qc_data && typeof cl.qc_data === 'object') {
+        attachCheckupToGroup({
+          id: `qc-${wo.id}`,
+          type: 'qc_general',
+          document_number: cl.qc_data.document_number || `QC-${(wo.entry_date || new Date().toISOString()).slice(0, 10).replace(/-/g, '')}-001`,
+          work_order_id: wo.id,
+          vehicle_id: wo.vehicle_id,
+          customer_name: custName,
+          license_plate: plate,
+          car_model: model,
+          technician_name: wo.mechanic_name || 'Mekanik',
+          check_date: dateStr,
+          qc_data: cl.qc_data,
+          created_at: wo.created_at || new Date().toISOString(),
+          updated_at: wo.updated_at,
+        });
+      }
+
+      // 4d. Dari ac_data
+      if (cl.ac_data && typeof cl.ac_data === 'object') {
+        attachCheckupToGroup({
+          id: `ac-${wo.id}`,
+          type: 'ac_specialist',
+          document_number: cl.ac_data.document_number || `AC-${(wo.entry_date || new Date().toISOString()).slice(0, 10).replace(/-/g, '')}-001`,
+          work_order_id: wo.id,
+          vehicle_id: wo.vehicle_id,
+          customer_name: custName,
+          license_plate: plate,
+          car_model: model,
+          technician_name: wo.mechanic_name || 'Mekanik',
+          check_date: dateStr,
+          ac_data: cl.ac_data,
+          created_at: wo.created_at || new Date().toISOString(),
+          updated_at: wo.updated_at,
+        });
+      }
+
+      // 4e. Dari understeel_data
+      if (cl.understeel_data && typeof cl.understeel_data === 'object') {
+        attachCheckupToGroup({
+          id: `und-${wo.id}`,
+          type: 'understeel',
+          document_number: cl.understeel_data.document_number || `UND-${(wo.entry_date || new Date().toISOString()).slice(0, 10).replace(/-/g, '')}-001`,
+          work_order_id: wo.id,
+          vehicle_id: wo.vehicle_id,
+          customer_name: custName,
+          license_plate: plate,
+          car_model: model,
+          technician_name: cl.understeel_data.technician_name || wo.mechanic_name || 'Mekanik',
+          check_date: dateStr,
+          understeel_data: cl.understeel_data,
+          created_at: wo.created_at || new Date().toISOString(),
+          updated_at: wo.updated_at,
+        });
+      }
     });
 
     const groups = Array.from(map.values());
