@@ -77,7 +77,7 @@ const ACTIVE_COLUMNS: { id: WorkOrderStatus; title: string; color: string; borde
 ];
 
 function QueueBoardContent() {
-  const { workOrders, allWorkOrders, showToast, settings, currentRole, updateWorkOrderStatusAsync } = useApp();
+  const { workOrders, allWorkOrders, showToast, settings, currentRole, updateWorkOrderStatusAsync, refreshData, syncWithSupabase } = useApp();
   const { activeBranch, setActiveBranch, currentUser } = useAuth();
   const searchParams = useSearchParams();
   const branchParam = searchParams.get('branch');
@@ -90,6 +90,12 @@ function QueueBoardContent() {
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
   const [editingPlateOrder, setEditingPlateOrder] = useState<WorkOrder | null>(null);
   const [dbSearchQuery, setDbSearchQuery] = useState('');
+
+  // Sinkronkan data saat halaman dibuka
+  useEffect(() => {
+    refreshData();
+    syncWithSupabase();
+  }, [refreshData, syncWithSupabase]);
 
   // Sinkronkan jika query param branch berubah
   useEffect(() => {

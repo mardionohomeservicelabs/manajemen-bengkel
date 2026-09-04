@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useApp } from '@/lib/context/AppContext';
 import { CheckupRecord, VehicleCustomer, WorkOrder } from '@/lib/types/database';
@@ -50,12 +50,18 @@ interface VehicleCheckupGroup {
 }
 
 export default function CheckupPage() {
-  const { checkups, workOrders, allWorkOrders, vehicles, settings, deleteCheckupAsync, showToast, currentRole } = useApp();
+  const { checkups, workOrders, allWorkOrders, vehicles, settings, deleteCheckupAsync, showToast, currentRole, refreshData, syncWithSupabase } = useApp();
   const [filterTab, setFilterTab] = useState<'all' | 'has_checkup' | 'empty'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVehicleGroup, setSelectedVehicleGroup] = useState<VehicleCheckupGroup | null>(null);
   const [selectedPrintRecord, setSelectedPrintRecord] = useState<CheckupRecord | null>(null);
   const [editingPlateTarget, setEditingPlateTarget] = useState<{ vehicleId: string; plate: string; name: string; model: string } | null>(null);
+
+  // Sinkronkan data saat halaman checklist dibuka
+  useEffect(() => {
+    refreshData();
+    syncWithSupabase();
+  }, [refreshData, syncWithSupabase]);
 
   // Group checkups & workOrders by car (license_plate / vehicle_id)
   const vehicleGroups: VehicleCheckupGroup[] = useMemo(() => {
@@ -68,7 +74,7 @@ export default function CheckupPage() {
       if (!normPlate) return;
 
       const latestWo = allWorkOrders
-        .filter((w) => w.vehicle_id === v.id || (w.vehicle?.license_plate && w.vehicle.license_plate.replace(/\s+/g, '') === normPlate))
+        .filter((w) => w.vehicle_id === v.id || (w.vehicle?.license_plate && w.vehicle.license_plate.toUpperCase().replace(/\s+/g, '') === normPlate))
         .sort((a, b) => new Date(b.created_at || b.entry_date || 0).getTime() - new Date(a.created_at || a.entry_date || 0).getTime())[0];
 
       map.set(key, {

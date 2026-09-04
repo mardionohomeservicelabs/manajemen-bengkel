@@ -205,6 +205,7 @@ function EstimationBuilderContent() {
   const spkIdParam = searchParams.get('spkId');
   const {
     workOrders,
+    allWorkOrders,
     inventory,
     invoices,
     refreshData,
@@ -215,6 +216,15 @@ function EstimationBuilderContent() {
     syncWithSupabase,
     unlockWorkOrderAsync,
   } = useApp();
+
+  // Sinkronkan data saat halaman dibuka
+  useEffect(() => {
+    refreshData();
+    syncWithSupabase();
+  }, [refreshData, syncWithSupabase]);
+
+  // Sumber work orders yang mencakup seluruh cabang (MHS 1, MHS 2, MHS 3)
+  const availableOrders = (allWorkOrders && allWorkOrders.length > 0) ? allWorkOrders : workOrders;
 
   // Selected SPK & Tab (tab berbentuk {id, name} agar bisa rename bebas)
   const [selectedSpkId, setSelectedSpkId] = useState<string>(spkIdParam || '');
@@ -543,7 +553,7 @@ function EstimationBuilderContent() {
     // 2. Kunci loadedFormSpkIdRef agar auto-save tidak jalan selama proses pergantian
     loadedFormSpkIdRef.current = '';
 
-    const targetWo = workOrders.find((w) => w.id === newSpkId);
+    const targetWo = availableOrders.find((w) => w.id === newSpkId || w.spk_number === newSpkId);
     if (!targetWo) return;
 
     // 3. Tandai SPK yang sedang dimuat
@@ -564,22 +574,22 @@ function EstimationBuilderContent() {
     estimatorName, estimatorSignature, customerSignature, customerSignedName,
     estimatedDuration, customerResponse, customerResponseNote,
     showDiscount, showOpsi2, showTax, showRangePrice, discountAmount, taxPercent, adminNotes, tabList,
-    workOrders, loadEstimationForSpk
+    availableOrders, loadEstimationForSpk
   ]);
 
   // Initialize selected SPK and load estimation only on target SPK change
   useEffect(() => {
-    if (workOrders.length > 0) {
-      const activeWorkOrders = workOrders.filter((w) => w.status !== 'completed' && w.status !== 'cancelled');
+    if (availableOrders.length > 0) {
+      const activeWorkOrders = availableOrders.filter((w) => w.status !== 'completed' && w.status !== 'cancelled');
       let savedLastSpkId: string | null = null;
       if (typeof window !== 'undefined') {
         try {
           savedLastSpkId = localStorage.getItem('mhs_last_active_estimation_spk_id');
         } catch {}
       }
-      const targetId = spkIdParam || selectedSpkId || savedLastSpkId || activeWorkOrders[0]?.id || workOrders[0]?.id;
+      const targetId = spkIdParam || selectedSpkId || savedLastSpkId || activeWorkOrders[0]?.id || availableOrders[0]?.id;
       if (targetId) {
-        const found = workOrders.find((w) => w.id === targetId || w.spk_number === targetId);
+        const found = availableOrders.find((w) => w.id === targetId || w.spk_number === targetId);
         if (found) {
           if (lastLoadedSpkId.current !== found.id) {
             lastLoadedSpkId.current = found.id;
@@ -618,7 +628,7 @@ function EstimationBuilderContent() {
         }
       }
     }
-  }, [selectedSpkId, spkIdParam, workOrders, invoices, activeTabId, customerSignature, customerResponse, loadEstimationForSpk]);
+  }, [selectedSpkId, spkIdParam, availableOrders, invoices, activeTabId, customerSignature, customerResponse, loadEstimationForSpk]);
 
   // Polling sync real-time saat menunggu TTD customer dari link
   useEffect(() => {
@@ -1227,6 +1237,11 @@ function EstimationBuilderContent() {
       // 1. Simpan Instan ke Local-First Database (Aman & Tidak Terhalang Koneksi)
       const saved = DBService.saveInvoice(invoicePayload as any, targetBranch);
 
+      // PENTING: Bersihkan nested work_order & vehicle dari invoice agar tidak terjadi circular reference pembengkak memori
+      const sanitizedSaved = { ...saved };
+      delete (sanitizedSaved as any).work_order;
+      delete (sanitizedSaved as any).vehicle;
+
       // 2. Perbarui SPK lokal
       const updatedWorkOrder: WorkOrder = {
         ...selectedSpk,
@@ -1234,7 +1249,7 @@ function EstimationBuilderContent() {
         checklist_data: {
           ...(selectedSpk.checklist_data || {}),
           tabs: updatedTabList,
-          [`estimation_${activeTabId}`]: saved,
+          [`estimation_${activeTabId}`]: sanitizedSaved,
         } as any,
       };
       DBService.saveWorkOrder(updatedWorkOrder, targetBranch);
@@ -1327,7 +1342,11 @@ function EstimationBuilderContent() {
     return customerPhone ? createWhatsAppLink(customerPhone, msg) : '#';
   };
 
-  const filteredInventory = inventory.filter((item) => {
+  const currentInventoryPool = (selectedSpk?.received_at_branch && selectedSpk.received_at_branch !== DBService.getActiveBranch())
+    ? DBService.getInventory(selectedSpk.received_at_branch as any)
+    : inventory;
+
+  const filteredInventory = currentInventoryPool.filter((item) => {
     const matchesCat = pickerCategory === 'all' || item.category === pickerCategory;
     const matchesSearch =
       item.name.toLowerCase().includes(pickerSearch.toLowerCase()) ||
@@ -1353,14 +1372,14 @@ function EstimationBuilderContent() {
                     onChange={(e) => handleSelectSpk(e.target.value)}
                     className="text-xs font-mono font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1 rounded-lg border border-slate-300 outline-none cursor-pointer"
                   >
-                    {workOrders.filter((wo) => wo.status !== 'completed' && wo.status !== 'cancelled').length === 0 ? (
+                    {availableOrders.filter((wo) => wo.status !== 'completed' && wo.status !== 'cancelled').length === 0 ? (
                       <option value="">(Tidak ada mobil aktif yang perlu diestimasi)</option>
                     ) : (
-                      workOrders
+                      availableOrders
                         .filter((wo) => wo.status !== 'completed' && wo.status !== 'cancelled')
                         .map((wo) => (
                           <option key={wo.id} value={wo.id}>
-                            {wo.spk_number} - {wo.vehicle?.customer_name} ({wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''})
+                            [{wo.received_at_branch || 'MHS 1'}] {wo.spk_number} - {wo.vehicle?.customer_name} ({wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''})
                           </option>
                         ))
                     )}

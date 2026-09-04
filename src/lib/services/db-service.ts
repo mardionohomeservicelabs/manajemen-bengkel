@@ -55,6 +55,36 @@ function normalizeBranch(b?: string): BranchId {
 }
 
 /**
+ * Sanitasi checklist_data dari circular nesting (misal invoice menyimpan work_order di dalamnya).
+ * Menghapus duplikasi object besar agar payload storage dan database tetap ringan (< 50 KB).
+ */
+export function sanitizeChecklistData(checklist: any): any {
+  if (!checklist || typeof checklist !== 'object' || Array.isArray(checklist)) {
+    return checklist || {};
+  }
+  const clean: Record<string, any> = {};
+
+  for (const [key, value] of Object.entries(checklist)) {
+    if (key === 'estimation' || key.startsWith('estimation_')) {
+      if (value && typeof value === 'object') {
+        const est = { ...(value as any) };
+        delete est.work_order;
+        delete est.vehicle;
+        clean[key] = est;
+      } else {
+        clean[key] = value;
+      }
+    } else if (key === 'work_order' || key === 'workOrders' || key === 'allWorkOrders') {
+      continue;
+    } else {
+      clean[key] = value;
+    }
+  }
+
+  return clean;
+}
+
+/**
  * Smart merge WorkOrders dengan rekonsiliasi SPK Number & UUID
  * Memperbarui ID invoice & checkup lokal jika ID SPK berganti dari temporary ke UUID
  */
@@ -93,14 +123,18 @@ function smartMergeWorkOrders(
 
       if (cloudTime >= localTime) {
         // Cloud menang, tapi pertahankan tabs/estimasi di checklist_data lokal jika ada
-        const mergedChecklist = {
+        const mergedChecklist = sanitizeChecklistData({
           ...((local as any).checklist_data || {}),
           ...((cloud as any).checklist_data || {}),
-        };
+        });
         mergedMap.set(key, { ...cloud, checklist_data: mergedChecklist });
       } else {
         // Lokal menang karena ada editan offline/lokal yang lebih baru, tapi adopsi UUID cloud
-        mergedMap.set(key, { ...local, id: cloud.id });
+        const mergedChecklist = sanitizeChecklistData({
+          ...((cloud as any).checklist_data || {}),
+          ...((local as any).checklist_data || {}),
+        });
+        mergedMap.set(key, { ...local, id: cloud.id, checklist_data: mergedChecklist });
       }
     }
   });
@@ -249,8 +283,32 @@ function setLocal<T>(key: string, value: T): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
+  } catch (e: any) {
     console.error(`Error saving ${key} to localStorage:`, e);
+    // Jika quota storage browser penuh (QuotaExceededError)
+    if (
+      e?.name === 'QuotaExceededError' ||
+      e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+      e?.code === 22 ||
+      e?.code === 1014
+    ) {
+      try {
+        console.warn('Storage quota exceeded! Membersihkan temporary cache & drafts...');
+        Object.keys(localStorage).forEach((k) => {
+          if (
+            k.startsWith('mhs_est_draft_') ||
+            k.startsWith('mhs_est_saved_') ||
+            k.startsWith('mhs_est_tabs_')
+          ) {
+            localStorage.removeItem(k);
+          }
+        });
+        localStorage.setItem(key, JSON.stringify(value));
+        console.info(`Berhasil menyimpan ${key} setelah pembersihan cache.`);
+      } catch (retryErr) {
+        console.error('Storage masih penuh setelah pembersihan cache:', retryErr);
+      }
+    }
   }
 }
 
@@ -389,6 +447,25 @@ export class DBService {
       setLocal(getBranchKey(BASE_STORAGE_KEYS.MOVEMENTS, 'MHS 2'), []);
       setLocal(getBranchKey(BASE_STORAGE_KEYS.MOVEMENTS, 'MHS 3'), []);
       localStorage.setItem(CLEAN_MHS23_INVENTORY_FLAG, 'true');
+    }
+
+    // Pastikan storage lokal bersih dari data circular legacy yang melebihi kuota 5MB browser
+    const STORAGE_CLEANUP_FLAG = 'acwms_quota_fix_v5';
+    if (!localStorage.getItem(STORAGE_CLEANUP_FLAG)) {
+      Object.keys(localStorage).forEach((k) => {
+        if (
+          k.startsWith('mhs_est_draft_') ||
+          k.startsWith('mhs_est_saved_') ||
+          k.startsWith('mhs_est_tabs_')
+        ) {
+          localStorage.removeItem(k);
+        }
+      });
+      ['MHS 1', 'MHS 2', 'MHS 3'].forEach((b) => {
+        localStorage.removeItem(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b as BranchId));
+        localStorage.removeItem(getBranchKey(BASE_STORAGE_KEYS.INVOICES, b as BranchId));
+      });
+      localStorage.setItem(STORAGE_CLEANUP_FLAG, 'true');
     }
 
     const branches: BranchId[] = targetBranch ? [targetBranch] : ['MHS 1', 'MHS 2', 'MHS 3'];
@@ -918,6 +995,7 @@ export class DBService {
         saved = {
           ...orders[idx],
           ...workOrder,
+          checklist_data: sanitizeChecklistData(workOrder.checklist_data || orders[idx].checklist_data),
           updated_at: new Date().toISOString(),
         } as WorkOrder;
         orders[idx] = saved;
@@ -926,6 +1004,7 @@ export class DBService {
           ...workOrder,
           id: workOrder.id,
           spk_number: workOrder.spk_number || `SPK-${Date.now().toString().slice(-6)}`,
+          checklist_data: sanitizeChecklistData(workOrder.checklist_data),
           created_at: workOrder.created_at || new Date().toISOString(),
           updated_at: new Date().toISOString(),
         } as WorkOrder;
@@ -940,6 +1019,7 @@ export class DBService {
           `SPK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(
             100 + Math.random() * 900
           )}`,
+        checklist_data: sanitizeChecklistData(workOrder.checklist_data),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       } as WorkOrder;
@@ -968,7 +1048,7 @@ export class DBService {
 
     if (supabase && isSupabaseConfigured) {
       try {
-        const mergedChecklist: Record<string, any> = {
+        const mergedChecklist: Record<string, any> = sanitizeChecklistData({
           ...((localSaved as any).checklist_data || {}),
           ...((workOrder as any).checklist_data || {}),
           source_info: workOrder.source_info || (localSaved as any).source_info || 'REFERENSI',
@@ -977,7 +1057,7 @@ export class DBService {
           signature_customer_url: workOrder.signature_customer_url || (localSaved as any).signature_customer_url || null,
           signature_mechanic_url: workOrder.signature_mechanic_url || (localSaved as any).signature_mechanic_url || null,
           signature_sa_url: workOrder.signature_sa_url || (localSaved as any).signature_sa_url || null,
-        };
+        });
 
         const payload: Record<string, any> = {
           spk_number: localSaved.spk_number,
@@ -1753,20 +1833,24 @@ export class DBService {
       const woIdx = workOrders.findIndex((w) => w.id === woId || w.spk_number === woId);
       if (woIdx !== -1 && targetInvoice) {
         const tabKey = (targetInvoice as any).tab_id || targetInvoice.estimation_tab || 'tab_1';
+        const sanitizedTarget = { ...targetInvoice };
+        delete (sanitizedTarget as any).work_order;
+        delete (sanitizedTarget as any).vehicle;
+
         workOrders[woIdx] = {
           ...workOrders[woIdx],
           status: workOrders[woIdx].status === 'completed' ? 'completed' : newWoStatus,
           signature_customer_url: signatureDataUrl,
-          checklist_data: {
+          checklist_data: sanitizeChecklistData({
             ...(workOrders[woIdx].checklist_data || {}),
-            estimation: targetInvoice,
-            [`estimation_${tabKey}`]: targetInvoice,
+            estimation: sanitizedTarget,
+            [`estimation_${tabKey}`]: sanitizedTarget,
             signature_customer_url: signatureDataUrl,
             customer_signed_name: customerName,
             customer_signed_at: now,
             customer_approved_option: approvedOption,
             customer_response: approvedOption,
-          },
+          }),
           updated_at: now,
         };
         setLocal(woKey, workOrders);
@@ -2263,7 +2347,7 @@ export class DBService {
             row.spk_number.startsWith('AC-') ||
             row.spk_number.startsWith('UND-');
 
-          const checklist = row.checklist_data || {};
+          const checklist = sanitizeChecklistData(row.checklist_data || {});
 
           if (!isStandaloneCheckup) {
             const wo: WorkOrder = {

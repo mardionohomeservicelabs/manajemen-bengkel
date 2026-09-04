@@ -127,6 +127,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Berlangganan perubahan data secara instan dari perangkat lain via WebSocket.
   // Setiap event INSERT / UPDATE / DELETE dari Supabase akan langsung diproses
   // dan menyinkronkan localStorage serta state React tanpa polling.
+  // PENTING: Debounce digunakan agar Realtime event dari device SENDIRI tidak
+  // menciptakan race condition dengan operasi save lokal yang baru saja dilakukan.
+  const lastLocalSaveRef = useRef<number>(0);
+  const realtimeSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Helper: jadwalkan sync dari Supabase dengan debounce 1.5 detik
+  // Ini memastikan bahwa jika device ini baru saja menyimpan data lokal (dalam 3 detik terakhir),
+  // Realtime event dari device sendiri tidak langsung menimpa data lokal yang fresh.
+  const scheduleDebouncedSync = useCallback((
+    tables: ('work_orders' | 'invoices' | 'vehicles' | 'all')[]
+  ) => {
+    // Jika device ini baru saja menyimpan data dalam 3 detik terakhir, tunda sync lebih lama
+    const timeSinceLastSave = Date.now() - lastLocalSaveRef.current;
+    const delay = timeSinceLastSave < 3000 ? 2000 : 500;
+
+    if (realtimeSyncTimerRef.current) {
+      clearTimeout(realtimeSyncTimerRef.current);
+    }
+    realtimeSyncTimerRef.current = setTimeout(async () => {
+      await DBService.syncFromSupabase(activeBranch);
+      refreshData();
+    }, delay);
+  }, [activeBranch, refreshData]);
+
   useEffect(() => {
     if (!supabase || !isSupabaseConfigured) return;
     // Non-null narrowing: supabase sudah dipastikan not-null di atas
@@ -152,11 +176,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         { event: 'INSERT', schema: 'public', table: 'work_orders' },
         (payload) => {
           console.info('[Realtime] work_orders INSERT:', payload.new?.spk_number);
-          // Sinkronkan data baru ke localStorage lalu perbarui React state
-          DBService.syncFromSupabase(activeBranch).then(() => {
-            setWorkOrders(DBService.getWorkOrders(activeBranch));
-            setAllWorkOrders(DBService.getAllWorkOrders());
-          });
+          scheduleDebouncedSync(['work_orders']);
         }
       )
       .on(
@@ -164,13 +184,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         { event: 'UPDATE', schema: 'public', table: 'work_orders' },
         (payload) => {
           console.info('[Realtime] work_orders UPDATE:', payload.new?.spk_number, payload.new?.status);
-          // Hanya sinkronkan data yang diubah (bukan seluruh tabel) untuk efisiensi
-          DBService.syncFromSupabase(activeBranch).then(() => {
-            setWorkOrders(DBService.getWorkOrders(activeBranch));
-            setAllWorkOrders(DBService.getAllWorkOrders());
-            setInvoices(DBService.getInvoices(activeBranch));
-            setCheckups(DBService.getCheckups(activeBranch));
-          });
+          scheduleDebouncedSync(['work_orders', 'invoices']);
         }
       )
       .on(
@@ -178,10 +192,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         { event: 'DELETE', schema: 'public', table: 'work_orders' },
         (payload) => {
           console.info('[Realtime] work_orders DELETE:', payload.old?.id);
-          DBService.syncFromSupabase(activeBranch).then(() => {
-            setWorkOrders(DBService.getWorkOrders(activeBranch));
-            setAllWorkOrders(DBService.getAllWorkOrders());
-          });
+          scheduleDebouncedSync(['work_orders']);
         }
       )
       // ── 2. INVOICES & ESTIMASI ─────────────────────────────────────────────
@@ -190,9 +201,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         { event: 'INSERT', schema: 'public', table: 'invoices' },
         (payload) => {
           console.info('[Realtime] invoices INSERT:', payload.new?.invoice_number);
-          DBService.syncFromSupabase(activeBranch).then(() => {
-            setInvoices(DBService.getInvoices(activeBranch));
-          });
+          scheduleDebouncedSync(['invoices']);
         }
       )
       .on(
@@ -200,9 +209,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         { event: 'UPDATE', schema: 'public', table: 'invoices' },
         (payload) => {
           console.info('[Realtime] invoices UPDATE:', payload.new?.invoice_number, payload.new?.payment_status);
-          DBService.syncFromSupabase(activeBranch).then(() => {
-            setInvoices(DBService.getInvoices(activeBranch));
-          });
+          scheduleDebouncedSync(['invoices']);
         }
       )
       .on(
@@ -210,9 +217,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         { event: 'DELETE', schema: 'public', table: 'invoices' },
         (payload) => {
           console.info('[Realtime] invoices DELETE:', payload.old?.id);
-          DBService.syncFromSupabase(activeBranch).then(() => {
-            setInvoices(DBService.getInvoices(activeBranch));
-          });
+          scheduleDebouncedSync(['invoices']);
         }
       )
       // ── 3. VEHICLES & CUSTOMERS ────────────────────────────────────────────
@@ -221,9 +226,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         { event: 'INSERT', schema: 'public', table: 'vehicles_customers' },
         (payload) => {
           console.info('[Realtime] vehicles_customers INSERT:', payload.new?.license_plate);
-          DBService.syncFromSupabase(activeBranch).then(() => {
-            setVehicles(DBService.getVehicles(activeBranch));
-          });
+          scheduleDebouncedSync(['vehicles']);
         }
       )
       .on(
@@ -231,12 +234,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         { event: 'UPDATE', schema: 'public', table: 'vehicles_customers' },
         (payload) => {
           console.info('[Realtime] vehicles_customers UPDATE:', payload.new?.license_plate);
-          DBService.syncFromSupabase(activeBranch).then(() => {
-            setVehicles(DBService.getVehicles(activeBranch));
-            // Work orders mungkin berisi data vehicle, refresh juga
-            setWorkOrders(DBService.getWorkOrders(activeBranch));
-            setAllWorkOrders(DBService.getAllWorkOrders());
-          });
+          scheduleDebouncedSync(['vehicles', 'work_orders']);
         }
       )
       .subscribe((status) => {
@@ -254,6 +252,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     realtimeChannelRef.current = channel;
 
     return () => {
+      if (realtimeSyncTimerRef.current) clearTimeout(realtimeSyncTimerRef.current);
       if (realtimeChannelRef.current) {
         supabaseClient.removeChannel(realtimeChannelRef.current);
         realtimeChannelRef.current = null;
