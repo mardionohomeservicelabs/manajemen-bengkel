@@ -1,6 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   UserRole,
   WorkshopSettings,
@@ -81,6 +82,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [pendingCount, setPendingCount] = useState<number>(0);
 
+  // Ref untuk channel Realtime aktif (supaya bisa di-cleanup saat cabang berubah)
+  const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
+
   // Role diambil langsung dari user yang login
   const currentRole: UserRole = currentUser?.role ?? 'sa';
 
@@ -115,11 +119,150 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setIsSupabaseOnline(false);
     } finally {
       setIsSyncing(false);
-      // Update jumlah pending setelah sync
       setPendingCount(DBService.getOfflineQueueCount());
     }
   }, [activeBranch, refreshData]);
 
+  // ─── SUPABASE REALTIME WEBSOCKET ──────────────────────────────────────────
+  // Berlangganan perubahan data secara instan dari perangkat lain via WebSocket.
+  // Setiap event INSERT / UPDATE / DELETE dari Supabase akan langsung diproses
+  // dan menyinkronkan localStorage serta state React tanpa polling.
+  useEffect(() => {
+    if (!supabase || !isSupabaseConfigured) return;
+    // Non-null narrowing: supabase sudah dipastikan not-null di atas
+    const supabaseClient = supabase;
+
+    // Tutup channel lama jika sudah ada (misalnya saat cabang berganti)
+    if (realtimeChannelRef.current) {
+      supabaseClient.removeChannel(realtimeChannelRef.current);
+      realtimeChannelRef.current = null;
+    }
+
+    const channelName = `acwms-realtime-${activeBranch.replace(/\s/g, '_')}-${Date.now()}`;
+
+    const channel = supabaseClient
+      .channel(channelName, {
+        config: {
+          broadcast: { self: false },
+        },
+      })
+      // ── 1. WORK ORDERS (SPK) ─────────────────────────────────────────────
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'work_orders' },
+        (payload) => {
+          console.info('[Realtime] work_orders INSERT:', payload.new?.spk_number);
+          // Sinkronkan data baru ke localStorage lalu perbarui React state
+          DBService.syncFromSupabase(activeBranch).then(() => {
+            setWorkOrders(DBService.getWorkOrders(activeBranch));
+            setAllWorkOrders(DBService.getAllWorkOrders());
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'work_orders' },
+        (payload) => {
+          console.info('[Realtime] work_orders UPDATE:', payload.new?.spk_number, payload.new?.status);
+          // Hanya sinkronkan data yang diubah (bukan seluruh tabel) untuk efisiensi
+          DBService.syncFromSupabase(activeBranch).then(() => {
+            setWorkOrders(DBService.getWorkOrders(activeBranch));
+            setAllWorkOrders(DBService.getAllWorkOrders());
+            setInvoices(DBService.getInvoices(activeBranch));
+            setCheckups(DBService.getCheckups(activeBranch));
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'work_orders' },
+        (payload) => {
+          console.info('[Realtime] work_orders DELETE:', payload.old?.id);
+          DBService.syncFromSupabase(activeBranch).then(() => {
+            setWorkOrders(DBService.getWorkOrders(activeBranch));
+            setAllWorkOrders(DBService.getAllWorkOrders());
+          });
+        }
+      )
+      // ── 2. INVOICES & ESTIMASI ─────────────────────────────────────────────
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'invoices' },
+        (payload) => {
+          console.info('[Realtime] invoices INSERT:', payload.new?.invoice_number);
+          DBService.syncFromSupabase(activeBranch).then(() => {
+            setInvoices(DBService.getInvoices(activeBranch));
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'invoices' },
+        (payload) => {
+          console.info('[Realtime] invoices UPDATE:', payload.new?.invoice_number, payload.new?.payment_status);
+          DBService.syncFromSupabase(activeBranch).then(() => {
+            setInvoices(DBService.getInvoices(activeBranch));
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'invoices' },
+        (payload) => {
+          console.info('[Realtime] invoices DELETE:', payload.old?.id);
+          DBService.syncFromSupabase(activeBranch).then(() => {
+            setInvoices(DBService.getInvoices(activeBranch));
+          });
+        }
+      )
+      // ── 3. VEHICLES & CUSTOMERS ────────────────────────────────────────────
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'vehicles_customers' },
+        (payload) => {
+          console.info('[Realtime] vehicles_customers INSERT:', payload.new?.license_plate);
+          DBService.syncFromSupabase(activeBranch).then(() => {
+            setVehicles(DBService.getVehicles(activeBranch));
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'vehicles_customers' },
+        (payload) => {
+          console.info('[Realtime] vehicles_customers UPDATE:', payload.new?.license_plate);
+          DBService.syncFromSupabase(activeBranch).then(() => {
+            setVehicles(DBService.getVehicles(activeBranch));
+            // Work orders mungkin berisi data vehicle, refresh juga
+            setWorkOrders(DBService.getWorkOrders(activeBranch));
+            setAllWorkOrders(DBService.getAllWorkOrders());
+          });
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.info(`[Realtime] ✅ Channel "${channelName}" terhubung. Sinkronisasi real-time aktif.`);
+          setIsSupabaseOnline(true);
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn(`[Realtime] ⚠️ Channel "${channelName}" error/timeout. Status: ${status}`);
+          setIsSupabaseOnline(false);
+        } else if (status === 'CLOSED') {
+          console.info(`[Realtime] Channel "${channelName}" ditutup.`);
+        }
+      });
+
+    realtimeChannelRef.current = channel;
+
+    return () => {
+      if (realtimeChannelRef.current) {
+        supabaseClient.removeChannel(realtimeChannelRef.current);
+        realtimeChannelRef.current = null;
+        console.info(`[Realtime] Channel "${channelName}" dibersihkan.`);
+      }
+    };
+  }, [activeBranch]);
+
+  // ─── SYNC TAMBAHAN & FALLBACK ─────────────────────────────────────────────
   useEffect(() => {
     DBService.init(activeBranch);
     refreshData();
@@ -151,13 +294,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // 3. Background sync setiap 60 detik (dikurangi dari 15 detik)
-    // 60 detik cukup untuk menghindari overwrite data yang sedang diedit
+    // 3. Background sync setiap 30 detik sebagai fallback jika WebSocket terputus
     const syncInterval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         syncWithSupabase();
       }
-    }, 60000);
+    }, 30000);
 
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityOrFocus);
