@@ -138,9 +138,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const scheduleDebouncedSync = useCallback((
     tables: ('work_orders' | 'invoices' | 'vehicles' | 'all')[]
   ) => {
-    // Jika device ini baru saja menyimpan data dalam 3 detik terakhir, tunda sync lebih lama
+    // Kurangi jeda debounce menjadi sangat responsif (80ms - 300ms)
     const timeSinceLastSave = Date.now() - lastLocalSaveRef.current;
-    const delay = timeSinceLastSave < 3000 ? 2000 : 500;
+    const delay = timeSinceLastSave < 1000 ? 300 : 80;
 
     if (realtimeSyncTimerRef.current) {
       clearTimeout(realtimeSyncTimerRef.current);
@@ -241,11 +241,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (status === 'SUBSCRIBED') {
           console.info(`[Realtime] ✅ Channel "${channelName}" terhubung. Sinkronisasi real-time aktif.`);
           setIsSupabaseOnline(true);
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.warn(`[Realtime] ⚠️ Channel "${channelName}" error/timeout. Status: ${status}`);
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn(`[Realtime] ⚠️ Channel "${channelName}" status: ${status}. Menjadwalkan reconnect...`);
           setIsSupabaseOnline(false);
-        } else if (status === 'CLOSED') {
-          console.info(`[Realtime] Channel "${channelName}" ditutup.`);
+          setTimeout(() => {
+            if (supabaseClient && realtimeChannelRef.current) {
+              realtimeChannelRef.current.subscribe();
+            }
+          }, 3000);
         }
       });
 

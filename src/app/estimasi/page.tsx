@@ -215,6 +215,7 @@ function EstimationBuilderContent() {
     saveInvoiceAsync,
     syncWithSupabase,
     unlockWorkOrderAsync,
+    updateWorkOrderStatusAsync,
   } = useApp();
 
   // Sinkronkan data saat halaman dibuka
@@ -602,7 +603,12 @@ function EstimationBuilderContent() {
             }
             loadEstimationForSpk(found);
           } else {
-            // SPK sama tapi workOrders/invoices terupdate (misal customer baru saja TTD dari link)
+            // SPK sama tapi workOrders/invoices terupdate (misal perubahan dari perangkat lain / customer TTD)
+            const updatedTabs = discoverTabsForSpk(found, invoices);
+            if (updatedTabs.length > 0 && JSON.stringify(updatedTabs) !== JSON.stringify(tabList)) {
+              setTabList(updatedTabs);
+            }
+
             const tabKey = activeTabId;
             const checklist = found.checklist_data || {};
             const estInChecklist = checklist[`estimation_${tabKey}`] || (tabKey === 'tab_1' ? checklist.estimation : null);
@@ -613,6 +619,11 @@ function EstimationBuilderContent() {
 
             const latestEst = estInChecklist || matchingInvoice;
             if (latestEst) {
+              const isExternalUpdate =
+                latestEst.updated_at &&
+                currentEstimationRecord?.updated_at &&
+                new Date(latestEst.updated_at).getTime() > new Date(currentEstimationRecord.updated_at).getTime();
+
               if (latestEst.customer_signature && latestEst.customer_signature !== customerSignature) {
                 setCustomerSignature(latestEst.customer_signature);
                 setCustomerSignedName(latestEst.customer_signed_name || found.vehicle?.customer_name || '');
@@ -623,12 +634,34 @@ function EstimationBuilderContent() {
                 setCustomerResponse(latestEst.customer_response);
                 setCurrentEstimationRecord(latestEst);
               }
+
+              // Jika ada pembaruan data eksternal dari perangkat lain dan pengguna tidak sedang mengetik aktif di form
+              const isUserTyping = typeof document !== 'undefined' && 
+                document.activeElement && 
+                (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+
+              if (isExternalUpdate && !isUserTyping) {
+                setCurrentEstimationRecord(latestEst);
+                if (latestEst.items && Array.isArray(latestEst.items) && latestEst.items.length > 0) {
+                  setItems(latestEst.items);
+                }
+                if (latestEst.estimation_type) setEstimationType(latestEst.estimation_type);
+                if (latestEst.has_discount !== undefined) setShowDiscount(Boolean(latestEst.has_discount));
+                if (latestEst.has_opsi2 !== undefined) setShowOpsi2(Boolean(latestEst.has_opsi2));
+                if (latestEst.has_tax !== undefined) setShowTax(Boolean(latestEst.has_tax));
+                if (latestEst.has_range_price !== undefined) setShowRangePrice(Boolean(latestEst.has_range_price));
+                if (latestEst.discount_amount !== undefined) setDiscountAmount(latestEst.discount_amount);
+                if (latestEst.tax_percent !== undefined) setTaxPercent(latestEst.tax_percent);
+                if (latestEst.admin_notes !== undefined) setAdminNotes(latestEst.admin_notes);
+                if (latestEst.vehicle_status) setVehicleStatus(latestEst.vehicle_status);
+                if (latestEst.payment_plan) setPaymentPlan(latestEst.payment_plan);
+              }
             }
           }
         }
       }
     }
-  }, [selectedSpkId, spkIdParam, availableOrders, invoices, activeTabId, customerSignature, customerResponse, loadEstimationForSpk]);
+  }, [selectedSpkId, spkIdParam, availableOrders, invoices, activeTabId, customerSignature, customerResponse, tabList, currentEstimationRecord, loadEstimationForSpk]);
 
   // Polling sync real-time saat menunggu TTD customer dari link
   useEffect(() => {
@@ -1296,9 +1329,9 @@ function EstimationBuilderContent() {
     }
   };
 
-  const handleApproveAndProceedToServicing = () => {
+  const handleApproveAndProceedToServicing = async () => {
     if (!selectedSpk) return;
-    DBService.updateWorkOrderStatus(selectedSpk.id, 'servicing', currentRole);
+    await updateWorkOrderStatusAsync(selectedSpk.id, 'servicing');
     refreshData();
     showToast('Estimasi disetujui! Status SPK dipindahkan ke Dalam Pengerjaan.', 'success');
     router.push('/antrean');

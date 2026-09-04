@@ -21,6 +21,8 @@ import {
 } from '../data/mock-data';
 import { supabase, isSupabaseConfigured } from '../supabase/client';
 
+export const SYSTEM_DATA_EPOCH = '2026-09-05T06:40:00.000Z';
+
 const BASE_STORAGE_KEYS = {
   VEHICLES: 'acwms_vehicles',
   INVENTORY: 'acwms_inventory',
@@ -96,16 +98,25 @@ function smartMergeWorkOrders(
   const mergedMap = new Map<string, WorkOrder>();
   const idMap = new Map<string, string>(); // oldLocalId -> newCloudId
 
-  // Index lokal berdasarkan spk_number (kunci utama) dan id
+  // Ambil offline queue untuk memastikan item lokal yang belum terkirim tidak hilang
+  const queue = typeof window !== 'undefined' ? getLocal<OfflineQueueEntry[]>(BASE_STORAGE_KEYS.OFFLINE_QUEUE, []) : [];
+  const pendingKeys = new Set(
+    queue.filter((q) => q.type === 'work_order').map((q) => q.payload?.spk_number || q.payload?.id)
+  );
+
+  // Hanya masukkan item lokal jika memang pending di offline queue atau belum pernah terkirim ke cloud
   localItems.forEach((local) => {
     const key = local.spk_number || local.id;
-    mergedMap.set(key, local);
+    const isUnsynced = local.id?.startsWith('wo-') || pendingKeys.has(key);
+    if (isUnsynced) {
+      mergedMap.set(key, local);
+    }
   });
 
-  // Merge dengan cloud
+  // Merge dengan cloud (cloud adalah otoritas utama)
   cloudItems.forEach((cloud) => {
     const key = cloud.spk_number || cloud.id;
-    const local = mergedMap.get(key) || localItems.find((l) => l.id === cloud.id);
+    const local = mergedMap.get(key) || localItems.find((l) => l.id === cloud.id || l.spk_number === cloud.spk_number);
 
     if (!local) {
       mergedMap.set(key, cloud);
@@ -174,15 +185,22 @@ function smartMergeWorkOrders(
  */
 function smartMergeInvoices(cloudItems: Invoice[], localItems: Invoice[]): Invoice[] {
   const mergedMap = new Map<string, Invoice>();
+  const queue = typeof window !== 'undefined' ? getLocal<OfflineQueueEntry[]>(BASE_STORAGE_KEYS.OFFLINE_QUEUE, []) : [];
+  const pendingKeys = new Set(
+    queue.filter((q) => q.type === 'invoice').map((q) => q.payload?.invoice_number || q.payload?.id)
+  );
 
   localItems.forEach((local) => {
     const key = local.invoice_number || local.id;
-    mergedMap.set(key, local);
+    const isUnsynced = local.id?.startsWith('inv-') || pendingKeys.has(key);
+    if (isUnsynced) {
+      mergedMap.set(key, local);
+    }
   });
 
   cloudItems.forEach((cloud) => {
     const key = cloud.invoice_number || cloud.id;
-    const local = mergedMap.get(key) || localItems.find((l) => l.id === cloud.id);
+    const local = mergedMap.get(key) || localItems.find((l) => l.id === cloud.id || l.invoice_number === cloud.invoice_number);
 
     if (!local) {
       mergedMap.set(key, cloud);
@@ -205,15 +223,22 @@ function smartMergeInvoices(cloudItems: Invoice[], localItems: Invoice[]): Invoi
  */
 function smartMergeCheckups(cloudItems: CheckupRecord[], localItems: CheckupRecord[]): CheckupRecord[] {
   const mergedMap = new Map<string, CheckupRecord>();
+  const queue = typeof window !== 'undefined' ? getLocal<OfflineQueueEntry[]>(BASE_STORAGE_KEYS.OFFLINE_QUEUE, []) : [];
+  const pendingKeys = new Set(
+    queue.filter((q) => q.type === 'checkup').map((q) => q.payload?.document_number || q.payload?.id)
+  );
 
   localItems.forEach((local) => {
     const key = local.document_number || local.id;
-    mergedMap.set(key, local);
+    const isUnsynced = local.id?.startsWith('chk-') || pendingKeys.has(key);
+    if (isUnsynced) {
+      mergedMap.set(key, local);
+    }
   });
 
   cloudItems.forEach((cloud) => {
     const key = cloud.document_number || cloud.id;
-    const local = mergedMap.get(key) || localItems.find((l) => l.id === cloud.id);
+    const local = mergedMap.get(key) || localItems.find((l) => l.id === cloud.id || l.document_number === cloud.document_number);
 
     if (!local) {
       mergedMap.set(key, cloud);
@@ -236,15 +261,22 @@ function smartMergeCheckups(cloudItems: CheckupRecord[], localItems: CheckupReco
  */
 function smartMergeVehicles(cloudItems: VehicleCustomer[], localItems: VehicleCustomer[]): VehicleCustomer[] {
   const mergedMap = new Map<string, VehicleCustomer>();
+  const queue = typeof window !== 'undefined' ? getLocal<OfflineQueueEntry[]>(BASE_STORAGE_KEYS.OFFLINE_QUEUE, []) : [];
+  const pendingKeys = new Set(
+    queue.filter((q) => q.type === 'vehicle').map((q) => q.payload?.license_plate || q.payload?.id)
+  );
 
   localItems.forEach((local) => {
     const key = local.license_plate ? local.license_plate.toUpperCase().replace(/\s+/g, '') : local.id;
-    mergedMap.set(key, local);
+    const isUnsynced = local.id?.startsWith('veh-') || pendingKeys.has(key);
+    if (isUnsynced) {
+      mergedMap.set(key, local);
+    }
   });
 
   cloudItems.forEach((cloud) => {
     const key = cloud.license_plate ? cloud.license_plate.toUpperCase().replace(/\s+/g, '') : cloud.id;
-    const local = mergedMap.get(key) || localItems.find((l) => l.id === cloud.id);
+    const local = mergedMap.get(key) || localItems.find((l) => l.id === cloud.id || (l.license_plate && l.license_plate.toUpperCase().replace(/\s+/g, '') === key));
 
     if (!local) {
       mergedMap.set(key, cloud);
@@ -408,10 +440,64 @@ export class DBService {
   }
 
   /**
+   * Pembersihan total data transaksi lokal jika terdeteksi versi reset baru (Clean Slate)
+   */
+  static checkAndApplyDataResetEpoch(): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const currentEpoch = localStorage.getItem('acwms_last_reset_epoch');
+      if (!currentEpoch || new Date(currentEpoch).getTime() < new Date(SYSTEM_DATA_EPOCH).getTime()) {
+        console.info('[DataEpoch] 🧹 Melakukan pembersihan data lokal untuk versi aplikasi baru...');
+        const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+        allBranches.forEach((b) => {
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.VEHICLES, b), []);
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), []);
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.INVOICES, b), []);
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, b), []);
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.CRM_LOGS, b), []);
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.MOVEMENTS, b), []);
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.AUDIT, b), []);
+        });
+        setLocal(BASE_STORAGE_KEYS.OFFLINE_QUEUE, []);
+
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (
+            k.startsWith('mhs_est_') ||
+            k.startsWith('mhs_last_active_') ||
+            k.startsWith('acwms_work_orders') ||
+            k.startsWith('acwms_invoices') ||
+            k.startsWith('acwms_checkups') ||
+            k.startsWith('acwms_vehicles')
+          )) {
+            keysToRemove.push(k);
+          }
+        }
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
+
+        allBranches.forEach((b) => {
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.VEHICLES, b), []);
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), []);
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.INVOICES, b), []);
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, b), []);
+        });
+
+        localStorage.setItem('acwms_last_reset_epoch', SYSTEM_DATA_EPOCH);
+        console.info('[DataEpoch] ✅ Pembersihan data transaksi selesai. Aplikasi siap digunakan sebagai baru.');
+      }
+    } catch (e) {
+      console.warn('[DataEpoch] Gagal membersihkan data lokal:', e);
+    }
+  }
+
+  /**
    * Inisialisasi data per cabang dengan isolasi penuh
    */
   static init(targetBranch?: BranchId): void {
     if (typeof window === 'undefined') return;
+
+    this.checkAndApplyDataResetEpoch();
 
     // Pastikan data MHS 1 bersih dan kosong dari data dummy/mock bawaan
     const CLEAN_MHS1_FLAG = 'acwms_mhs1_cleared_v4';
@@ -1558,12 +1644,37 @@ export class DBService {
 
     if (supabase && isSupabaseConfigured) {
       try {
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        let validVehicleId = localSaved.vehicle_id;
+        if (!validVehicleId || !uuidRegex.test(validVehicleId)) {
+          const plate = (invoice as any).vehicle?.license_plate || (localSaved as any).vehicle?.license_plate;
+          if (plate) {
+            const { data: vRow } = await supabase
+              .from('vehicles_customers')
+              .select('id')
+              .eq('license_plate', plate.toUpperCase().trim())
+              .maybeSingle();
+            if (vRow?.id) validVehicleId = vRow.id;
+          }
+        }
+
+        let validWorkOrderId = localSaved.work_order_id || null;
+        if (validWorkOrderId && !uuidRegex.test(validWorkOrderId)) {
+          const { data: woRow } = await supabase
+            .from('work_orders')
+            .select('id')
+            .eq('spk_number', validWorkOrderId)
+            .maybeSingle();
+          if (woRow?.id) validWorkOrderId = woRow.id;
+          else validWorkOrderId = null;
+        }
+
         const payload: Record<string, any> = {
           id: localSaved.id.startsWith('inv-') ? undefined : localSaved.id,
           invoice_number: localSaved.invoice_number,
           type: localSaved.type,
-          work_order_id: localSaved.work_order_id || null,
-          vehicle_id: localSaved.vehicle_id,
+          work_order_id: validWorkOrderId,
+          vehicle_id: validVehicleId,
           items: localSaved.items,
           subtotal: localSaved.subtotal,
           discount_amount: localSaved.discount_amount || 0,
@@ -1592,15 +1703,20 @@ export class DBService {
             console.warn('Supabase saveInvoice upsert warning:', error.message);
           }
 
-          // Perbarui status work_order ke estimating langsung tanpa blocking
-          if (localSaved.work_order_id) {
+          // Perbarui status work_order di cloud
+          if (validWorkOrderId) {
             try {
-              await client
-                .from('work_orders')
-                .update({ status: 'estimating' })
-                .eq('id', localSaved.work_order_id);
+              const nextStatus = (localSaved.type === 'invoice' && localSaved.payment_status === 'paid')
+                ? 'completed'
+                : (localSaved.type === 'estimation' ? 'estimating' : undefined);
+              if (nextStatus) {
+                await client
+                  .from('work_orders')
+                  .update({ status: nextStatus })
+                  .eq('id', validWorkOrderId);
+              }
             } catch (woErr) {
-              console.warn('Failed to update work_order status with estimation:', woErr);
+              console.warn('Failed to update work_order status with invoice:', woErr);
             }
           }
 
@@ -2289,6 +2405,8 @@ export class DBService {
    */
   static async syncFromSupabase(branch?: BranchId): Promise<boolean> {
     if (!supabase || !isSupabaseConfigured) return false;
+
+    this.checkAndApplyDataResetEpoch();
 
     const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
 

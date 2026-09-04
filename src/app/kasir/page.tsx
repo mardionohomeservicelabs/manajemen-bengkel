@@ -47,7 +47,17 @@ function CashierContent() {
   const searchParams = useSearchParams();
   const spkIdParam = searchParams.get('spkId');
 
-  const { workOrders, inventory, invoices, refreshData, showToast, settings, currentRole } = useApp();
+  const {
+    workOrders,
+    inventory,
+    invoices,
+    refreshData,
+    showToast,
+    settings,
+    currentRole,
+    saveInvoiceAsync,
+    updateWorkOrderStatusAsync,
+  } = useApp();
 
   const [selectedSpkId, setSelectedSpkId] = useState<string>(spkIdParam || '');
   const [selectedSpk, setSelectedSpk] = useState<WorkOrder | null>(null);
@@ -149,13 +159,15 @@ function CashierContent() {
     setIsSignModalOpen(true);
   };
 
-  const handleProcessPayment = (status: PaymentStatus) => {
+  // Selesaikan Transaksi Pembayaran (Simpan Nota Resmi secara Asinkron ke Cloud & Lokal)
+  const handleProcessPayment = async (status: PaymentStatus) => {
     if (!selectedSpk) {
       showToast('Pilih SPK terlebih dahulu.', 'error');
       return;
     }
+
     if (items.length === 0) {
-      showToast('Tambahkan minimal 1 item untuk penagihan.', 'error');
+      showToast('Tambahkan minimal 1 item pekerjaan/sparepart.', 'error');
       return;
     }
 
@@ -163,7 +175,7 @@ function CashierContent() {
 
     try {
       const invoiceNumber = generateInvoiceNumber('invoice');
-      const newInvoice = DBService.saveInvoice({
+      const newInvoice = await saveInvoiceAsync({
         invoice_number: invoiceNumber,
         type: 'invoice',
         work_order_id: selectedSpk.id,
@@ -184,6 +196,11 @@ function CashierContent() {
         signature_admin_url: signatureAdmin,
         created_at: new Date().toISOString(),
       });
+
+      // Update status SPK ke completed di Supabase & local jika lunas
+      if (status === 'paid' && selectedSpk.id) {
+        await updateWorkOrderStatusAsync(selectedSpk.id, 'completed');
+      }
 
       // Trigger Confetti if paid
       if (status === 'paid') {
