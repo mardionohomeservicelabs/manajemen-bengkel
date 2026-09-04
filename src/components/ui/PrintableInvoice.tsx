@@ -221,22 +221,22 @@ export function PrintableInvoice({
                 <h4 className="font-black text-[#8B0000] uppercase text-[10.5px] pb-0.5 border-b border-slate-200">
                   Ditagihkan Kepada:
                 </h4>
-                <div className="font-black text-slate-900 text-sm">{vehicle?.customer_name || 'Pelanggan'}</div>
-                <div className="text-slate-600 font-mono">{vehicle?.phone_number || '-'}</div>
-                <div className="text-slate-700 leading-tight text-[11px]">{vehicle?.address || '-'}</div>
+                <div className="font-black text-slate-900 text-sm break-words leading-tight">{vehicle?.customer_name || 'Pelanggan'}</div>
+                <div className="text-slate-600 font-mono break-words">{vehicle?.phone_number || '-'}</div>
+                <div className="text-slate-700 leading-tight text-[11px] break-words">{vehicle?.address || '-'}</div>
               </div>
 
               <div className="border border-slate-800 rounded-xl p-3 bg-white space-y-1">
                 <h4 className="font-black text-[#001F7A] uppercase text-[10.5px] pb-0.5 border-b border-slate-200">
                   Identitas Kendaraan:
                 </h4>
-                <div className="font-mono font-black text-[#8B0000] text-sm">
+                <div className="font-mono font-black text-[#8B0000] text-sm break-words">
                   {vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'}
                 </div>
-                <div className="font-bold text-slate-900">
+                <div className="font-bold text-slate-900 break-words leading-tight">
                   {vehicle?.car_brand} {vehicle?.car_model} ({vehicle?.car_year || '-'})
                 </div>
-                <div className="text-slate-600 text-[11px]">
+                <div className="text-slate-600 text-[11px] break-words">
                   KM: <strong>{formatKM(vehicle?.current_mileage)}</strong>
                 </div>
               </div>
@@ -363,7 +363,7 @@ export function PrintableInvoice({
 
               <div className="grid grid-cols-2 gap-4 text-center text-xs">
                 {/* TTD Kasir */}
-                <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between h-[105px]">
+                <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between min-h-[105px]">
                   <p className="font-black text-[#8B0000] text-[10px] uppercase">Kasir / Admin Penagihan</p>
                   <div className="h-12 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white overflow-hidden my-0.5">
                     {invoice.signature_admin_url ? (
@@ -377,13 +377,13 @@ export function PrintableInvoice({
                       <span className="text-[9px] text-slate-400 italic">Tanda tangan kasir</span>
                     )}
                   </div>
-                  <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate">
+                  <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 break-words leading-tight">
                     {signerKasir || 'Kasir / Admin Penagihan'}
                   </p>
                 </div>
 
                 {/* TTD Pelanggan */}
-                <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between h-[105px]">
+                <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between min-h-[105px]">
                   <p className="font-black text-[#001F7A] text-[10px] uppercase">Pelanggan / Pembayar</p>
                   <div className="h-12 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white overflow-hidden my-0.5">
                     {invoice.signature_customer_url ? (
@@ -397,7 +397,7 @@ export function PrintableInvoice({
                       <span className="text-[9px] text-slate-400 italic">Tanda tangan pelanggan</span>
                     )}
                   </div>
-                  <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate">
+                  <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 break-words leading-tight">
                     {vehicle?.customer_name || 'Pelanggan'}
                   </p>
                 </div>

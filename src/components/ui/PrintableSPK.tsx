@@ -266,7 +266,7 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
           <div className="border border-slate-800 rounded-xl p-2 bg-white">
             <div className="grid grid-cols-3 gap-2.5 text-center text-xs">
               {/* TTD 1: Petugas Bengkel */}
-              <div className="border border-slate-300 rounded-lg p-1.5 bg-slate-50 flex flex-col justify-between h-[88px]">
+              <div className="border border-slate-300 rounded-lg p-1.5 bg-slate-50 flex flex-col justify-between min-h-[92px]">
                 <p className="font-black text-[#8B0000] text-[9.5px] uppercase">Petugas Bengkel</p>
                 <div className="h-9 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white overflow-hidden my-0.5">
                   {workOrder.signature_sa_url ? (
@@ -280,13 +280,13 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
                     <span className="text-[8.5px] text-slate-400 italic">(Tanda Tangan)</span>
                   )}
                 </div>
-                <p className="font-bold text-slate-950 text-[9.5px] border-t border-slate-300 pt-0.5 truncate">
+                <p className="font-bold text-slate-950 text-[9.5px] border-t border-slate-300 pt-0.5 break-words leading-tight">
                   ({signerSA || 'Petugas Bengkel'})
                 </p>
               </div>
 
               {/* TTD 2: Teknisi / Mekanik */}
-              <div className="border border-slate-300 rounded-lg p-1.5 bg-slate-50 flex flex-col justify-between h-[88px]">
+              <div className="border border-slate-300 rounded-lg p-1.5 bg-slate-50 flex flex-col justify-between min-h-[92px]">
                 <p className="font-black text-[#001F7A] text-[9.5px] uppercase">Teknisi / Mekanik</p>
                 <div className="h-9 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white overflow-hidden my-0.5">
                   {workOrder.signature_mechanic_url ? (
@@ -300,13 +300,13 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
                     <span className="text-[8.5px] text-slate-400 italic">(Tanda Tangan)</span>
                   )}
                 </div>
-                <p className="font-bold text-slate-950 text-[9.5px] border-t border-slate-300 pt-0.5 truncate">
+                <p className="font-bold text-slate-950 text-[9.5px] border-t border-slate-300 pt-0.5 break-words leading-tight">
                   ({signerMechanic || 'Teknisi / Mekanik'})
                 </p>
               </div>
 
               {/* TTD 3: Pemilik Kendaraan */}
-              <div className="border border-slate-300 rounded-lg p-1.5 bg-slate-50 flex flex-col justify-between h-[88px]">
+              <div className="border border-slate-300 rounded-lg p-1.5 bg-slate-50 flex flex-col justify-between min-h-[92px]">
                 <p className="font-black text-[#8B0000] text-[9.5px] uppercase">Pemilik Kendaraan</p>
                 <div className="h-9 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white overflow-hidden my-0.5">
                   {workOrder.signature_customer_url ? (
@@ -320,7 +320,7 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
                     <span className="text-[8.5px] text-slate-400 italic">(Tanda Tangan)</span>
                   )}
                 </div>
-                <p className="font-bold text-slate-950 text-[9.5px] border-t border-slate-300 pt-0.5 truncate">
+                <p className="font-bold text-slate-950 text-[9.5px] border-t border-slate-300 pt-0.5 break-words leading-tight">
                   ({vehicle?.customer_name || 'Pelanggan'})
                 </p>
               </div>

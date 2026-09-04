@@ -152,19 +152,19 @@ export function PrintableACCheckup({
             {/* Kolom Kanan */}
             <div className="space-y-1 pl-1">
               <div className="flex items-baseline gap-1.5">
-                <span className="w-18 shrink-0 font-bold text-slate-600 whitespace-nowrap">No Pol</span>
+                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">No Pol</span>
                 <span className="font-mono font-black text-[#8B0000] text-sm flex-1 min-w-0">: {formatPlate(checkup.license_plate)}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="w-18 shrink-0 font-bold text-slate-600 whitespace-nowrap">No PKB</span>
+                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">No PKB</span>
                 <span className="font-mono font-bold text-[#8B0000] flex-1 min-w-0 break-words">: {checkup.document_number}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="w-18 shrink-0 font-bold text-slate-600 whitespace-nowrap">Tanggal</span>
+                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">Tanggal</span>
                 <span className="font-bold text-slate-950 flex-1 min-w-0">: {formatDate(checkup.check_date)}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="w-18 shrink-0 font-bold text-slate-600 whitespace-nowrap">KM</span>
+                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">KM</span>
                 <span className="font-mono font-bold text-slate-950 flex-1 min-w-0">: {formatKM(checkup.mileage, false)}</span>
               </div>
             </div>

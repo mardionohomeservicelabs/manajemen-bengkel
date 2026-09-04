@@ -70,8 +70,7 @@ export function DocumentImageModal({
         scrollX: 0,
         scrollY: 0,
         windowWidth: 850,
-        windowHeight: targetHeight + 200,
-        height: targetHeight,
+        windowHeight: Math.max(targetHeight + 400, 1600),
         onclone: (clonedDoc, clonedElement) => {
           // 0. Inject style defaults ke cloned document untuk mencegah font fallback & teks vertikal
           const styleTag = clonedDoc.createElement('style');
@@ -80,8 +79,6 @@ export function DocumentImageModal({
               writing-mode: horizontal-tb !important;
               direction: ltr !important;
               box-sizing: border-box !important;
-              word-break: normal !important;
-              overflow-wrap: normal !important;
             }
             html, body, * {
               font-family: 'Montserrat', system-ui, -apple-system, sans-serif !important;
@@ -95,6 +92,8 @@ export function DocumentImageModal({
             .col-span-4 { width: 33.333% !important; flex-shrink: 0 !important; }
             .col-span-8 { width: 66.667% !important; flex-grow: 1 !important; }
             .truncate { overflow: visible !important; text-overflow: clip !important; white-space: normal !important; }
+            .break-words { word-break: break-word !important; overflow-wrap: break-word !important; }
+            .whitespace-nowrap { white-space: nowrap !important; }
           `;
           clonedDoc.head.appendChild(styleTag);
 

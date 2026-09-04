@@ -160,15 +160,15 @@ export function PrintableUndersteelCheckup({
 
             <div className="space-y-1 pl-1">
               <div className="flex items-baseline gap-1.5">
-                <span className="w-18 shrink-0 font-bold text-slate-800 whitespace-nowrap">No. Polisi:</span>
+                <span className="w-20 shrink-0 font-bold text-slate-800 whitespace-nowrap">No. Polisi:</span>
                 <span className="font-mono font-black text-[#8B0000] text-[13px] flex-1 min-w-0">{formatPlate(checkup.license_plate)}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="w-18 shrink-0 font-bold text-slate-800 whitespace-nowrap">Pelanggan:</span>
+                <span className="w-20 shrink-0 font-bold text-slate-800 whitespace-nowrap">Pelanggan:</span>
                 <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">{checkup.customer_name || 'Pelanggan'}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="w-18 shrink-0 font-bold text-slate-800 whitespace-nowrap">Tanggal:</span>
+                <span className="w-20 shrink-0 font-bold text-slate-800 whitespace-nowrap">Tanggal:</span>
                 <span className="font-bold text-slate-950 flex-1 min-w-0">{formatDate(checkup.check_date)}</span>
               </div>
             </div>
@@ -291,7 +291,7 @@ export function PrintableUndersteelCheckup({
                   <span className="text-[9px] text-slate-400 italic">(Tanda Tangan)</span>
                 )}
               </div>
-              <div className="text-[10px] font-bold border-t border-slate-300 pt-0.5 truncate leading-tight">
+              <div className="text-[10px] font-bold border-t border-slate-300 pt-0.5 break-words leading-tight">
                 {signerTeknisi || 'Mekanik'}
               </div>
             </div>

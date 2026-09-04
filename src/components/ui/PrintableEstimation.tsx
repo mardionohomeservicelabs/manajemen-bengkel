@@ -214,22 +214,22 @@ export function PrintableEstimation({
                 <h4 className="font-black text-[#8B0000] uppercase text-[10.5px] pb-0.5 border-b border-slate-200">
                   Pelanggan / Pemilik:
                 </h4>
-                <div className="font-black text-slate-900 text-sm">{vehicle?.customer_name || 'Pelanggan'}</div>
-                <div className="text-slate-600 font-mono">{vehicle?.phone_number || '-'}</div>
-                <div className="text-slate-700 leading-tight text-[11px]">{vehicle?.address || '-'}</div>
+                <div className="font-black text-slate-900 text-sm break-words leading-tight">{vehicle?.customer_name || 'Pelanggan'}</div>
+                <div className="text-slate-600 font-mono break-words">{vehicle?.phone_number || '-'}</div>
+                <div className="text-slate-700 leading-tight text-[11px] break-words">{vehicle?.address || '-'}</div>
               </div>
 
               <div className="border border-slate-800 rounded-xl p-2.5 bg-white space-y-1">
                 <h4 className="font-black text-[#001F7A] uppercase text-[10.5px] pb-0.5 border-b border-slate-200">
                   Identitas Kendaraan:
                 </h4>
-                <div className="font-mono font-black text-[#8B0000] text-sm">
+                <div className="font-mono font-black text-[#8B0000] text-sm break-words">
                   {vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'}
                 </div>
-                <div className="font-bold text-slate-900">
+                <div className="font-bold text-slate-900 break-words leading-tight">
                   {vehicle?.car_brand} {vehicle?.car_model} ({vehicle?.car_year || '-'})
                 </div>
-                <div className="text-slate-600 text-[11px]">
+                <div className="text-slate-600 text-[11px] break-words">
                   KM: <strong>{formatKM(vehicle?.current_mileage)}</strong>
                 </div>
               </div>
@@ -365,7 +365,7 @@ export function PrintableEstimation({
                     <span className="text-[9px] text-slate-400 italic">Tanda tangan Estimator</span>
                   )}
                 </div>
-                <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate leading-tight">
+                <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 break-words leading-tight">
                   {signerEstimator || estimation.estimator_name || 'Via Rizkiana'}
                 </p>
               </div>
@@ -384,7 +384,7 @@ export function PrintableEstimation({
                     <span className="text-[9px] text-slate-400 italic">Tanda tangan persetujuan</span>
                   )}
                 </div>
-                <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 truncate leading-tight">
+                <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 break-words leading-tight">
                   {estimation.customer_signed_name || vehicle?.customer_name || 'Pelanggan'}
                 </p>
               </div>
