@@ -49,6 +49,12 @@ export function DocumentImageModal({
       // Dynamic import agar tidak memengaruhi SSR
       const html2canvas = (await import('html2canvas')).default;
 
+      // Tunggu semua font (termasuk Google Fonts Montserrat) selesai dimuat
+      // agar html2canvas tidak merender dengan font fallback yang berbeda metrics
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
+
       const canvas = await html2canvas(documentRef.current, {
         scale: 2,              // 2x resolusi tinggi untuk teks tajam & jernih
         useCORS: true,         // Izinkan gambar cross-origin (logo, ttd)
@@ -57,33 +63,60 @@ export function DocumentImageModal({
         logging: false,
         scrollX: 0,
         scrollY: 0,
-        windowWidth: 1280,     // Viewport standar desktop agar media queries tidak trigger breakpoint sempit
+        // Sesuaikan windowWidth dengan lebar konten aktual (820px + padding)
+        // agar Tailwind responsive classes tidak memicu breakpoint yang salah
+        windowWidth: 820,
         onclone: (clonedDoc, clonedElement) => {
+          // 0. Inject style defaults ke cloned document untuk mencegah font fallback & teks vertikal
+          const styleTag = clonedDoc.createElement('style');
+          styleTag.textContent = `
+            *, *::before, *::after {
+              writing-mode: horizontal-tb !important;
+              direction: ltr !important;
+              box-sizing: border-box !important;
+            }
+            html, body, * {
+              font-family: 'Montserrat', system-ui, -apple-system, sans-serif !important;
+            }
+            .w-3\\.5, .h-3\\.5 { width: 14px !important; height: 14px !important; }
+            .flex { display: flex !important; }
+            .items-center { align-items: center !important; }
+            .justify-center { justify-content: center !important; }
+          `;
+          clonedDoc.head.appendChild(styleTag);
+
           // 1. Reset root & body di dalam iframe klon agar tidak ada margin/padding/scrollbars
           clonedDoc.documentElement.style.margin = '0';
           clonedDoc.documentElement.style.padding = '0';
-          clonedDoc.documentElement.style.width = '1280px';
-          clonedDoc.documentElement.style.minWidth = '1280px';
+          clonedDoc.documentElement.style.width = '820px';
+          clonedDoc.documentElement.style.minWidth = '820px';
           clonedDoc.documentElement.style.background = '#ffffff';
+          clonedDoc.documentElement.style.writingMode = 'horizontal-tb';
+          clonedDoc.documentElement.style.direction = 'ltr';
 
           clonedDoc.body.style.margin = '0';
           clonedDoc.body.style.padding = '0';
-          clonedDoc.body.style.width = '1280px';
-          clonedDoc.body.style.minWidth = '1280px';
+          clonedDoc.body.style.width = '820px';
+          clonedDoc.body.style.minWidth = '820px';
           clonedDoc.body.style.background = '#ffffff';
           clonedDoc.body.style.overflow = 'visible';
+          clonedDoc.body.style.writingMode = 'horizontal-tb';
+          clonedDoc.body.style.direction = 'ltr';
+          clonedDoc.body.style.fontFamily = "'Montserrat', system-ui, -apple-system, sans-serif";
 
           // 2. Unconstrain semua elemen ancestor di atas clonedElement
           let current: HTMLElement | null = clonedElement.parentElement;
           while (current && current !== clonedDoc.body) {
-            current.style.width = '100%';
-            current.style.maxWidth = 'none';
+            current.style.width = '820px';
+            current.style.maxWidth = '820px';
             current.style.minWidth = '0';
             current.style.padding = '0';
-            current.style.margin = '0';
+            current.style.margin = '0 auto';
             current.style.overflow = 'visible';
             current.style.transform = 'none';
             current.style.display = 'block';
+            current.style.writingMode = 'horizontal-tb';
+            current.style.direction = 'ltr';
             current = current.parentElement;
           }
 
@@ -102,8 +135,23 @@ export function DocumentImageModal({
           clonedElement.style.position = 'relative';
           clonedElement.style.display = 'flex';
           clonedElement.style.flexDirection = 'column';
+          clonedElement.style.writingMode = 'horizontal-tb';
+          clonedElement.style.direction = 'ltr';
+          clonedElement.style.fontFamily = "'Montserrat', system-ui, -apple-system, sans-serif";
 
-          // 4. Pastikan semua sub-wrapper tidak terpotong atau wrap
+          // 4. Paksa semua elemen turunan untuk text horizontal (cegah teks vertikal)
+          const allElements = clonedElement.querySelectorAll('*');
+          allElements.forEach((el) => {
+            const htmlEl = el as HTMLElement;
+            htmlEl.style.writingMode = 'horizontal-tb';
+            htmlEl.style.direction = 'ltr';
+            // Pastikan font konsisten
+            if (!htmlEl.style.fontFamily) {
+              htmlEl.style.fontFamily = "'Montserrat', system-ui, -apple-system, sans-serif";
+            }
+          });
+
+          // 5. Pastikan semua sub-wrapper tidak terpotong atau wrap
           const allSubWrappers = clonedElement.querySelectorAll('.doc-preview-wrapper, .estimation-table-wrapper, .estimation-header-box, .estimation-terms-box, .estimation-signatures-box');
           allSubWrappers.forEach((w) => {
             const el = w as HTMLElement;
@@ -112,11 +160,41 @@ export function DocumentImageModal({
             el.style.overflow = 'visible';
           });
 
-          // 5. Pastikan semua tabel proporsional
+          // 6. Pastikan semua tabel proporsional
           const tables = clonedElement.querySelectorAll('table');
           tables.forEach((table) => {
-            table.style.width = '100%';
-            table.style.borderCollapse = 'collapse';
+            (table as HTMLElement).style.width = '100%';
+            (table as HTMLElement).style.borderCollapse = 'collapse';
+            (table as HTMLElement).style.tableLayout = 'auto';
+          });
+
+          // 7. Perbaiki tampilan checkbox Unicode (☑ ☐) — ganti agar konsisten di semua browser
+          // Cari semua text node yang mengandung karakter checkbox dan pastikan ditampilkan lurus
+          const walker = clonedDoc.createTreeWalker(
+            clonedElement,
+            NodeFilter.SHOW_TEXT,
+            null
+          );
+          const textNodesToFix: Text[] = [];
+          let node: Node | null;
+          while ((node = walker.nextNode())) {
+            const text = node.textContent || '';
+            if (text.includes('☑') || text.includes('☐') || text.includes('✓')) {
+              textNodesToFix.push(node as Text);
+            }
+          }
+          // Wrap checkbox chars in spans with explicit inline styling
+          textNodesToFix.forEach((textNode) => {
+            const parent = textNode.parentElement;
+            if (!parent) return;
+            const text = textNode.textContent || '';
+            const span = clonedDoc.createElement('span');
+            span.style.fontFamily = 'Arial, sans-serif';
+            span.style.writingMode = 'horizontal-tb';
+            span.style.direction = 'ltr';
+            span.style.display = 'inline';
+            span.textContent = text;
+            parent.replaceChild(span, textNode);
           });
         },
       });
