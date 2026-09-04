@@ -132,37 +132,37 @@ export function PrintableGeneralCheckup({
           <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50/70 p-2.5 rounded-xl border border-slate-800 font-medium">
             {/* Kolom Kiri */}
             <div className="space-y-1 border-r border-slate-300 pr-3">
-              <div className="flex items-center gap-1.5">
-                <span className="w-24 shrink-0 font-bold text-slate-600 whitespace-nowrap">Pelanggan</span>
-                <span className="font-bold text-slate-950 truncate">: {checkup.customer_name || 'Pelanggan'}</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">Pelanggan</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {checkup.customer_name || 'Pelanggan'}</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-24 shrink-0 font-bold text-slate-600 whitespace-nowrap">Unit / Tipe</span>
-                <span className="font-bold text-slate-950 truncate">: {checkup.car_model || '-'}</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">Unit / Tipe</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {checkup.car_model || '-'}</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-24 shrink-0 font-bold text-slate-600 whitespace-nowrap">Teknisi PIC</span>
-                <span className="font-bold text-[#8B0000] truncate">: {signerTeknisi || checkup.technician_name || 'Teknisi Pemeriksa'}</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">Teknisi PIC</span>
+                <span className="font-bold text-[#8B0000] flex-1 min-w-0 break-words">: {signerTeknisi || checkup.technician_name || 'Teknisi Pemeriksa'}</span>
               </div>
             </div>
 
             {/* Kolom Kanan */}
             <div className="space-y-1 pl-1">
-              <div className="flex items-center gap-1.5">
-                <span className="w-24 shrink-0 font-bold text-slate-600 whitespace-nowrap">No Pol</span>
-                <span className="font-mono font-black text-[#8B0000] text-sm">: {formatPlate(checkup.license_plate)}</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">No Pol</span>
+                <span className="font-mono font-black text-[#8B0000] text-sm flex-1 min-w-0">: {formatPlate(checkup.license_plate)}</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-24 shrink-0 font-bold text-slate-600 whitespace-nowrap">No PKB / QC</span>
-                <span className="font-mono font-bold text-[#8B0000] truncate">: {checkup.document_number}</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">No PKB / QC</span>
+                <span className="font-mono font-bold text-[#8B0000] flex-1 min-w-0 break-words">: {checkup.document_number}</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-24 shrink-0 font-bold text-slate-600 whitespace-nowrap">Tanggal</span>
-                <span className="font-bold text-slate-950">: {formatDate(checkup.check_date)}</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">Tanggal</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0">: {formatDate(checkup.check_date)}</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-24 shrink-0 font-bold text-slate-600 whitespace-nowrap">KM Odometer</span>
-                <span className="font-mono font-bold text-slate-950">: {formatKM(checkup.mileage)}</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">KM Odometer</span>
+                <span className="font-mono font-bold text-slate-950 flex-1 min-w-0">: {formatKM(checkup.mileage)}</span>
               </div>
             </div>
           </div>

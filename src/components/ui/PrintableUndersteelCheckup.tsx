@@ -142,34 +142,34 @@ export function PrintableUndersteelCheckup({
           </div>
 
           {/* Vehicle Metadata Box */}
-          <div className="border border-slate-900 text-xs p-2 grid grid-cols-2 gap-3 bg-white">
+          <div className="border border-slate-900 text-xs p-2.5 grid grid-cols-2 gap-3 bg-white">
             <div className="space-y-1 border-r border-slate-300 pr-2">
-              <div className="flex items-center gap-1.5">
-                <span className="w-24 shrink-0 font-bold text-slate-800 whitespace-nowrap">Merk:</span>
-                <span className="font-bold text-slate-950 truncate">{checkup.car_brand || '-'}</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-20 shrink-0 font-bold text-slate-800 whitespace-nowrap">Merk:</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words">{checkup.car_brand || '-'}</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-24 shrink-0 font-bold text-slate-800 whitespace-nowrap">Tipe Mobil:</span>
-                <span className="font-bold text-slate-950 truncate">{checkup.car_model || '-'}</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-20 shrink-0 font-bold text-slate-800 whitespace-nowrap">Tipe Mobil:</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">{checkup.car_model || '-'}</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-24 shrink-0 font-bold text-slate-800 whitespace-nowrap">Tahun/Warna:</span>
-                <span className="font-bold text-slate-950 truncate">{checkup.car_year || '-'} / {checkup.car_color || '-'}</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-20 shrink-0 font-bold text-slate-800 whitespace-nowrap">Tahun/Warna:</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words">{checkup.car_year || '-'} / {checkup.car_color || '-'}</span>
               </div>
             </div>
 
             <div className="space-y-1 pl-1">
-              <div className="flex items-center gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-800 whitespace-nowrap">No. Polisi:</span>
-                <span className="font-mono font-black text-[#8B0000] text-[13px]">{formatPlate(checkup.license_plate)}</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-18 shrink-0 font-bold text-slate-800 whitespace-nowrap">No. Polisi:</span>
+                <span className="font-mono font-black text-[#8B0000] text-[13px] flex-1 min-w-0">{formatPlate(checkup.license_plate)}</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-800 whitespace-nowrap">Pelanggan:</span>
-                <span className="font-bold text-slate-950 truncate">{checkup.customer_name || 'Pelanggan'}</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-18 shrink-0 font-bold text-slate-800 whitespace-nowrap">Pelanggan:</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">{checkup.customer_name || 'Pelanggan'}</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-800 whitespace-nowrap">Tanggal:</span>
-                <span className="font-bold text-slate-950">{formatDate(checkup.check_date)}</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-18 shrink-0 font-bold text-slate-800 whitespace-nowrap">Tanggal:</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0">{formatDate(checkup.check_date)}</span>
               </div>
             </div>
           </div>

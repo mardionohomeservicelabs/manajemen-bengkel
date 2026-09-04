@@ -94,6 +94,7 @@ export function DocumentImageModal({
             .grid-cols-12 { display: flex !important; flex-direction: row !important; width: 100% !important; }
             .col-span-4 { width: 33.333% !important; flex-shrink: 0 !important; }
             .col-span-8 { width: 66.667% !important; flex-grow: 1 !important; }
+            .truncate { overflow: visible !important; text-overflow: clip !important; white-space: normal !important; }
           `;
           clonedDoc.head.appendChild(styleTag);
 
