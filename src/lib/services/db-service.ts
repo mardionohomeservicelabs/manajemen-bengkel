@@ -132,20 +132,32 @@ function smartMergeWorkOrders(
       const cloudTime = cloud.updated_at ? new Date(cloud.updated_at).getTime() : 0;
       const localTime = local.updated_at ? new Date(local.updated_at).getTime() : 0;
 
-      if (cloudTime >= localTime) {
+      // Prioritas status servis & pembayaran: status 'paid' / 'completed' tidak boleh ditimpa status lama
+      const isCloudAdvanced = cloud.status === 'paid' || cloud.status === 'completed';
+      const isLocalAdvanced = local.status === 'paid' || local.status === 'completed';
+      let targetStatus = cloud.status;
+      if (isCloudAdvanced && !isLocalAdvanced) {
+        targetStatus = cloud.status;
+      } else if (isLocalAdvanced && !isCloudAdvanced) {
+        targetStatus = local.status;
+      } else {
+        targetStatus = cloudTime >= localTime ? cloud.status : local.status;
+      }
+
+      if (cloudTime >= localTime || (isCloudAdvanced && !isLocalAdvanced)) {
         // Cloud menang, tapi pertahankan tabs/estimasi di checklist_data lokal jika ada
         const mergedChecklist = sanitizeChecklistData({
           ...((local as any).checklist_data || {}),
           ...((cloud as any).checklist_data || {}),
         });
-        mergedMap.set(key, { ...cloud, checklist_data: mergedChecklist });
+        mergedMap.set(key, { ...cloud, status: targetStatus, checklist_data: mergedChecklist });
       } else {
         // Lokal menang karena ada editan offline/lokal yang lebih baru, tapi adopsi UUID cloud
         const mergedChecklist = sanitizeChecklistData({
           ...((cloud as any).checklist_data || {}),
           ...((local as any).checklist_data || {}),
         });
-        mergedMap.set(key, { ...local, id: cloud.id, checklist_data: mergedChecklist });
+        mergedMap.set(key, { ...local, id: cloud.id, status: targetStatus, checklist_data: mergedChecklist });
       }
     }
   });
@@ -192,21 +204,31 @@ function smartMergeInvoices(cloudItems: Invoice[], localItems: Invoice[]): Invoi
 
   localItems.forEach((local) => {
     const key = local.invoice_number || local.id;
-    const isUnsynced = local.id?.startsWith('inv-') || pendingKeys.has(key);
-    if (isUnsynced) {
-      mergedMap.set(key, local);
-    }
+    mergedMap.set(key, local);
   });
 
   cloudItems.forEach((cloud) => {
     const key = cloud.invoice_number || cloud.id;
-    const local = mergedMap.get(key) || localItems.find((l) => l.id === cloud.id || l.invoice_number === cloud.invoice_number);
+    const local = mergedMap.get(key) || localItems.find((l) => (l.id && l.id === cloud.id) || (l.invoice_number && l.invoice_number === cloud.invoice_number));
 
     if (!local) {
       mergedMap.set(key, cloud);
     } else {
-      const cloudTime = cloud.updated_at ? new Date(cloud.updated_at).getTime() : 0;
-      const localTime = local.updated_at ? new Date(local.updated_at).getTime() : 0;
+      // 1. ATURAN EMAS PEMBAYARAN: Status 'paid' (Lunas) MUTLAK menang atas status 'pending'
+      // Mencegah device lain yang belum sync menimpa pembayaran yang sudah selesai kembali menjadi pending
+      if (cloud.payment_status === 'paid' && local.payment_status !== 'paid') {
+        mergedMap.set(key, cloud);
+        return;
+      }
+      if (local.payment_status === 'paid' && cloud.payment_status !== 'paid') {
+        mergedMap.set(key, { ...local, id: cloud.id });
+        return;
+      }
+
+      // 2. Jika status sama, bandingkan timestamp rekonsiliasi terbaru
+      const cloudTime = new Date(cloud.updated_at || cloud.paid_at || cloud.created_at || 0).getTime();
+      const localTime = new Date(local.updated_at || local.paid_at || local.created_at || 0).getTime();
+
       if (cloudTime >= localTime) {
         mergedMap.set(key, cloud);
       } else {
@@ -1589,6 +1611,24 @@ export class DBService {
     return this.getInvoices(branch).find((i) => i.id === id);
   }
 
+  static getAllInvoices(): Invoice[] {
+    const branches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+    const map = new Map<string, Invoice>();
+    branches.forEach((b) => {
+      this.getInvoices(b).forEach((inv) => {
+        const key = inv.invoice_number || inv.id;
+        if (!map.has(key)) {
+          map.set(key, inv);
+        }
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => {
+      const timeA = new Date(a.paid_at || a.created_at || 0).getTime() || 0;
+      const timeB = new Date(b.paid_at || b.created_at || 0).getTime() || 0;
+      return timeB - timeA;
+    });
+  }
+
   static saveInvoice(invoice: Omit<Invoice, 'id'> & { id?: string }, branch?: BranchId): Invoice {
     const key = getBranchKey(BASE_STORAGE_KEYS.INVOICES, branch);
     const invoices = getLocal<Invoice[]>(key, []);
@@ -1632,7 +1672,7 @@ export class DBService {
       });
 
       if (saved.work_order_id) {
-        this.updateWorkOrderStatus(saved.work_order_id, 'completed', 'admin', branch);
+        this.updateWorkOrderStatus(saved.work_order_id, 'paid', 'admin', branch);
       }
     }
 
@@ -1659,16 +1699,22 @@ export class DBService {
         }
 
         let validWorkOrderId = localSaved.work_order_id || null;
+        let spkNumberTarget = (localSaved as any).work_order?.spk_number || (localSaved.work_order_id && localSaved.work_order_id.startsWith('SPK-') ? localSaved.work_order_id : null);
         if (validWorkOrderId && !uuidRegex.test(validWorkOrderId)) {
           const { data: woRow } = await supabase
             .from('work_orders')
-            .select('id')
+            .select('id, spk_number')
             .eq('spk_number', validWorkOrderId)
             .maybeSingle();
-          if (woRow?.id) validWorkOrderId = woRow.id;
-          else validWorkOrderId = null;
+          if (woRow?.id) {
+            validWorkOrderId = woRow.id;
+            spkNumberTarget = woRow.spk_number;
+          } else {
+            validWorkOrderId = null;
+          }
         }
 
+        const nowIso = new Date().toISOString();
         const payload: Record<string, any> = {
           id: localSaved.id.startsWith('inv-') ? undefined : localSaved.id,
           invoice_number: localSaved.invoice_number,
@@ -1685,9 +1731,11 @@ export class DBService {
           balance_due: localSaved.balance_due || 0,
           payment_status: localSaved.payment_status,
           payment_method: localSaved.payment_method || null,
+          paid_at: localSaved.payment_status === 'paid' ? (localSaved.paid_at || nowIso) : null,
           admin_notes: localSaved.admin_notes || null,
           signature_customer_url: localSaved.signature_customer_url || localSaved.customer_signature || null,
           signature_admin_url: localSaved.signature_admin_url || (localSaved as any).estimator_signature || null,
+          updated_at: nowIso,
         };
 
         const client = supabase;
@@ -1703,17 +1751,24 @@ export class DBService {
             console.warn('Supabase saveInvoice upsert warning:', error.message);
           }
 
-          // Perbarui status work_order di cloud
-          if (validWorkOrderId) {
+          // Perbarui status work_order di cloud secara instan
+          const nextStatus = (localSaved.type === 'invoice' && localSaved.payment_status === 'paid')
+            ? 'paid'
+            : (localSaved.type === 'estimation' ? 'estimating' : undefined);
+
+          if (nextStatus) {
             try {
-              const nextStatus = (localSaved.type === 'invoice' && localSaved.payment_status === 'paid')
-                ? 'completed'
-                : (localSaved.type === 'estimation' ? 'estimating' : undefined);
-              if (nextStatus) {
+              if (validWorkOrderId) {
                 await client
                   .from('work_orders')
-                  .update({ status: nextStatus })
+                  .update({ status: nextStatus, updated_at: nowIso })
                   .eq('id', validWorkOrderId);
+              }
+              if (spkNumberTarget) {
+                await client
+                  .from('work_orders')
+                  .update({ status: nextStatus, updated_at: nowIso })
+                  .eq('spk_number', spkNumberTarget);
               }
             } catch (woErr) {
               console.warn('Failed to update work_order status with invoice:', woErr);

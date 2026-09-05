@@ -197,9 +197,9 @@ function CashierContent() {
         created_at: new Date().toISOString(),
       });
 
-      // Update status SPK ke completed di Supabase & local jika lunas
+      // Update status SPK ke 'paid' di Supabase & local jika lunas
       if (status === 'paid' && selectedSpk.id) {
-        await updateWorkOrderStatusAsync(selectedSpk.id, 'completed');
+        await updateWorkOrderStatusAsync(selectedSpk.id, 'paid');
       }
 
       // Trigger Confetti if paid
@@ -216,7 +216,7 @@ function CashierContent() {
       setIsSignModalOpen(false);
       showToast(
         status === 'paid'
-          ? `Pembayaran Nota ${invoiceNumber} LUNAS & Ditandatangani!`
+          ? `Pembayaran Nota ${invoiceNumber} LUNAS! Status di antrean: 'Sudah Pembayaran'.`
           : `Nota ${invoiceNumber} disimpan (Pending).`,
         'success'
       );
@@ -263,12 +263,23 @@ function CashierContent() {
           className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none font-bold"
         >
           <option value="">-- Pilih SPK / Kendaraan --</option>
-          {workOrders.map((wo) => (
-            <option key={wo.id} value={wo.id}>
-              {wo.spk_number} • {wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''} •{' '}
-              {wo.vehicle?.customer_name} ({wo.vehicle?.car_brand} {wo.vehicle?.car_model}) - Status: {wo.status}
-            </option>
-          ))}
+          {[...workOrders]
+            .filter((wo) => wo.status !== 'cancelled')
+            .sort((a, b) => {
+              const priority = (s: string) => (s === 'completed_service' ? 0 : s === 'servicing' ? 1 : s === 'paid' ? 2 : 3);
+              return priority(a.status) - priority(b.status);
+            })
+            .map((wo) => {
+              const isReadyToPay = wo.status === 'completed_service';
+              const isPaid = wo.status === 'paid';
+              return (
+                <option key={wo.id} value={wo.id}>
+                  {isReadyToPay ? '⭐ [SELESAI SERVIS - SIAP BAYAR] ' : isPaid ? '✓ [SUDAH BAYAR] ' : ''}
+                  {wo.spk_number} • {wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''} •{' '}
+                  {wo.vehicle?.customer_name} ({wo.vehicle?.car_brand} {wo.vehicle?.car_model}) - Status: {wo.status}
+                </option>
+              );
+            })}
         </select>
       </div>
 

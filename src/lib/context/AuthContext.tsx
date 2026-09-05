@@ -56,6 +56,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ) {
             parsed.user.canAccessAllBranches = true;
           }
+
+          // Sinkronkan role Mey Wulandari ke role admin terbaru
+          const meyEmails = ['mey@mhs2.mardiono', 'mey@mardiono'];
+          if (
+            meyEmails.includes(parsed.user.email?.toLowerCase() || '') ||
+            parsed.user.id === 'mhs2-sa-mey'
+          ) {
+            parsed.user.role = 'admin';
+          }
+
           setCurrentUser(parsed.user);
           setActiveBranchState(parsed.activeBranch || parsed.user.branch);
         } else {

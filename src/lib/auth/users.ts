@@ -82,7 +82,7 @@ export const APP_USERS: AppUser[] = [
     email: 'mey@mhs2.mardiono',
     password: 'mhs2sa',
     full_name: 'Mey Wulandari',
-    role: 'sa',
+    role: 'admin',
     branch: 'MHS 2',
   },
   {
@@ -175,6 +175,21 @@ export function authenticateUser(email: string, password: string): AppUser | nul
       role: 'estimator',
       branch: 'MHS 2',
       canAccessAllBranches: true,
+    };
+  }
+
+  // Dukungan alias login khusus Mey Wulandari
+  if (
+    (normalizedEmail === 'mey@mardiono' || normalizedEmail === 'mey@mhs2.mardiono') &&
+    (password === 'mhs2sa' || password === 'mey123')
+  ) {
+    return {
+      id: 'mhs2-sa-mey',
+      email: normalizedEmail,
+      password: password,
+      full_name: 'Mey Wulandari',
+      role: 'admin',
+      branch: 'MHS 2',
     };
   }
 

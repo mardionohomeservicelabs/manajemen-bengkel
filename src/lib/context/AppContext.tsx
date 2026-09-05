@@ -32,6 +32,7 @@ interface AppContextType {
   allWorkOrders: WorkOrder[];
   inventory: InventoryItem[];
   invoices: Invoice[];
+  allInvoices: Invoice[];
   crmLogs: CRMLog[];
   allCrmLogs: CRMLog[];
   vehicles: VehicleCustomer[];
@@ -73,6 +74,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [allWorkOrders, setAllWorkOrders] = useState<WorkOrder[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [allInvoices, setAllInvoices] = useState<Invoice[]>([]);
   const [crmLogs, setCrmLogs] = useState<CRMLog[]>([]);
   const [allCrmLogs, setAllCrmLogs] = useState<CRMLog[]>([]);
   const [vehicles, setVehicles] = useState<VehicleCustomer[]>([]);
@@ -95,6 +97,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAllWorkOrders(DBService.getAllWorkOrders());
     setInventory(DBService.getInventory(activeBranch));
     setInvoices(DBService.getInvoices(activeBranch));
+    setAllInvoices(DBService.getAllInvoices());
     setCrmLogs(DBService.getCRMLogs(activeBranch));
     setAllCrmLogs(DBService.getAllCRMLogs());
     setVehicles(DBService.getVehicles(activeBranch));
@@ -296,12 +299,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // 3. Background sync setiap 30 detik sebagai fallback jika WebSocket terputus
+    // 3. Background sync setiap 12 detik sebagai fallback jika WebSocket terputus
     const syncInterval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         syncWithSupabase();
       }
-    }, 30000);
+    }, 12000);
 
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityOrFocus);
@@ -444,6 +447,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         allWorkOrders,
         inventory,
         invoices,
+        allInvoices,
         crmLogs,
         allCrmLogs,
         vehicles,

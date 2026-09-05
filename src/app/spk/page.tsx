@@ -104,7 +104,9 @@ function SPKListContent() {
     approved: { label: 'Disetujui', class: 'bg-blue-100 text-blue-800 border-blue-300' },
     servicing: { label: 'Sedang Servis', class: 'bg-indigo-100 text-indigo-800 border-indigo-300' },
     waiting_parts: { label: 'Menunggu Part', class: 'bg-orange-100 text-orange-800 border-orange-300' },
-    completed: { label: 'Selesai', class: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
+    completed_service: { label: 'Selesai Servis', class: 'bg-teal-100 text-teal-800 border-teal-300' },
+    paid: { label: 'Sudah Pembayaran', class: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
+    completed: { label: 'Selesai (Database)', class: 'bg-emerald-200 text-emerald-900 border-emerald-400' },
     cancelled: { label: 'Dibatalkan', class: 'bg-red-100 text-red-800 border-red-300' },
   };
 
@@ -287,7 +289,9 @@ function SPKListContent() {
                           <option value="approved">Disetujui</option>
                           <option value="servicing">Dikerjakan</option>
                           <option value="waiting_parts">Tunggu Part</option>
-                          <option value="completed">Selesai</option>
+                          <option value="completed_service">Selesai Servis</option>
+                          <option value="paid">Sudah Pembayaran</option>
+                          <option value="completed">Selesai (Database)</option>
                           <option value="cancelled">Batal</option>
                         </select>
                       </td>

@@ -74,6 +74,20 @@ const ACTIVE_COLUMNS: { id: WorkOrderStatus; title: string; color: string; borde
     border: 'border-orange-300',
     bg: 'bg-orange-50/50',
   },
+  {
+    id: 'completed_service',
+    title: 'Selesai Servis',
+    color: 'text-teal-800',
+    border: 'border-teal-300',
+    bg: 'bg-teal-50/50',
+  },
+  {
+    id: 'paid',
+    title: 'Sudah Pembayaran',
+    color: 'text-emerald-800',
+    border: 'border-emerald-300',
+    bg: 'bg-emerald-50/50',
+  },
 ];
 
 function QueueBoardContent() {
@@ -136,7 +150,11 @@ function QueueBoardContent() {
     const success = await updateWorkOrderStatusAsync(orderId, newStatus);
     if (success) {
       if (newStatus === 'completed') {
-        showToast('Pekerjaan ditandai selesai dan berhasil dipindahkan ke Database!', 'success');
+        showToast('Pekerjaan ditandai selesai dan berhasil dipindahkan ke Database Arsip!', 'success');
+      } else if (newStatus === 'completed_service') {
+        showToast('Unit ditandai Selesai Servis! Siap ditagih di kasir.', 'success');
+      } else if (newStatus === 'paid') {
+        showToast('Unit ditandai Sudah Pembayaran (Lunas)!', 'success');
       } else {
         showToast('Status antrean berhasil diperbarui', 'success');
       }
@@ -315,14 +333,14 @@ function QueueBoardContent() {
           <>
             {/* Mode 1: Kanban Board */}
             {viewMode === 'kanban' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 overflow-x-auto pb-4">
+              <div className="flex gap-4 overflow-x-auto pb-6 pt-1 min-w-full snap-x">
                 {ACTIVE_COLUMNS.map((col) => {
                   const columnOrders = activeOrders.filter((w) => w.status === col.id);
 
                   return (
                     <div
                       key={col.id}
-                      className={`flex flex-col rounded-2xl border ${col.border} ${col.bg} p-3 min-h-[520px] shadow-xs`}
+                      className={`flex flex-col rounded-2xl border ${col.border} ${col.bg} p-3 w-[290px] min-w-[290px] shrink-0 min-h-[520px] shadow-xs snap-start`}
                     >
                       {/* Column Header */}
                       <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-200/80">
@@ -428,15 +446,65 @@ function QueueBoardContent() {
                                     </button>
                                   )}
 
-                                  {/* Button Tandai Selesai (Memindahkan ke Database) */}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleMarkAsComplete(order)}
-                                    className="w-full inline-flex items-center justify-center space-x-1.5 text-[10.5px] bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 px-2 rounded-lg font-black shadow-xs transition cursor-pointer"
-                                  >
-                                    <CheckCircle2 className="w-3.5 h-3.5" />
-                                    <span>Tandai Pekerjaan Selesai</span>
-                                  </button>
+                                  {/* Status Specific Action Cards & Buttons */}
+                                  {order.status === 'completed_service' && (
+                                    <div className="space-y-1 pt-0.5">
+                                      <div className="bg-teal-50 border border-teal-200 rounded-lg p-1.5 text-center">
+                                        <div className="text-[10px] font-black uppercase text-teal-800 flex items-center justify-center space-x-1">
+                                          <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
+                                          <span>Servis Selesai • Siap Bayar</span>
+                                        </div>
+                                      </div>
+                                      <Link
+                                        href={`/kasir?spkId=${order.id}`}
+                                        className="w-full inline-flex items-center justify-center space-x-1.5 text-[11px] bg-teal-700 hover:bg-teal-800 text-white py-1.5 px-2 rounded-lg font-black shadow-xs transition"
+                                      >
+                                        <Receipt className="w-3.5 h-3.5" />
+                                        <span>Bayar di Kasir</span>
+                                      </Link>
+                                    </div>
+                                  )}
+
+                                  {order.status === 'paid' && (
+                                    <div className="space-y-1 pt-0.5">
+                                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-1.5 text-center">
+                                        <div className="text-[10px] font-black uppercase text-emerald-800 flex items-center justify-center space-x-1">
+                                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                          <span>Lunas • Siap Arsip</span>
+                                        </div>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleMarkAsComplete(order)}
+                                        className="w-full inline-flex items-center justify-center space-x-1.5 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 px-2 rounded-lg font-black shadow-xs transition cursor-pointer"
+                                      >
+                                        <FolderCheck className="w-3.5 h-3.5" />
+                                        <span>Masuk ke Arsip</span>
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {order.status === 'servicing' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStatusChange(order.id, 'completed_service')}
+                                      className="w-full inline-flex items-center justify-center space-x-1.5 text-[10.5px] bg-teal-600 hover:bg-teal-700 text-white py-1.5 px-2 rounded-lg font-black shadow-xs transition cursor-pointer"
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      <span>Tandai Selesai Servis</span>
+                                    </button>
+                                  )}
+
+                                  {order.status !== 'completed_service' && order.status !== 'paid' && order.status !== 'servicing' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleMarkAsComplete(order)}
+                                      className="w-full inline-flex items-center justify-center space-x-1.5 text-[10.5px] bg-slate-800 hover:bg-slate-900 text-white py-1.5 px-2 rounded-lg font-bold shadow-xs transition cursor-pointer"
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      <span>Tandai Selesai &amp; Arsip</span>
+                                    </button>
+                                  )}
 
                                   {/* Stage Move Dropdown */}
                                   <select
@@ -451,7 +519,9 @@ function QueueBoardContent() {
                                     <option value="approved">Pindah: Disetujui</option>
                                     <option value="servicing">Pindah: Dikerjakan</option>
                                     <option value="waiting_parts">Pindah: Tunggu Part</option>
-                                    <option value="completed">Pindah: Selesai (Arsipkan ke Database)</option>
+                                    <option value="completed_service">Pindah: Selesai Servis</option>
+                                    <option value="paid">Pindah: Sudah Pembayaran</option>
+                                    <option value="completed">Pindah: Masuk ke Arsip</option>
                                     <option value="cancelled">Pindah: Batal</option>
                                   </select>
                                 </div>
@@ -533,18 +603,45 @@ function QueueBoardContent() {
                                   <option value="approved">Disetujui</option>
                                   <option value="servicing">Sedang Dikerjakan</option>
                                   <option value="waiting_parts">Menunggu Part</option>
-                                  <option value="completed">Selesai (Pindah ke Database)</option>
+                                  <option value="completed_service">Selesai Servis</option>
+                                  <option value="paid">Sudah Pembayaran</option>
+                                  <option value="completed">Masuk ke Arsip</option>
                                   <option value="cancelled">Batal</option>
                                 </select>
                               </td>
                               <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
-                                <button
-                                  type="button"
-                                  onClick={() => handleMarkAsComplete(order)}
-                                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-xs transition cursor-pointer"
-                                >
-                                  ✓ Selesai
-                                </button>
+                                {order.status === 'completed_service' ? (
+                                  <Link
+                                    href={`/kasir?spkId=${order.id}`}
+                                    className="px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-black text-xs shadow-xs transition inline-flex items-center space-x-1"
+                                  >
+                                    <span>💳 Bayar Kasir</span>
+                                  </Link>
+                                ) : order.status === 'paid' ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMarkAsComplete(order)}
+                                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-xs transition cursor-pointer inline-flex items-center space-x-1"
+                                  >
+                                    <span>📁 Masuk Arsip</span>
+                                  </button>
+                                ) : order.status === 'servicing' ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStatusChange(order.id, 'completed_service')}
+                                    className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-black text-xs shadow-xs transition cursor-pointer inline-flex items-center space-x-1"
+                                  >
+                                    <span>✓ Selesai Servis</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMarkAsComplete(order)}
+                                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-black text-xs shadow-xs transition cursor-pointer"
+                                  >
+                                    ✓ Selesai
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => setSelectedOrder(order)}

@@ -1,13 +1,15 @@
 export type UserRole = 'owner' | 'admin' | 'sa' | 'mekanik' | 'estimator';
 
 export type WorkOrderStatus =
-  | 'queue'          // Antrean Masuk
-  | 'estimating'     // Proses Estimasi
-  | 'approved'       // Disetujui Pelanggan
-  | 'servicing'      // Dalam Pengerjaan
-  | 'waiting_parts'  // Menunggu Sparepart
-  | 'completed'      // Selesai
-  | 'cancelled';     // Dibatalkan
+  | 'queue'             // Antrean Masuk
+  | 'estimating'        // Proses Estimasi
+  | 'approved'          // Disetujui Pelanggan
+  | 'servicing'         // Dalam Pengerjaan
+  | 'waiting_parts'     // Menunggu Sparepart
+  | 'completed_service' // Selesai Pengerjaan (Siap Bayar di Kasir)
+  | 'paid'              // Sudah Pembayaran (Lunas di Kasir)
+  | 'completed'         // Masuk Arsip / Selesai Keseluruhan
+  | 'cancelled';        // Dibatalkan
 
 export type InvoiceType = 'estimation' | 'invoice';
 
