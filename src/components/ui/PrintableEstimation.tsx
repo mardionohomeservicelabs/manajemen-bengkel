@@ -305,14 +305,18 @@ export function PrintableEstimation({
                   <td colSpan={5} className="p-2 text-center uppercase tracking-wider text-slate-900 font-black">
                     JUMLAH KESELURUHAN
                   </td>
-                  <td className="p-2 text-right font-mono font-black text-slate-950 border-r border-slate-300 text-sm">
-                    {formatCurrency(tot1)}
+                  <td className="p-2 text-right font-mono font-black text-slate-950 border-r border-slate-300 text-sm whitespace-nowrap">
+                    {(estimation as any).total_opsi1_max && (estimation as any).total_opsi1_max > tot1
+                      ? `${formatCurrency(tot1)} – ${formatCurrency((estimation as any).total_opsi1_max)}`
+                      : formatCurrency(tot1)}
                   </td>
                   {hasOpsi2 && (
                     <>
                       <td className="p-2 bg-blue-50/40 border-r border-slate-300"></td>
-                      <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/40 text-sm">
-                        {formatCurrency(tot2)}
+                      <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/40 text-sm whitespace-nowrap">
+                        {(estimation as any).total_opsi2_max && (estimation as any).total_opsi2_max > tot2
+                          ? `${formatCurrency(tot2)} – ${formatCurrency((estimation as any).total_opsi2_max)}`
+                          : formatCurrency(tot2)}
                       </td>
                     </>
                   )}

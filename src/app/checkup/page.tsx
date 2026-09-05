@@ -490,7 +490,20 @@ export default function CheckupPage() {
                         </td>
 
                         {/* 4. Kelengkapan Form Checklist */}
-                        <td className="p-3.5">
+                        <td className="p-3.5 space-y-1">
+                          <div>
+                            {totalForms > 0 ? (
+                              <span className="inline-flex items-center space-x-1 text-[10.5px] font-black px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-300">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>Selesai Checklist ({totalForms} Form)</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center space-x-1 text-[10.5px] font-bold px-2 py-0.5 rounded-md bg-red-50 text-red-700 border border-red-200">
+                                <AlertCircle className="w-3 h-3 text-red-600" />
+                                <span>Belum Diisi Checklist</span>
+                              </span>
+                            )}
+                          </div>
                           <div className="flex flex-wrap items-center gap-1.5">
                             {/* QC Tune Up Badge */}
                             <span

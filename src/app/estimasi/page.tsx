@@ -1913,7 +1913,7 @@ function EstimationBuilderContent() {
             <div
               onClick={() => { if (!isLocked) setShowRangePrice(!showRangePrice); }}
               className={`w-11 h-6 rounded-full transition-colors p-0.5 flex items-center ${
-                showRangePrice ? 'bg-orange-500' : 'bg-slate-300'
+                showRangePrice ? 'bg-blue-600' : 'bg-slate-300'
               }`}
             >
               <div
@@ -1924,7 +1924,7 @@ function EstimationBuilderContent() {
             </div>
             <span className="text-xs font-bold text-slate-700">Kisaran Harga</span>
             {showRangePrice && (
-              <span className="text-[10px] font-black text-orange-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-black text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
                 ~Min – Max
               </span>
             )}
@@ -1933,13 +1933,13 @@ function EstimationBuilderContent() {
 
         {/* Info banner when range mode is active */}
         {showRangePrice && !isLocked && (
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 flex items-start space-x-2.5 text-xs">
-            <ArrowUpDown className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+          <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-3 flex items-start space-x-2.5 text-xs text-slate-800">
+            <ArrowUpDown className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
             <div>
-              <span className="font-black text-orange-800">Mode Kisaran Harga Aktif — </span>
-              <span className="text-orange-700">
-                Masukkan harga dalam format <strong>150000 - 160000</strong> (min - maks) atau angka tunggal.
-                Total biaya akan otomatis ditampilkan sebagai kisaran, contoh: <strong>Rp 1.500.000 – Rp 1.700.000</strong>.
+              <span className="font-black text-blue-900">Mode Kisaran Harga Aktif — </span>
+              <span className="text-slate-700">
+                Masukkan harga dalam format <strong>150000 - 160000</strong> (min – maks) atau angka tetap.
+                Kotak harga dan total harga otomatis memanjang horizontal tanpa bertumpuk ke bawah.
               </span>
             </div>
           </div>
@@ -1954,10 +1954,10 @@ function EstimationBuilderContent() {
                 <th className="p-3 border-r border-slate-200">Saran/Perbaikan/Ganti Sparepart</th>
                 <th className="p-3 w-16 text-center border-r border-slate-200">QTY</th>
                 <th className="p-3 w-24 text-center border-r border-slate-200">Satuan</th>
-                <th className={`p-3 text-center border-r border-slate-200 ${showRangePrice ? 'w-52 bg-orange-50/60 text-orange-900' : 'w-36'}`}>
+                <th className={`p-3 text-center border-r border-slate-200 ${showRangePrice ? 'w-56' : 'w-36'}`}>
                   {showRangePrice ? 'Harga (Min – Maks)' : 'Hrg Sat (Rp)'}
                 </th>
-                <th className={`p-3 text-right border-r border-slate-200 ${showRangePrice ? 'w-52 bg-orange-50/30 text-orange-900' : 'w-36'}`}>
+                <th className={`p-3 text-right border-r border-slate-200 ${showRangePrice ? 'w-56' : 'w-36'}`}>
                   {showRangePrice ? 'Total Opsi 1 (Kisaran)' : 'Total Opsi 1'}
                 </th>
                 {showOpsi2 && (
@@ -2066,33 +2066,29 @@ function EstimationBuilderContent() {
                     </td>
 
                     {/* Hrg Sat / Harga Kisaran (Harga Opsi 1) - Format Nominal Rupiah */}
-                    <td className={`p-2 text-center border-r border-slate-200 align-middle ${showRangePrice ? 'bg-orange-50/30' : ''}`}>
+                    <td className="p-2 text-center border-r border-slate-200 align-middle">
                       <div className="relative flex items-center justify-center">
-                        {!showRangePrice && (
-                          <span className="text-[10px] font-bold text-slate-400 mr-1 select-none">Rp</span>
-                        )}
+                        <span className="text-[10px] font-bold text-slate-400 mr-1 select-none">Rp</span>
                         <input
                           type="text"
                           disabled={isLocked}
                           value={item.price_opsi1 !== undefined ? item.price_opsi1 : ''}
                           onChange={(e) => handleUpdateItemField(idx, 'price_opsi1', e.target.value)}
                           placeholder={showRangePrice ? '150000 - 160000' : '0 / CEK'}
-                          className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:ring-1 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
-                            showRangePrice
-                              ? 'w-44 focus:border-orange-400 focus:ring-orange-300 border-orange-200'
-                              : 'w-28 focus:border-blue-500 focus:ring-blue-500'
+                          className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
+                            showRangePrice ? 'w-48' : 'w-28'
                           }`}
                         />
                       </div>
                     </td>
 
                     {/* Total Opsi 1 */}
-                    <td className={`p-3 text-right border-r border-slate-200 align-middle ${showRangePrice ? 'bg-orange-50/20' : ''}`}>
+                    <td className="p-3 text-right border-r border-slate-200 align-middle">
                       {showRangePrice ? (
-                        <span className="font-mono font-black text-xs text-orange-900 whitespace-nowrap">
+                        <span className="font-mono font-black text-sm text-slate-900 whitespace-nowrap">
                           {rowTot1Min === rowTot1Max
                             ? formatCurrency(rowTot1Min)
-                            : <>{formatCurrency(rowTot1Min)}<br /><span className="text-[10px] font-bold text-orange-500">s/d {formatCurrency(rowTot1Max)}</span></>}
+                            : `${formatCurrency(rowTot1Min)} – ${formatCurrency(rowTot1Max)}`}
                         </span>
                       ) : (
                         <span className="font-mono font-black text-sm text-slate-900 whitespace-nowrap">
@@ -2104,11 +2100,9 @@ function EstimationBuilderContent() {
                     {/* Opsi 2 (if enabled) */}
                     {showOpsi2 && (
                       <>
-                        <td className={`p-2 text-center border-r border-slate-200 align-middle ${showRangePrice ? 'bg-blue-50/30' : 'bg-blue-50/20'}`}>
+                        <td className="p-2 text-center border-r border-slate-200 align-middle bg-blue-50/20">
                           <div className="relative flex items-center justify-center">
-                            {!showRangePrice && (
-                              <span className="text-[10px] font-bold text-blue-400 mr-1 select-none">Rp</span>
-                            )}
+                            <span className="text-[10px] font-bold text-blue-400 mr-1 select-none">Rp</span>
                             <input
                               type="text"
                               disabled={isLocked}
@@ -2119,10 +2113,8 @@ function EstimationBuilderContent() {
                                   ? String(item.price_opsi1)
                                   : (showRangePrice ? '150000 - 160000' : '0 (Kosong)')
                               }
-                              className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:ring-1 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
-                                showRangePrice
-                                  ? 'w-44 focus:border-blue-400 focus:ring-blue-300'
-                                  : 'w-28 focus:border-blue-500 focus:ring-blue-500'
+                              className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
+                                showRangePrice ? 'w-48' : 'w-28'
                               }`}
                             />
                             {!isLocked && item.price_opsi2 !== undefined && item.price_opsi2 !== '' && item.price_opsi2 !== 0 && item.price_opsi2 !== '0' && (
@@ -2137,15 +2129,15 @@ function EstimationBuilderContent() {
                             )}
                           </div>
                         </td>
-                        <td className={`p-3 text-right align-middle ${showRangePrice ? 'bg-blue-50/20' : 'bg-blue-50/20'}`}>
+                        <td className="p-3 text-right align-middle bg-blue-50/20">
                           {showRangePrice ? (
-                            <span className="font-mono font-black text-xs text-blue-900 whitespace-nowrap">
+                            <span className="font-mono font-black text-sm text-blue-950 whitespace-nowrap">
                               {isP2Empty ? (
                                 <span className="text-slate-400 font-normal">Rp 0</span>
                               ) : rowTot2Min === rowTot2Max ? (
                                 formatCurrency(rowTot2Min)
                               ) : (
-                                <>{formatCurrency(rowTot2Min)}<br /><span className="text-[10px] font-bold text-blue-500">s/d {formatCurrency(rowTot2Max)}</span></>
+                                `${formatCurrency(rowTot2Min)} – ${formatCurrency(rowTot2Max)}`
                               )}
                             </span>
                           ) : (
@@ -2200,29 +2192,29 @@ function EstimationBuilderContent() {
                 <td colSpan={5} className="p-3 text-center uppercase tracking-wider text-slate-800 text-xs">
                   JUMLAH KESELURUHAN
                 </td>
-                <td className={`p-3 text-right font-mono font-black border-r border-slate-200 ${showRangePrice ? 'bg-orange-50/40' : ''}`}>
+                <td className="p-3 text-right font-mono font-black border-r border-slate-200">
                   {showRangePrice ? (
-                    <span className="text-orange-900 text-xs leading-snug">
+                    <span className="text-sm text-slate-950 whitespace-nowrap">
                       {totalFinalOpsi1 === totalFinalOpsi1Max
                         ? formatCurrency(totalFinalOpsi1)
-                        : <>{formatCurrency(totalFinalOpsi1)}<br /><span className="text-[10px] font-bold text-orange-500">s/d {formatCurrency(totalFinalOpsi1Max)}</span></>}
+                        : `${formatCurrency(totalFinalOpsi1)} – ${formatCurrency(totalFinalOpsi1Max)}`}
                     </span>
                   ) : (
-                    <span className="text-sm text-slate-950">{formatCurrency(totalFinalOpsi1)}</span>
+                    <span className="text-sm text-slate-950 whitespace-nowrap">{formatCurrency(totalFinalOpsi1)}</span>
                   )}
                 </td>
                 {showOpsi2 && (
                   <>
                     <td className="p-3 bg-blue-50/30 border-r border-slate-200"></td>
-                    <td className={`p-3 text-right font-mono font-black bg-blue-50/30 ${showRangePrice ? '' : ''}`}>
+                    <td className="p-3 text-right font-mono font-black bg-blue-50/30">
                       {showRangePrice ? (
-                        <span className="text-blue-900 text-xs leading-snug">
+                        <span className="text-sm text-blue-950 whitespace-nowrap">
                           {totalFinalOpsi2 === totalFinalOpsi2Max
                             ? formatCurrency(totalFinalOpsi2)
-                            : <>{formatCurrency(totalFinalOpsi2)}<br /><span className="text-[10px] font-bold text-blue-500">s/d {formatCurrency(totalFinalOpsi2Max)}</span></>}
+                            : `${formatCurrency(totalFinalOpsi2)} – ${formatCurrency(totalFinalOpsi2Max)}`}
                         </span>
                       ) : (
-                        <span className="text-sm text-slate-950">{formatCurrency(totalFinalOpsi2)}</span>
+                        <span className="text-sm text-slate-950 whitespace-nowrap">{formatCurrency(totalFinalOpsi2)}</span>
                       )}
                     </td>
                   </>
@@ -2280,27 +2272,18 @@ function EstimationBuilderContent() {
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-            <div className={`bg-white p-4 rounded-xl border shadow-2xs space-y-1 ${
-              showRangePrice ? 'border-orange-200 bg-orange-50/20' : 'border-slate-200'
-            }`}>
-              <div className={`text-[11px] font-black uppercase tracking-wider ${
-                showRangePrice ? 'text-orange-900' : 'text-blue-900'
-              }`}>
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-1">
+              <div className="text-[11px] font-black uppercase tracking-wider text-blue-900">
                 TOTAL AKHIR OPSI 1{showRangePrice && ' (KISARAN)'}
               </div>
               {showRangePrice ? (
-                <div className="space-y-0.5">
-                  <div className="font-mono font-black text-lg text-orange-900">
-                    {formatCurrency(totalFinalOpsi1)}
-                  </div>
-                  {totalFinalOpsi1 !== totalFinalOpsi1Max && (
-                    <div className="text-xs text-orange-500 font-bold">
-                      s/d {formatCurrency(totalFinalOpsi1Max)}
-                    </div>
-                  )}
+                <div className="font-mono font-black text-xl text-slate-900 whitespace-nowrap">
+                  {totalFinalOpsi1 === totalFinalOpsi1Max
+                    ? formatCurrency(totalFinalOpsi1)
+                    : `${formatCurrency(totalFinalOpsi1)} – ${formatCurrency(totalFinalOpsi1Max)}`}
                 </div>
               ) : (
-                <div className="font-mono font-black text-xl text-slate-900">
+                <div className="font-mono font-black text-xl text-slate-900 whitespace-nowrap">
                   {formatCurrency(totalFinalOpsi1)}
                 </div>
               )}
@@ -2308,27 +2291,18 @@ function EstimationBuilderContent() {
             </div>
 
             {showOpsi2 && (
-              <div className={`bg-white p-4 rounded-xl border shadow-2xs space-y-1 ${
-                showRangePrice ? 'border-blue-200 bg-blue-50/20' : 'border-slate-200'
-              }`}>
-                <div className={`text-[11px] font-black uppercase tracking-wider ${
-                  showRangePrice ? 'text-blue-900' : 'text-purple-900'
-                }`}>
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-1">
+                <div className="text-[11px] font-black uppercase tracking-wider text-purple-900">
                   TOTAL AKHIR OPSI 2{showRangePrice && ' (KISARAN)'}
                 </div>
                 {showRangePrice ? (
-                  <div className="space-y-0.5">
-                    <div className="font-mono font-black text-lg text-blue-900">
-                      {formatCurrency(totalFinalOpsi2)}
-                    </div>
-                    {totalFinalOpsi2 !== totalFinalOpsi2Max && (
-                      <div className="text-xs text-blue-500 font-bold">
-                        s/d {formatCurrency(totalFinalOpsi2Max)}
-                      </div>
-                    )}
+                  <div className="font-mono font-black text-xl text-blue-950 whitespace-nowrap">
+                    {totalFinalOpsi2 === totalFinalOpsi2Max
+                      ? formatCurrency(totalFinalOpsi2)
+                      : `${formatCurrency(totalFinalOpsi2)} – ${formatCurrency(totalFinalOpsi2Max)}`}
                   </div>
                 ) : (
-                  <div className="font-mono font-black text-xl text-slate-900">
+                  <div className="font-mono font-black text-xl text-slate-900 whitespace-nowrap">
                     {formatCurrency(totalFinalOpsi2)}
                   </div>
                 )}

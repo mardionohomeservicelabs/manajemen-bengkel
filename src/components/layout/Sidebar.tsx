@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useApp } from '@/lib/context/AppContext';
@@ -45,13 +45,69 @@ interface NavItem {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { currentRole, workOrders, inventory, crmLogs, isSupabaseOnline, isSyncing, pendingCount, flushOfflineQueue, syncWithSupabase } = useApp();
+  const { currentRole, workOrders, checkups, inventory, crmLogs, isSupabaseOnline, isSyncing, pendingCount, flushOfflineQueue, syncWithSupabase } = useApp();
   const { currentUser, activeBranch, setActiveBranch, logout } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
   const [isFlushing, setIsFlushing] = useState(false);
 
-  const checkupsCount = DBService.getCheckups().length;
+  // Notifikasi Checklist: Sesuaikan pada jumlah mobil aktif di bengkel.
+  // Apabila mobil sudah mengisi, meskipun 1 formulir saja (QC, AC, Understeel),
+  // akan dianggap selesai dan notif di checklist hilang.
+  const carsNeedingChecklistCount = useMemo(() => {
+    const activeOrders = workOrders.filter(
+      (w) => w.status !== 'completed' && w.status !== 'cancelled'
+    );
+
+    // Kelompokkan per mobil unik berdasarkan vehicle_id atau plat nomor
+    const uniqueCars = new Map<string, typeof activeOrders[0]>();
+    activeOrders.forEach((wo) => {
+      const plate = (wo.vehicle?.license_plate || '').trim().toUpperCase().replace(/\s+/g, '');
+      const key = wo.vehicle_id || plate || wo.id;
+      if (!uniqueCars.has(key)) {
+        uniqueCars.set(key, wo);
+      }
+    });
+
+    let needingCount = 0;
+
+    uniqueCars.forEach((wo) => {
+      const cl = wo.checklist_data;
+      const normPlate = (wo.vehicle?.license_plate || '').trim().toUpperCase().replace(/\s+/g, '');
+
+      // Cek apakah ada minimal 1 checklist di checklist_data
+      let hasAtLeastOne = false;
+      if (cl && typeof cl === 'object') {
+        const hasQc = Boolean(cl.qc_data && Object.keys(cl.qc_data).length > 0);
+        const hasAc = Boolean(cl.ac_data && Object.keys(cl.ac_data).length > 0);
+        const hasUndersteel = Boolean(cl.understeel_data && Object.keys(cl.understeel_data).length > 0);
+        const hasRecord = Boolean(cl.checkup_record && Object.keys(cl.checkup_record).length > 0);
+        const hasRecords = Boolean(cl.checkup_records && Object.keys(cl.checkup_records).length > 0);
+        if (hasQc || hasAc || hasUndersteel || hasRecord || hasRecords) {
+          hasAtLeastOne = true;
+        }
+      }
+
+      // Cek apakah ada di checkups (state reactive & storage)
+      if (!hasAtLeastOne && checkups && checkups.length > 0) {
+        hasAtLeastOne = checkups.some((rec) => {
+          if (!rec) return false;
+          if (wo.id && rec.work_order_id === wo.id) return true;
+          if (wo.vehicle_id && rec.vehicle_id === wo.vehicle_id) return true;
+          const recPlate = (rec.license_plate || '').trim().toUpperCase().replace(/\s+/g, '');
+          if (normPlate && recPlate && normPlate === recPlate) return true;
+          return false;
+        });
+      }
+
+      // Jika belum mengisi satu pun, maka mobil ini butuh checklist
+      if (!hasAtLeastOne) {
+        needingCount++;
+      }
+    });
+
+    return needingCount;
+  }, [workOrders, checkups]);
 
   const activeQueuesCount = workOrders.filter(
     (w) => w.status !== 'completed' && w.status !== 'cancelled'
@@ -61,7 +117,18 @@ export function Sidebar() {
     (i) => !i.is_service && i.stock_qty <= i.min_stock_alert
   ).length;
 
-  const pendingCrmCount = crmLogs.filter((c) => c.status === 'pending').length;
+  // Notifikasi CRM: Hitung jumlah unit mobil unik yang memiliki follow-up pending
+  const pendingCrmVehicleCount = useMemo(() => {
+    const pendingVehicles = new Set<string>();
+    crmLogs.forEach((c) => {
+      if (c.status === 'pending') {
+        const plate = (c.vehicle?.license_plate || (c as any).license_plate || c.vehicle_id || '').trim().toUpperCase().replace(/\s+/g, '');
+        const key = c.vehicle_id || plate || c.id;
+        pendingVehicles.add(key);
+      }
+    });
+    return pendingVehicles.size;
+  }, [crmLogs]);
 
   const navItems: NavItem[] = [
     {
@@ -81,7 +148,7 @@ export function Sidebar() {
       href: '/checkup',
       icon: <ShieldCheck className="w-4 h-4 text-amber-400" />,
       roles: ['sa', 'admin', 'owner', 'mekanik', 'estimator'],
-      badge: checkupsCount > 0 ? checkupsCount : undefined,
+      badge: carsNeedingChecklistCount > 0 ? carsNeedingChecklistCount : undefined,
       badgeColor: 'bg-red-600 text-white',
     },
     {
@@ -123,7 +190,7 @@ export function Sidebar() {
       href: '/crm',
       icon: <MessageSquare className="w-4 h-4" />,
       roles: ['admin', 'owner', 'estimator'],
-      badge: pendingCrmCount > 0 ? pendingCrmCount : undefined,
+      badge: pendingCrmVehicleCount > 0 ? pendingCrmVehicleCount : undefined,
       badgeColor: 'bg-maroon-700 text-white',
     },
     {
