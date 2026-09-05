@@ -125,19 +125,29 @@ export function createWhatsAppLink(phone: string, message: string): string {
   return `https://wa.me/${formattedPhone}?text=${encodedMsg}`;
 }
 
-export function generateSpkNumber(): string {
-  const now = new Date();
-  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-  const randomSuffix = Math.floor(100 + Math.random() * 900);
-  return `SPK-${dateStr}-${randomSuffix}`;
+export function getBranchCode(branch?: string): string {
+  if (!branch) return 'M1';
+  const clean = branch.toUpperCase();
+  if (clean.includes('2')) return 'M2';
+  if (clean.includes('3')) return 'M3';
+  return 'M1';
 }
 
-export function generateInvoiceNumber(type: 'invoice' | 'estimation' = 'invoice'): string {
+export function generateSpkNumber(branch?: string): string {
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const branchCode = getBranchCode(branch);
+  const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+  return `SPK-${dateStr}-${branchCode}-${randomSuffix}`;
+}
+
+export function generateInvoiceNumber(type: 'invoice' | 'estimation' = 'invoice', branch?: string): string {
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
   const prefix = type === 'estimation' ? 'EST' : 'INV';
-  const randomSuffix = Math.floor(100 + Math.random() * 900);
-  return `${prefix}-${dateStr}-${randomSuffix}`;
+  const branchCode = getBranchCode(branch);
+  const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+  return `${prefix}-${dateStr}-${branchCode}-${randomSuffix}`;
 }
 
 /**

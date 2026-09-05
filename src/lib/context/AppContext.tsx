@@ -16,6 +16,7 @@ import {
 import { DBService } from '../services/db-service';
 import { isSupabaseConfigured, supabase } from '../supabase/client';
 import { useAuth } from './AuthContext';
+import { BranchId } from '../auth/users';
 
 export interface ToastMessage {
   id: string;
@@ -39,6 +40,8 @@ interface AppContextType {
   checkups: CheckupRecord[];
   refreshData: () => void;
   syncWithSupabase: () => Promise<void>;
+  generateUniqueSpkNumberAsync: (branch?: BranchId | string) => Promise<string>;
+  generateUniqueInvoiceNumberAsync: (type?: 'invoice' | 'estimation', branch?: BranchId | string) => Promise<string>;
   saveVehicleAsync: (vehicle: Omit<VehicleCustomer, 'id'> & { id?: string }) => Promise<VehicleCustomer>;
   saveWorkOrderAsync: (workOrder: Omit<WorkOrder, 'id' | 'spk_number'> & { id?: string; spk_number?: string }) => Promise<WorkOrder>;
   saveCheckupAsync: (checkup: Omit<CheckupRecord, 'id'> & { id?: string }) => Promise<CheckupRecord>;
@@ -327,6 +330,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return saved;
   };
 
+  const generateUniqueSpkNumberAsync = useCallback(async (branch?: BranchId | string): Promise<string> => {
+    return await DBService.generateUniqueSpkNumberAsync(branch || activeBranch);
+  }, [activeBranch]);
+
+  const generateUniqueInvoiceNumberAsync = useCallback(async (type?: 'invoice' | 'estimation', branch?: BranchId | string): Promise<string> => {
+    return await DBService.generateUniqueInvoiceNumberAsync(type || 'invoice', branch || activeBranch);
+  }, [activeBranch]);
+
   const saveWorkOrderAsync = async (
     workOrder: Omit<WorkOrder, 'id' | 'spk_number'> & { id?: string; spk_number?: string }
   ): Promise<WorkOrder> => {
@@ -454,6 +465,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         checkups,
         refreshData,
         syncWithSupabase,
+        generateUniqueSpkNumberAsync,
+        generateUniqueInvoiceNumberAsync,
         saveVehicleAsync,
         saveWorkOrderAsync,
         saveCheckupAsync,

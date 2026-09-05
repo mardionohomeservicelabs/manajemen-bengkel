@@ -20,6 +20,7 @@ import {
   generateInvoiceNumber,
   parseNumericPrice,
 } from '@/lib/utils';
+import Link from 'next/link';
 import {
   Receipt,
   CreditCard,
@@ -33,6 +34,8 @@ import {
   Search,
   DollarSign,
   AlertCircle,
+  AlertTriangle,
+  ExternalLink,
   Building,
   PenTool,
   Eye,
@@ -52,11 +55,13 @@ function CashierContent() {
     inventory,
     invoices,
     refreshData,
+    syncWithSupabase,
     showToast,
     settings,
     currentRole,
     saveInvoiceAsync,
     updateWorkOrderStatusAsync,
+    generateUniqueInvoiceNumberAsync,
   } = useApp();
 
   const [selectedSpkId, setSelectedSpkId] = useState<string>(spkIdParam || '');
@@ -105,6 +110,20 @@ function CashierContent() {
     }
   }, [selectedSpkId, workOrders, invoices]);
 
+  // Cek apakah estimasi untuk SPK terpilih sudah disetujui
+  const existingEstimation = invoices.find(
+    (inv) => inv.type === 'estimation' && inv.work_order_id === selectedSpk?.id
+  );
+
+  const isEstimationApproved = !existingEstimation || (
+    existingEstimation.customer_approved_option === 'opsi1' ||
+    existingEstimation.customer_approved_option === 'opsi2' ||
+    existingEstimation.customer_response === 'opsi1' ||
+    existingEstimation.customer_response === 'opsi2' ||
+    existingEstimation.ttd_status === 'signed' ||
+    ['approved', 'servicing', 'waiting_parts', 'completed_service', 'paid', 'completed'].includes(selectedSpk?.status || '')
+  );
+
   // Calculations
   const subtotal = items.reduce((sum, item) => sum + parseNumericPrice(item.subtotal), 0);
   const taxAmount = (subtotal - discountAmount) * (taxPercent / 100);
@@ -152,6 +171,10 @@ function CashierContent() {
       showToast('Pilih SPK kendaraan terlebih dahulu.', 'error');
       return;
     }
+    if (existingEstimation && !isEstimationApproved) {
+      showToast('Estimasi belum disetujui pelanggan. Sesuai ketentuan, estimasi yang belum disetujui tidak dapat dijadikan nota.', 'error');
+      return;
+    }
     if (items.length === 0) {
       showToast('Tambahkan minimal 1 item untuk penagihan.', 'error');
       return;
@@ -166,15 +189,23 @@ function CashierContent() {
       return;
     }
 
+    if (existingEstimation && !isEstimationApproved) {
+      showToast('Gagal disimpan: Estimasi belum disetujui pelanggan. Tidak dapat memproses nota.', 'error');
+      return;
+    }
+
     if (items.length === 0) {
       showToast('Tambahkan minimal 1 item pekerjaan/sparepart.', 'error');
       return;
     }
 
     setIsProcessing(true);
+    showToast('Menyimpan nota & pembayaran ke database cloud...', 'info');
 
     try {
-      const invoiceNumber = generateInvoiceNumber('invoice');
+      const branch = selectedSpk.received_at_branch;
+      const invoiceNumber = await generateUniqueInvoiceNumberAsync('invoice', branch);
+
       const newInvoice = await saveInvoiceAsync({
         invoice_number: invoiceNumber,
         type: 'invoice',
@@ -202,6 +233,10 @@ function CashierContent() {
         await updateWorkOrderStatusAsync(selectedSpk.id, 'paid');
       }
 
+      // Ambil ulang data authoritative terbaru dari Supabase
+      await syncWithSupabase();
+      refreshData();
+
       // Trigger Confetti if paid
       if (status === 'paid') {
         confetti({
@@ -212,18 +247,17 @@ function CashierContent() {
         });
       }
 
-      refreshData();
       setIsSignModalOpen(false);
       showToast(
         status === 'paid'
-          ? `Pembayaran Nota ${invoiceNumber} LUNAS! Status di antrean: 'Sudah Pembayaran'.`
-          : `Nota ${invoiceNumber} disimpan (Pending).`,
+          ? `Tersimpan! Pembayaran Nota ${newInvoice.invoice_number} LUNAS berhasil disimpan ke database cloud.`
+          : `Tersimpan! Nota ${newInvoice.invoice_number} berhasil disimpan (Pending) ke database cloud.`,
         'success'
       );
       setSavedInvoice(newInvoice);
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal memproses nota pembayaran.', 'error');
+    } catch (err: any) {
+      console.error('Payment processing error:', err);
+      showToast(`Gagal disimpan: ${err?.message || 'Gagal memproses nota pembayaran.'}`, 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -272,15 +306,49 @@ function CashierContent() {
             .map((wo) => {
               const isReadyToPay = wo.status === 'completed_service';
               const isPaid = wo.status === 'paid';
+              const woEst = invoices.find((inv) => inv.type === 'estimation' && inv.work_order_id === wo.id);
+              const isUnapproved = woEst && !(
+                woEst.customer_approved_option === 'opsi1' ||
+                woEst.customer_approved_option === 'opsi2' ||
+                woEst.customer_response === 'opsi1' ||
+                woEst.customer_response === 'opsi2' ||
+                woEst.ttd_status === 'signed' ||
+                ['approved', 'servicing', 'waiting_parts', 'completed_service', 'paid', 'completed'].includes(wo.status)
+              );
+
               return (
                 <option key={wo.id} value={wo.id}>
-                  {isReadyToPay ? '⭐ [SELESAI SERVIS - SIAP BAYAR] ' : isPaid ? '✓ [SUDAH BAYAR] ' : ''}
+                  {isUnapproved ? '⚠️ [BELUM DISETUJUI PELANGGAN] ' : isReadyToPay ? '⭐ [SELESAI SERVIS - SIAP BAYAR] ' : isPaid ? '✓ [SUDAH BAYAR] ' : ''}
                   {wo.spk_number} • {wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''} •{' '}
                   {wo.vehicle?.customer_name} ({wo.vehicle?.car_brand} {wo.vehicle?.car_model}) - Status: {wo.status}
                 </option>
               );
             })}
         </select>
+
+        {/* Warning Banner: Estimasi Belum Disetujui */}
+        {selectedSpk && !isEstimationApproved && (
+          <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 shadow-sm mt-3 animate-in fade-in duration-200">
+            <div className="flex items-start space-x-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-wide text-amber-900">
+                  Estimasi Belum Disetujui Pelanggan
+                </h4>
+                <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
+                  SPK ini memiliki estimasi biaya ({existingEstimation?.invoice_number || 'Estimasi'}) yang belum disetujui pelanggan. Sesuai ketentuan, estimasi yang belum disetujui tidak dapat diproses menjadi nota pembayaran resmi.
+                </p>
+              </div>
+            </div>
+            <Link
+              href={`/estimasi?spkId=${selectedSpk.id}`}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-xs transition flex-shrink-0"
+            >
+              <span>Buka & Setujui Estimasi</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Main Billing Grid */}
@@ -471,11 +539,17 @@ function CashierContent() {
 
           {/* Cashier Action Buttons */}
           <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
+            {!isEstimationApproved && selectedSpk && (
+              <span className="inline-flex items-center space-x-1.5 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-3.5 py-2 rounded-xl">
+                <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                <span>Estimasi belum disetujui — Penagihan terkunci</span>
+              </span>
+            )}
             <button
               type="button"
               onClick={openSignAndReviewModal}
-              disabled={!selectedSpk || items.length === 0}
-              className="inline-flex items-center space-x-2 bg-maroon-800 hover:bg-maroon-900 text-white font-black text-xs px-5 py-2.5 rounded-xl shadow-sm transition disabled:opacity-50"
+              disabled={!selectedSpk || items.length === 0 || !isEstimationApproved}
+              className="inline-flex items-center space-x-2 bg-maroon-800 hover:bg-maroon-900 text-white font-black text-xs px-5 py-2.5 rounded-xl shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <PenTool className="w-4 h-4 text-amber-300" />
               <span>Pratinjau Nota & Tanda Tangan (Customer & Admin)</span>
@@ -598,8 +672,8 @@ function CashierContent() {
               <button
                 type="button"
                 onClick={() => handleProcessPayment('pending')}
-                disabled={isProcessing}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-xs font-bold hover:bg-amber-100 transition"
+                disabled={isProcessing || !isEstimationApproved}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-xs font-bold hover:bg-amber-100 transition disabled:opacity-50"
               >
                 Simpan Sebagai Pending
               </button>
@@ -607,11 +681,11 @@ function CashierContent() {
               <button
                 type="button"
                 onClick={() => handleProcessPayment('paid')}
-                disabled={isProcessing}
-                className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs px-6 py-2.5 rounded-xl shadow-md transition"
+                disabled={isProcessing || !isEstimationApproved}
+                className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs px-6 py-2.5 rounded-xl shadow-md transition disabled:opacity-50"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>{isProcessing ? 'Memproses...' : 'Tanda Tangani & Lunaskan Pembayaran'}</span>
+                <span>{isProcessing ? 'Menyimpan ke Cloud...' : 'Tanda Tangani & Lunaskan Pembayaran'}</span>
               </button>
             </div>
           </div>

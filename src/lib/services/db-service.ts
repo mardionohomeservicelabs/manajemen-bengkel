@@ -20,6 +20,7 @@ import {
   initialSettingsMHS3,
 } from '../data/mock-data';
 import { supabase, isSupabaseConfigured } from '../supabase/client';
+import { generateSpkNumber, generateInvoiceNumber, getBranchCode } from '../utils';
 
 export const SYSTEM_DATA_EPOCH = '2026-09-05T06:40:00.000Z';
 
@@ -1088,6 +1089,83 @@ export class DBService {
     return this.getAllWorkOrders().find((w) => w.id === id || w.spk_number === id);
   }
 
+  /**
+   * Menghasilkan nomor SPK yang dijamin unik di seluruh sistem (Cloud Supabase & Cache Lokal)
+   */
+  static async generateUniqueSpkNumberAsync(branch?: BranchId | string): Promise<string> {
+    const targetBranch = normalizeBranch(branch || this.getActiveBranch());
+    let attempts = 0;
+    while (attempts < 15) {
+      attempts++;
+      const candidate = generateSpkNumber(targetBranch);
+
+      // 1. Cek di seluruh work orders lokal lintas cabang
+      const existsLocally = this.getAllWorkOrders().some((w) => w.spk_number === candidate);
+      if (existsLocally) continue;
+
+      // 2. Cek di Cloud Supabase jika terhubung
+      if (supabase && isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from('work_orders')
+            .select('id')
+            .eq('spk_number', candidate)
+            .maybeSingle();
+
+          if (!error && !data) {
+            return candidate; // 100% Unik di cloud dan lokal!
+          }
+        } catch {
+          return candidate;
+        }
+      } else {
+        return candidate;
+      }
+    }
+    // Fallback jika tabrakan terus terjadi
+    return `SPK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${getBranchCode(targetBranch)}-${Date.now().toString().slice(-5)}`;
+  }
+
+  /**
+   * Menghasilkan nomor Nota/Estimasi yang dijamin unik di seluruh sistem (Cloud Supabase & Cache Lokal)
+   */
+  static async generateUniqueInvoiceNumberAsync(
+    type: 'invoice' | 'estimation' = 'invoice',
+    branch?: BranchId | string
+  ): Promise<string> {
+    const targetBranch = normalizeBranch(branch || this.getActiveBranch());
+    let attempts = 0;
+    while (attempts < 15) {
+      attempts++;
+      const candidate = generateInvoiceNumber(type, targetBranch);
+
+      // 1. Cek di seluruh invoices lokal lintas cabang
+      const existsLocally = this.getAllInvoices().some((i) => i.invoice_number === candidate);
+      if (existsLocally) continue;
+
+      // 2. Cek di Cloud Supabase jika terhubung
+      if (supabase && isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from('invoices')
+            .select('id')
+            .eq('invoice_number', candidate)
+            .maybeSingle();
+
+          if (!error && !data) {
+            return candidate; // 100% Unik di cloud dan lokal!
+          }
+        } catch {
+          return candidate;
+        }
+      } else {
+        return candidate;
+      }
+    }
+    const prefix = type === 'estimation' ? 'EST' : 'INV';
+    return `${prefix}-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${getBranchCode(targetBranch)}-${Date.now().toString().slice(-5)}`;
+  }
+
   static saveWorkOrder(
     workOrder: Omit<WorkOrder, 'id' | 'spk_number'> & { id?: string; spk_number?: string },
     branch?: BranchId
@@ -1111,7 +1189,7 @@ export class DBService {
         saved = {
           ...workOrder,
           id: workOrder.id,
-          spk_number: workOrder.spk_number || `SPK-${Date.now().toString().slice(-6)}`,
+          spk_number: workOrder.spk_number || generateSpkNumber(targetBranch),
           checklist_data: sanitizeChecklistData(workOrder.checklist_data),
           created_at: workOrder.created_at || new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -1122,11 +1200,7 @@ export class DBService {
       saved = {
         ...workOrder,
         id: `spk-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        spk_number:
-          workOrder.spk_number ||
-          `SPK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(
-            100 + Math.random() * 900
-          )}`,
+        spk_number: workOrder.spk_number || generateSpkNumber(targetBranch),
         checklist_data: sanitizeChecklistData(workOrder.checklist_data),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -1152,6 +1226,12 @@ export class DBService {
     branch?: BranchId
   ): Promise<WorkOrder> {
     const targetBranch: BranchId = normalizeBranch(workOrder.received_at_branch || branch || this.getActiveBranch());
+
+    // Pastikan nomor SPK unik jika belum ada
+    if (!workOrder.spk_number) {
+      workOrder.spk_number = await this.generateUniqueSpkNumberAsync(targetBranch);
+    }
+
     const localSaved = this.saveWorkOrder(workOrder, targetBranch);
 
     if (supabase && isSupabaseConfigured) {
@@ -1180,14 +1260,30 @@ export class DBService {
           checklist_data: mergedChecklist,
         };
 
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from('work_orders')
           .upsert(payload, { onConflict: 'spk_number' })
           .select('*, vehicle:vehicles_customers(*)');
 
+        // Jika terjadi pelanggaran keunikan (duplicate key), otomatis generate nomor unik baru & coba lagi
+        if (error && (error.code === '23505' || error.message?.toLowerCase().includes('duplicate key') || error.message?.toLowerCase().includes('unique'))) {
+          const freshSpk = await this.generateUniqueSpkNumberAsync(targetBranch);
+          payload.spk_number = freshSpk;
+          localSaved.spk_number = freshSpk;
+          const retryRes = await supabase
+            .from('work_orders')
+            .upsert(payload, { onConflict: 'spk_number' })
+            .select('*, vehicle:vehicles_customers(*)');
+          data = retryRes.data;
+          error = retryRes.error;
+        }
+
         if (error) {
-          console.warn('Supabase saveWorkOrder error:', error.message);
-        } else if (data && data[0]) {
+          console.error('Supabase saveWorkOrder error:', error.message);
+          throw new Error(`Gagal menyimpan ke database Supabase: ${error.message}`);
+        }
+
+        if (data && data[0]) {
           const remoteSaved = data[0];
           const fullWo: WorkOrder = {
             id: remoteSaved.id,
@@ -1214,21 +1310,29 @@ export class DBService {
 
           const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, targetBranch);
           const orders = getLocal<WorkOrder[]>(key, []);
-          const idx = orders.findIndex((o) => o.spk_number === localSaved.spk_number);
+          const idx = orders.findIndex((o) => o.spk_number === localSaved.spk_number || o.id === fullWo.id);
           if (idx !== -1) {
             orders[idx] = fullWo;
-            setLocal(key, orders);
+          } else {
+            orders.unshift(fullWo);
           }
+          setLocal(key, orders);
 
-          return fullWo;
+          // PENTING: Ambil ulang data terbaru dari database
+          await this.syncFromSupabase(targetBranch);
+
+          return this.getWorkOrderById(fullWo.id, targetBranch) || fullWo;
         }
-      } catch (err) {
-        console.warn('Supabase saveWorkOrder exception:', err);
-        // Tambahkan ke offline queue untuk retry saat koneksi tersedia
-        this.addToOfflineQueue('work_order', workOrder, targetBranch);
+      } catch (err: any) {
+        console.error('Supabase saveWorkOrder exception:', err);
+        const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+        if (isOffline) {
+          this.addToOfflineQueue('work_order', workOrder, targetBranch);
+          return localSaved;
+        }
+        throw new Error(err?.message || 'Gagal menyimpan SPK ke database Supabase');
       }
     } else if (isSupabaseConfigured) {
-      // Supabase dikonfigurasi tapi client null — offline, tambahkan ke queue
       this.addToOfflineQueue('work_order', workOrder, targetBranch);
     }
 
@@ -1647,6 +1751,7 @@ export class DBService {
       saved = {
         ...invoice,
         id: `inv-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        invoice_number: invoice.invoice_number || generateInvoiceNumber(invoice.type || 'invoice', branch),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       } as Invoice;
@@ -1680,7 +1785,40 @@ export class DBService {
   }
 
   static async saveInvoiceAsync(invoice: Omit<Invoice, 'id'> & { id?: string }, branch?: BranchId): Promise<Invoice> {
-    const localSaved = this.saveInvoice(invoice, branch);
+    const targetBranch = normalizeBranch(branch || this.getActiveBranch());
+
+    // Validasi aturan SOP bengkel: Estimasi yang belum disetujui tidak dapat diproses menjadi nota servis
+    if (invoice.type === 'invoice' && invoice.work_order_id) {
+      const allInvs = this.getAllInvoices();
+      const allWos = this.getAllWorkOrders();
+      const targetWo = allWos.find((w) => w.id === invoice.work_order_id || w.spk_number === invoice.work_order_id);
+
+      const relatedEstimations = allInvs.filter(
+        (i) => i.type === 'estimation' && (i.work_order_id === invoice.work_order_id || (targetWo && i.work_order_id === targetWo.id))
+      );
+
+      if (relatedEstimations.length > 0) {
+        const isAnyApproved = relatedEstimations.some(
+          (est) =>
+            est.customer_approved_option === 'opsi1' ||
+            est.customer_approved_option === 'opsi2' ||
+            est.customer_response === 'opsi1' ||
+            est.customer_response === 'opsi2' ||
+            est.ttd_status === 'signed'
+        ) || (targetWo && ['approved', 'servicing', 'waiting_parts', 'completed_service', 'paid', 'completed'].includes(targetWo.status));
+
+        if (!isAnyApproved) {
+          throw new Error('Estimasi untuk kendaraan ini belum disetujui oleh pelanggan. Sesuai SOP bengkel, nota servis tidak dapat dibuat sebelum estimasi disetujui!');
+        }
+      }
+    }
+
+    // Pastikan nomor nota / estimasi unik jika belum diisi
+    if (!invoice.invoice_number) {
+      invoice.invoice_number = await this.generateUniqueInvoiceNumberAsync(invoice.type || 'invoice', targetBranch);
+    }
+
+    const localSaved = this.saveInvoice(invoice, targetBranch);
 
     if (supabase && isSupabaseConfigured) {
       try {
@@ -1741,69 +1879,81 @@ export class DBService {
         const client = supabase;
         if (!client) return localSaved;
 
-        const syncToCloud = async (): Promise<Invoice> => {
-          const { data, error } = await client
+        let { data, error } = await client
+          .from('invoices')
+          .upsert(payload, { onConflict: 'invoice_number' })
+          .select('*');
+
+        // Jika terjadi duplicate key error pada invoice_number, retry dengan nomor unik baru
+        if (error && (error.code === '23505' || error.message?.toLowerCase().includes('duplicate key') || error.message?.toLowerCase().includes('unique'))) {
+          const freshInv = await this.generateUniqueInvoiceNumberAsync(localSaved.type, targetBranch);
+          localSaved.invoice_number = freshInv;
+          payload.invoice_number = freshInv;
+          const retryRes = await client
             .from('invoices')
             .upsert(payload, { onConflict: 'invoice_number' })
             .select('*');
+          data = retryRes.data;
+          error = retryRes.error;
+        }
 
-          if (error) {
-            console.warn('Supabase saveInvoice upsert warning:', error.message);
-          }
+        if (error) {
+          console.error('Supabase saveInvoice error:', error.message);
+          throw new Error(`Gagal menyimpan ke database Supabase: ${error.message}`);
+        }
 
-          // Perbarui status work_order di cloud secara instan
-          const nextStatus = (localSaved.type === 'invoice' && localSaved.payment_status === 'paid')
-            ? 'paid'
-            : (localSaved.type === 'estimation' ? 'estimating' : undefined);
+        // Perbarui status work_order di cloud secara instan
+        const nextStatus = (localSaved.type === 'invoice' && localSaved.payment_status === 'paid')
+          ? 'paid'
+          : (localSaved.type === 'estimation' ? 'estimating' : undefined);
 
-          if (nextStatus) {
-            try {
-              if (validWorkOrderId) {
-                await client
-                  .from('work_orders')
-                  .update({ status: nextStatus, updated_at: nowIso })
-                  .eq('id', validWorkOrderId);
-              }
-              if (spkNumberTarget) {
-                await client
-                  .from('work_orders')
-                  .update({ status: nextStatus, updated_at: nowIso })
-                  .eq('spk_number', spkNumberTarget);
-              }
-            } catch (woErr) {
-              console.warn('Failed to update work_order status with invoice:', woErr);
+        if (nextStatus) {
+          try {
+            if (validWorkOrderId) {
+              await client
+                .from('work_orders')
+                .update({ status: nextStatus, updated_at: nowIso })
+                .eq('id', validWorkOrderId);
             }
+            if (spkNumberTarget) {
+              await client
+                .from('work_orders')
+                .update({ status: nextStatus, updated_at: nowIso })
+                .eq('spk_number', spkNumberTarget);
+            }
+          } catch (woErr) {
+            console.warn('Failed to update work_order status with invoice:', woErr);
           }
+        }
 
-          if (data && data[0]) {
-            return {
-              ...localSaved,
-              ...data[0],
-              vehicle: localSaved.vehicle,
-              work_order: localSaved.work_order,
-            };
-          }
+        // PENTING: Ambil ulang data terbaru dari database
+        await this.syncFromSupabase(targetBranch);
+
+        if (data && data[0]) {
+          return {
+            ...localSaved,
+            ...data[0],
+            vehicle: localSaved.vehicle,
+            work_order: localSaved.work_order,
+          };
+        }
+        return localSaved;
+      } catch (err: any) {
+        console.error('Supabase saveInvoice exception:', err);
+        const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+        if (isOffline) {
+          this.addToOfflineQueue('invoice', invoice, targetBranch);
           return localSaved;
-        };
-
-        const timeoutPromise = new Promise<Invoice>((_, reject) =>
-          setTimeout(() => reject(new Error('Cloud sync timeout (4s)')), 4000)
-        );
-
-        return await Promise.race([syncToCloud(), timeoutPromise]);
-      } catch (err) {
-        console.warn('Supabase saveInvoice non-blocking exception / timeout:', err);
-        // Tambahkan ke antrean offline untuk disinkronkan saat koneksi optimal
-        this.addToOfflineQueue('invoice', invoice, branch);
+        }
+        throw new Error(err?.message || 'Gagal menyimpan nota ke database Supabase');
       }
     } else if (isSupabaseConfigured) {
-      this.addToOfflineQueue('invoice', invoice, branch);
+      this.addToOfflineQueue('invoice', invoice, targetBranch);
     }
 
     return localSaved;
   }
 
-  /**
   /**
    * Menemukan estimasi berdasarkan ID atau Token publik lintas semua cabang (Cache Lokal)
    */

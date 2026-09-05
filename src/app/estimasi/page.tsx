@@ -216,6 +216,7 @@ function EstimationBuilderContent() {
     syncWithSupabase,
     unlockWorkOrderAsync,
     updateWorkOrderStatusAsync,
+    generateUniqueInvoiceNumberAsync,
   } = useApp();
 
   // Sinkronkan data saat halaman dibuka
@@ -1202,13 +1203,16 @@ function EstimationBuilderContent() {
     }
 
     setIsSaving(true);
+    showToast('Menyimpan estimasi ke database cloud...', 'info');
+
     try {
       // Cari estimasi existing untuk tab ini
       const existingEst = invoices.find(
         (inv) => inv.type === 'estimation' && inv.work_order_id === selectedSpk.id
           && ((inv as any).tab_id === activeTabId || (!((inv as any).tab_id) && activeTabId === 'tab_1'))
       );
-      const estNumber = existingEst ? existingEst.invoice_number : generateInvoiceNumber('estimation');
+      const targetBranch = (selectedSpk.received_at_branch as any) || DBService.getActiveBranch();
+      const estNumber = existingEst ? existingEst.invoice_number : await generateUniqueInvoiceNumberAsync('estimation', targetBranch);
       const activeTabObj = tabList.find((t) => t.id === activeTabId) || tabList[0];
       const activeName = (estimationType || '').trim() || activeTabObj?.name || 'Estimasi';
 
@@ -1265,17 +1269,15 @@ function EstimationBuilderContent() {
         customer_approved_option: (customerResponse === 'opsi1' || customerResponse === 'opsi2' || customerResponse === 'batal') ? customerResponse : currentEstimationRecord?.customer_approved_option,
       } as any;
 
-      const targetBranch = (selectedSpk.received_at_branch as any) || DBService.getActiveBranch();
-
-      // 1. Simpan Instan ke Local-First Database (Aman & Tidak Terhalang Koneksi)
-      const saved = DBService.saveInvoice(invoicePayload as any, targetBranch);
+      // 1. Simpan ke Supabase Cloud (WAJIB ditunggu dan diverifikasi berhasil sebelum menampilkan pesan sukses)
+      const savedInvoice = await saveInvoiceAsync(invoicePayload as any);
 
       // PENTING: Bersihkan nested work_order & vehicle dari invoice agar tidak terjadi circular reference pembengkak memori
-      const sanitizedSaved = { ...saved };
+      const sanitizedSaved = { ...savedInvoice };
       delete (sanitizedSaved as any).work_order;
       delete (sanitizedSaved as any).vehicle;
 
-      // 2. Perbarui SPK lokal
+      // 2. Perbarui SPK di Supabase Cloud & Local
       const updatedWorkOrder: WorkOrder = {
         ...selectedSpk,
         status: selectedSpk.status === 'queue' ? 'estimating' : selectedSpk.status,
@@ -1285,35 +1287,34 @@ function EstimationBuilderContent() {
           [`estimation_${activeTabId}`]: sanitizedSaved,
         } as any,
       };
-      DBService.saveWorkOrder(updatedWorkOrder, targetBranch);
+      await DBService.saveWorkOrderAsync(updatedWorkOrder, targetBranch);
 
       // 3. Backup ke LocalStorage browser & hapus draft
       if (typeof window !== 'undefined') {
-        localStorage.setItem(`mhs_est_saved_${selectedSpk.id}_${activeTabId}`, JSON.stringify(saved));
-        localStorage.setItem(`mhs_est_saved_${selectedSpk.spk_number}_${activeTabId}`, JSON.stringify(saved));
+        localStorage.setItem(`mhs_est_saved_${selectedSpk.id}_${activeTabId}`, JSON.stringify(savedInvoice));
+        localStorage.setItem(`mhs_est_saved_${selectedSpk.spk_number}_${activeTabId}`, JSON.stringify(savedInvoice));
         localStorage.removeItem(`mhs_est_draft_${selectedSpk.id}_${activeTabId}`);
         localStorage.removeItem(`mhs_est_draft_${selectedSpk.spk_number}_${activeTabId}`);
         localStorage.setItem(`mhs_est_tabs_${selectedSpk.id}`, JSON.stringify(updatedTabList));
         localStorage.setItem(`mhs_est_tabs_${selectedSpk.spk_number}`, JSON.stringify(updatedTabList));
       }
 
-      // 4. Update state tampilan & indikator tersimpan INSTAN
+      // 4. Ambil ulang data authoritative terbaru dari Supabase database
+      await syncWithSupabase();
+      refreshData();
+
+      // 5. Update state tampilan & indikator tersimpan
       const timeNow = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB';
       setLastSavedTime(timeNow);
-      setCurrentEstimationRecord(saved);
-      refreshData();
-      showToast(`Estimasi "${activeName}" (${estNumber}) berhasil disimpan!`, 'success');
+      setCurrentEstimationRecord(savedInvoice);
 
-      // 5. Sinkronisasi ke Supabase Cloud di latar belakang (Non-blocking)
-      saveInvoiceAsync(invoicePayload as any)
-        .catch((err) => console.warn('Background invoice cloud sync:', err));
-      DBService.saveWorkOrderAsync(updatedWorkOrder, targetBranch)
-        .catch((err) => console.warn('Background work order cloud sync:', err));
+      showToast(`Tersimpan! Estimasi "${activeName}" (${savedInvoice.invoice_number}) berhasil disimpan ke database cloud.`, 'success');
 
-      return saved;
-    } catch (err) {
+      return savedInvoice;
+    } catch (err: any) {
       console.error('Error saving estimation:', err);
-      showToast('Gagal menyimpan estimasi.', 'error');
+      showToast(`Gagal disimpan: ${err?.message || 'Gagal menyimpan estimasi ke database.'}`, 'error');
+      return null;
     } finally {
       setIsSaving(false);
     }

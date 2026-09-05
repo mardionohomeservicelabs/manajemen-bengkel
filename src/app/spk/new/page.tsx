@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/lib/context/AppContext';
 import { useAuth } from '@/lib/context/AuthContext';
@@ -28,67 +28,76 @@ import Link from 'next/link';
 import { SignatureCanvas } from '@/components/ui/SignatureCanvas';
 import { PrintableSPK } from '@/components/ui/PrintableSPK';
 
+type SourceInfo = string;
+type VehicleStatus = 'Ditunggu' | 'Ditinggal';
+
 export default function NewSPKPage() {
   const router = useRouter();
-  const { vehicles, refreshData, showToast, settings, saveVehicleAsync, saveWorkOrderAsync } = useApp();
+  const {
+    vehicles,
+    refreshData,
+    showToast,
+    settings,
+    saveVehicleAsync,
+    saveWorkOrderAsync,
+    generateUniqueSpkNumberAsync,
+  } = useApp();
   const { activeBranch, currentUser } = useAuth();
 
-  // Form states - Customer & Vehicle
   const [customerName, setCustomerName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
-
   const [licensePlate, setLicensePlate] = useState('');
   const [carBrand, setCarBrand] = useState('');
   const [carModel, setCarModel] = useState('');
-  const [carYear, setCarYear] = useState<string>('');
-  const [currentMileage, setCurrentMileage] = useState<string>('');
+  const [carYear, setCarYear] = useState('');
   const [chassisNumber, setChassisNumber] = useState('');
-  const [fuelLevel, setFuelLevel] = useState<number>(60);
-  const [mechanicName, setMechanicName] = useState('');
+  const [currentMileage, setCurrentMileage] = useState('');
 
-  // New PKB Fields
-  const now = new Date();
-  const defaultTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const [entryTime, setEntryTime] = useState(defaultTimeStr);
+  const [receivedAtBranch, setReceivedAtBranch] = useState<BranchId>(activeBranch);
+  const [entryTime, setEntryTime] = useState('08:00');
+  const [mechanicName, setMechanicName] = useState('');
+  const [sourceInfo, setSourceInfo] = useState<SourceInfo>('REFERENSI');
+  const [customSource, setCustomSource] = useState('');
+  const [vehicleStatus, setVehicleStatus] = useState<VehicleStatus>('Ditunggu');
+  const [fuelLevel, setFuelLevel] = useState<number>(50);
   const [complaints, setComplaints] = useState('');
   const [notes, setNotes] = useState('');
-  const [sourceInfo, setSourceInfo] = useState('REFERENSI');
-  const [customSource, setCustomSource] = useState('');
-  const [vehicleStatus, setVehicleStatus] = useState<'Ditunggu' | 'Ditinggal'>('Ditunggu');
-  const [receivedAtBranch, setReceivedAtBranch] = useState<BranchId>(activeBranch);
 
-  // 3 Digital Signatures
-  const [signatureCustomer, setSignatureCustomer] = useState<string>('');
-  const [signatureMechanic, setSignatureMechanic] = useState<string>('');
-  const [signatureSA, setSignatureSA] = useState<string>('');
+  // 3 Signatures
+  const [signatureCustomer, setSignatureCustomer] = useState('');
+  const [signatureMechanic, setSignatureMechanic] = useState('');
+  const [signatureSA, setSignatureSA] = useState('');
 
-  const [createdOrder, setCreatedOrder] = useState<WorkOrder | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createdOrder, setCreatedOrder] = useState<WorkOrder | null>(null);
 
-  // Auto-fill when typing known license plate
-  const handlePlateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value;
-    setLicensePlate(raw);
+  // Set default entry time to current time
+  useEffect(() => {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    setEntryTime(`${hh}:${mm}`);
+  }, []);
 
-    const clean = raw.toUpperCase().replace(/\s+/g, '');
-    if (clean.length >= 4) {
-      const match = vehicles.find(
-        (v) => v.license_plate.toUpperCase().replace(/\s+/g, '') === clean
-      );
-      if (match) {
-        setCustomerName(match.customer_name);
-        setPhoneNumber(match.phone_number);
-        setEmail(match.email || '');
-        setAddress(match.address || '');
-        setCarBrand(match.car_brand ? match.car_brand.toUpperCase() : '');
-        setCarModel(match.car_model ? match.car_model.toUpperCase() : '');
-        if (match.car_year) setCarYear(String(match.car_year));
-        if (match.chassis_number) setChassisNumber(match.chassis_number);
-        if (match.current_mileage) setCurrentMileage(formatKM(match.current_mileage, false));
-        showToast(`Data kendaraan ${match.license_plate} ditemukan!`, 'info');
-      }
+  // When license plate is typed, auto-fill existing vehicle data
+  const handlePlateChange = (val: string) => {
+    setLicensePlate(val);
+    const cleaned = val.replace(/\s+/g, '').toUpperCase();
+    const existing = vehicles.find(
+      (v) => v.license_plate.replace(/\s+/g, '').toUpperCase() === cleaned
+    );
+    if (existing) {
+      setCustomerName(existing.customer_name);
+      setPhoneNumber(existing.phone_number);
+      if (existing.email) setEmail(existing.email);
+      if (existing.address) setAddress(existing.address);
+      setCarBrand(existing.car_brand || '');
+      setCarModel(existing.car_model || '');
+      if (existing.car_year) setCarYear(String(existing.car_year));
+      if (existing.chassis_number) setChassisNumber(existing.chassis_number);
+      if (existing.current_mileage) setCurrentMileage(formatKM(existing.current_mileage, false));
     }
   };
 
@@ -100,6 +109,7 @@ export default function NewSPKPage() {
     }
 
     setIsSubmitting(true);
+    showToast('Menyimpan SPK ke database...', 'info');
 
     try {
       // 1. Save or update vehicle in Supabase
@@ -123,9 +133,9 @@ export default function NewSPKPage() {
         entryDate.setHours(Number(hours), Number(minutes), 0);
       }
 
-      // 2. Save work order with 3 signatures & PKB fields in Supabase
+      // 2. Generate guaranteed unique SPK number and save work order
       const finalSource = sourceInfo === 'LAINNYA' ? (customSource || 'Lainnya') : sourceInfo;
-      const spkNumber = generateSpkNumber();
+      const spkNumber = await generateUniqueSpkNumberAsync(receivedAtBranch);
       const newWorkOrder = await saveWorkOrderAsync({
         spk_number: spkNumber,
         vehicle_id: savedVehicle.id,
@@ -143,11 +153,12 @@ export default function NewSPKPage() {
         entry_date: entryDate.toISOString(),
       });
 
-      showToast(`PKB ${spkNumber} berhasil disimpan permanen ke Supabase!`, 'success');
+      refreshData();
+      showToast(`Tersimpan! SPK ${newWorkOrder.spk_number || spkNumber} berhasil disimpan ke database cloud.`, 'success');
       setCreatedOrder(newWorkOrder);
     } catch (err: any) {
       console.error('Error saving SPK to Supabase:', err);
-      showToast('Gagal menyimpan ke Supabase: ' + (err?.message || 'Terjadi kesalahan jaringan'), 'error');
+      showToast('Gagal disimpan: ' + (err?.message || 'Terjadi kesalahan jaringan atau server database'), 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -271,7 +282,7 @@ export default function NewSPKPage() {
                   required
                   placeholder="Contoh: L 1857 CAV / W 1469 XN"
                   value={licensePlate}
-                  onChange={handlePlateChange}
+                  onChange={(e) => handlePlateChange(e.target.value)}
                   className="w-full text-xs p-2.5 rounded-xl border-2 border-maroon-400 bg-maroon-50/40 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none font-black text-maroon-900 uppercase tracking-wider text-sm"
                 />
               </div>
