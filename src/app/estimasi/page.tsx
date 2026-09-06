@@ -422,6 +422,19 @@ function EstimationBuilderContent() {
         const savedTabId = localStorage.getItem(`mhs_last_active_tab_${found.id}`);
         if (savedTabId && tabs.some((t) => t.id === savedTabId)) {
           targetTabId = savedTabId;
+        } else {
+          // Cari tab yang sudah disetujui jika ada
+          const approvedTab = tabs.find((t) => {
+            const { existingEst, sourceData } = loadTabData(found, t.id, invoices);
+            const resp =
+              existingEst?.customer_approved_option ||
+              existingEst?.customer_response ||
+              sourceData?.customer_response;
+            return resp === 'opsi1' || resp === 'opsi2' || existingEst?.ttd_status === 'signed';
+          });
+          if (approvedTab) {
+            targetTabId = approvedTab.id;
+          }
         }
       } catch {}
     }
@@ -744,18 +757,47 @@ function EstimationBuilderContent() {
       setTaxPercent(sourceData.tax_percent || 11);
       setAdminNotes(sourceData.admin_notes || '');
       if (sourceData.items && Array.isArray(sourceData.items) && sourceData.items.length > 0) {
-        setItems(sourceData.items.map((i: any) => ({
-          name: i.name || '',
-          is_service: Boolean(i.is_service),
-          qty: i.qty || 1,
-          unit: i.unit || 'PCS',
-          price_opsi1: i.price_opsi1 !== undefined && i.price_opsi1 !== '' ? i.price_opsi1 : (i.price !== undefined ? i.price : 0),
-          total_opsi1: i.total_opsi1 !== undefined ? i.total_opsi1 : (i.subtotal !== undefined ? i.subtotal : 0),
-          price_opsi2: i.price_opsi2 !== undefined && i.price_opsi2 !== '' ? i.price_opsi2 : (i.price_opsi1 !== undefined && i.price_opsi1 !== '' ? i.price_opsi1 : (i.price !== undefined ? i.price : 0)),
-          total_opsi2: i.total_opsi2 !== undefined ? i.total_opsi2 : (i.total_opsi1 !== undefined ? i.total_opsi1 : 0),
-          price: i.price !== undefined ? i.price : 0,
-          subtotal: i.subtotal !== undefined ? i.subtotal : 0,
-        })));
+        setItems(
+          sourceData.items.map((i: any) => {
+            const p1 =
+              i.price_opsi1 !== undefined && i.price_opsi1 !== ''
+                ? i.price_opsi1
+                : i.price !== undefined
+                ? i.price
+                : 0;
+            const isP2ExplicitlyEmpty =
+              i.price_opsi2 === '' || i.price_opsi2 === 0 || i.price_opsi2 === '0';
+            const p2 = isP2ExplicitlyEmpty
+              ? ''
+              : i.price_opsi2 !== undefined
+              ? i.price_opsi2
+              : p1;
+            const tot1 =
+              i.total_opsi1 !== undefined
+                ? i.total_opsi1
+                : i.subtotal !== undefined
+                ? i.subtotal
+                : 0;
+            const tot2 = isP2ExplicitlyEmpty
+              ? 0
+              : i.total_opsi2 !== undefined
+              ? i.total_opsi2
+              : tot1;
+
+            return {
+              name: i.name || '',
+              is_service: Boolean(i.is_service),
+              qty: i.qty || 1,
+              unit: i.unit || 'PCS',
+              price_opsi1: p1,
+              total_opsi1: tot1,
+              price_opsi2: p2,
+              total_opsi2: tot2,
+              price: i.price !== undefined ? i.price : 0,
+              subtotal: i.subtotal !== undefined ? i.subtotal : 0,
+            };
+          })
+        );
       } else {
         setItems([...EMPTY_ESTIMATION_ROW]);
       }
@@ -965,10 +1007,10 @@ function EstimationBuilderContent() {
           row.subtotal = row.total_opsi1;
         }
       }
-      // HANYA inisialisasi jika price_opsi2 belum pernah didefinisikan sama sekali
+      // Jangan auto-mirror ke price_opsi2 agar Opsi 1 dan Opsi 2 benar-benar independen
       if (row.price_opsi2 === undefined) {
-        row.price_opsi2 = row.price_opsi1;
-        row.total_opsi2 = row.total_opsi1;
+        row.price_opsi2 = 0;
+        row.total_opsi2 = 0;
       }
     } else if (field === 'price_opsi2') {
       const valStr = String(value);
@@ -1277,6 +1319,18 @@ function EstimationBuilderContent() {
       delete (sanitizedSaved as any).work_order;
       delete (sanitizedSaved as any).vehicle;
 
+      // Tentukan activeMainEst: jangan timpa estimasi yang sudah disetujui jika tab yang sedang disimpan ini dibatalkan
+      const currentMainEst = selectedSpk.checklist_data?.estimation;
+      const isCurrentMainApproved =
+        currentMainEst &&
+        ((currentMainEst as any).customer_approved_option === 'opsi1' ||
+          (currentMainEst as any).customer_approved_option === 'opsi2' ||
+          (currentMainEst as any).customer_response === 'opsi1' ||
+          (currentMainEst as any).customer_response === 'opsi2' ||
+          (currentMainEst as any).ttd_status === 'signed');
+      const isThisEstBatal = customerResponse === 'batal';
+      const mainEstToKeep = isThisEstBatal && isCurrentMainApproved ? currentMainEst : sanitizedSaved;
+
       // 2. Perbarui SPK di Supabase Cloud & Local
       const updatedWorkOrder: WorkOrder = {
         ...selectedSpk,
@@ -1284,6 +1338,7 @@ function EstimationBuilderContent() {
         checklist_data: {
           ...(selectedSpk.checklist_data || {}),
           tabs: updatedTabList,
+          estimation: mainEstToKeep,
           [`estimation_${activeTabId}`]: sanitizedSaved,
         } as any,
       };
@@ -1550,11 +1605,16 @@ function EstimationBuilderContent() {
               </div>
               <div>
                 <h4 className="font-black text-sm text-rose-950 flex items-center space-x-2">
-                  <span>STATUS: ESTIMASI DIBATALKAN / DITOLAK CUSTOMER</span>
+                  <span>STATUS: ESTIMASI TAB INI DIBATALKAN / DITOLAK CUSTOMER</span>
                   <span className="text-[10px] bg-rose-200 text-rose-900 px-2 py-0.5 rounded-full font-bold">Online TTD</span>
                 </h4>
                 <p className="text-xs text-rose-800 mt-0.5 leading-relaxed">
-                  Pelanggan <strong>{customerSignedName || selectedSpk?.vehicle?.customer_name || 'Customer'}</strong> telah menandatangani penolakan / pembatalan estimasi ini.
+                  Pelanggan <strong>{customerSignedName || selectedSpk?.vehicle?.customer_name || 'Customer'}</strong> menandatangani penolakan / pembatalan pada opsi estimasi tab ini.
+                  {tabList.length > 1 && (
+                    <span className="block mt-1 font-semibold text-slate-700">
+                      ℹ️ Jika ada tab estimasi lain yang disetujui, pengerjaan servis SPK ini tetap berjalan menggunakan estimasi yang disetujui.
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -1635,55 +1695,95 @@ function EstimationBuilderContent() {
 
         {/* Tab Bar — multi estimasi dengan rename inline */}
         <div className="flex items-center flex-wrap gap-2 pt-1 border-b border-slate-100 pb-3">
-          {tabList.map((tab) => (
-            <div key={tab.id} className={`relative flex items-center rounded-xl transition ${
-              activeTabId === tab.id ? 'bg-[#0F172A] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}>
-              {renamingTabId === tab.id ? (
-                <input
-                  autoFocus
-                  type="text"
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onBlur={handleCommitRename}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleCommitRename(); if (e.key === 'Escape') setRenamingTabId(null); }}
-                  className="text-xs font-black px-3 py-1.5 rounded-xl bg-white text-slate-900 border-2 border-blue-500 outline-none w-36"
-                />
-              ) : (
-                <button
-                  onClick={() => handleSwitchTab(tab)}
-                  onDoubleClick={() => handleStartRename(tab)}
-                  title="Klik untuk aktif • Double-klik untuk rename"
-                  className="px-4 py-1.5 text-xs font-black cursor-pointer"
-                >
-                  {tab.name}
-                </button>
-              )}
-              {/* Rename icon */}
-              {!isLocked && activeTabId === tab.id && renamingTabId !== tab.id && (
-                <button
-                  onClick={() => handleStartRename(tab)}
-                  title="Rename tab"
-                  className="pr-1.5 text-slate-400 hover:text-white transition cursor-pointer"
-                >
-                  <span className="text-[9px]">✏</span>
-                </button>
-              )}
-              {/* Delete tab icon if more than 1 tab */}
-              {!isLocked && tabList.length > 1 && (
-                <button
-                  type="button"
-                  onClick={(e) => handleRemoveTab(tab.id, e)}
-                  title="Hapus tab estimasi ini"
-                  className={`pr-2 text-xs font-bold transition cursor-pointer ${
-                    activeTabId === tab.id ? 'text-slate-400 hover:text-red-400' : 'text-slate-400 hover:text-red-600'
-                  }`}
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          ))}
+          {tabList.map((tab) => {
+            const tabInv = invoices.find(
+              (inv) =>
+                inv.type === 'estimation' &&
+                (inv.work_order_id === selectedSpk?.id ||
+                  (selectedSpk?.spk_number && inv.work_order_id === selectedSpk.spk_number)) &&
+                ((inv as any).tab_id === tab.id || (inv as any).estimation_tab === tab.id)
+            );
+            const tabResp = tabInv?.customer_approved_option || tabInv?.customer_response;
+            const isTabApproved =
+              tabResp === 'opsi1' || tabResp === 'opsi2' || tabInv?.ttd_status === 'signed';
+            const isTabBatal = tabResp === 'batal' || tabInv?.ttd_status === 'rejected';
+            const isTabPending = !isTabApproved && !isTabBatal && tabInv?.ttd_status === 'pending';
+
+            return (
+              <div
+                key={tab.id}
+                className={`relative flex items-center rounded-xl transition ${
+                  activeTabId === tab.id
+                    ? 'bg-[#0F172A] text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {renamingTabId === tab.id ? (
+                  <input
+                    autoFocus
+                    type="text"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onBlur={handleCommitRename}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleCommitRename();
+                      if (e.key === 'Escape') setRenamingTabId(null);
+                    }}
+                    className="text-xs font-black px-3 py-1.5 rounded-xl bg-white text-slate-900 border-2 border-blue-500 outline-none w-36"
+                  />
+                ) : (
+                  <button
+                    onClick={() => handleSwitchTab(tab)}
+                    onDoubleClick={() => handleStartRename(tab)}
+                    title="Klik untuk aktif • Double-klik untuk rename"
+                    className="px-3.5 py-1.5 text-xs font-black cursor-pointer flex items-center space-x-1.5"
+                  >
+                    <span>{tab.name}</span>
+                    {isTabApproved && (
+                      <span className="px-1.5 py-0.2 rounded text-[9.5px] font-black bg-emerald-500 text-white shadow-2xs">
+                        ✓ {tabResp === 'opsi2' ? 'Opsi 2' : 'Opsi 1'}
+                      </span>
+                    )}
+                    {isTabBatal && (
+                      <span className="px-1.5 py-0.2 rounded text-[9.5px] font-black bg-rose-500 text-white shadow-2xs">
+                        ✕ Batal
+                      </span>
+                    )}
+                    {isTabPending && (
+                      <span className="px-1.5 py-0.2 rounded text-[9.5px] font-black bg-amber-500 text-white shadow-2xs">
+                        ⏳ Menunggu
+                      </span>
+                    )}
+                  </button>
+                )}
+                {/* Rename icon */}
+                {!isLocked && activeTabId === tab.id && renamingTabId !== tab.id && (
+                  <button
+                    onClick={() => handleStartRename(tab)}
+                    title="Rename tab"
+                    className="pr-1.5 text-slate-400 hover:text-white transition cursor-pointer"
+                  >
+                    <span className="text-[9px]">✏</span>
+                  </button>
+                )}
+                {/* Delete tab icon if more than 1 tab */}
+                {!isLocked && tabList.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleRemoveTab(tab.id, e)}
+                    title="Hapus tab estimasi ini"
+                    className={`pr-2 text-xs font-bold transition cursor-pointer ${
+                      activeTabId === tab.id
+                        ? 'text-slate-400 hover:text-red-400'
+                        : 'text-slate-400 hover:text-red-600'
+                    }`}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            );
+          })}
           {!isLocked && (
             <button
               onClick={handleAddNewTab}
@@ -1848,35 +1948,12 @@ function EstimationBuilderContent() {
             <span className="text-xs font-bold text-slate-700">Diskon</span>
           </label>
 
-          {/* Toggle Opsi 2 */}
+          {/* Toggle Opsi 2 (2 Estimasi dalam 1 Lembar) */}
           <label className={`flex items-center space-x-2.5 select-none ${isLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
             <div
               onClick={() => {
                 if (!isLocked) {
-                  const nextVal = !showOpsi2;
-                  setShowOpsi2(nextVal);
-                  if (nextVal) {
-                    setItems((prevItems) =>
-                      prevItems.map((row) => {
-                        const hasCustomPrice2 =
-                          row.price_opsi2 !== undefined &&
-                          row.price_opsi2 !== '' &&
-                          row.price_opsi2 !== 0 &&
-                          row.price_opsi2 !== '0';
-                        if (!hasCustomPrice2) {
-                          const p1 = row.price_opsi1 !== undefined && row.price_opsi1 !== '' ? row.price_opsi1 : 0;
-                          const tot1 = row.total_opsi1 !== undefined ? row.total_opsi1 : 0;
-                          return {
-                            ...row,
-                            price_opsi2: p1,
-                            total_opsi2: tot1,
-                          };
-                        }
-                        return row;
-                      })
-                    );
-                    showToast('Harga Opsi 2 diselaraskan dari Opsi 1.', 'info');
-                  }
+                  setShowOpsi2(!showOpsi2);
                 }
               }}
               className={`w-11 h-6 rounded-full transition-colors p-0.5 flex items-center ${
@@ -1889,7 +1966,14 @@ function EstimationBuilderContent() {
                 }`}
               />
             </div>
-            <span className="text-xs font-bold text-slate-700">Opsi 2</span>
+            <div className="flex items-center space-x-1.5">
+              <span className="text-xs font-black text-slate-800">2 Estimasi dalam 1 Lembar (Opsi 1 &amp; Opsi 2)</span>
+              {showOpsi2 && (
+                <span className="text-[10px] font-black text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                  8 Kolom Aktif
+                </span>
+              )}
+            </div>
           </label>
 
           {/* Toggle Pajak */}

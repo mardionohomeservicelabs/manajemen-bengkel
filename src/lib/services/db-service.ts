@@ -2134,15 +2134,14 @@ export class DBService {
     const now = new Date().toISOString();
     const isBatal = approvedOption === 'batal';
     const newTtdStatus = isBatal ? 'rejected' : 'signed';
-    const newWoStatus = isBatal ? 'cancelled' : 'approved';
 
     let targetInvoice: Invoice | null = target ? target.estimation : null;
 
     if (targetInvoice) {
       targetInvoice = {
         ...targetInvoice,
-        customer_signature: signatureDataUrl,
-        signature_customer_url: signatureDataUrl,
+        customer_signature: isBatal ? (targetInvoice.customer_signature || '') : signatureDataUrl,
+        signature_customer_url: isBatal ? (targetInvoice.signature_customer_url || '') : signatureDataUrl,
         customer_signed_name: customerName,
         customer_signed_at: now,
         customer_approved_option: approvedOption,
@@ -2166,31 +2165,75 @@ export class DBService {
       setLocal(key, invoices);
     }
 
+    // Periksa status estimasi-estimasi lain untuk SPK ini agar pembatalan 1 estimasi tidak membatalkan yang lain
+    const targetWoId = targetInvoice?.work_order_id || idOrToken;
+    const allWoInvoices = invoices.filter(
+      (i) => i.type === 'estimation' &&
+             (i.work_order_id === targetWoId || (targetInvoice?.work_order?.spk_number && i.work_order_id === targetInvoice.work_order.spk_number))
+    );
+
+    const otherApprovedEst = allWoInvoices.find(
+      (i) => (targetInvoice ? i.id !== targetInvoice.id && i.invoice_number !== targetInvoice.invoice_number : true) &&
+             (i.customer_approved_option === 'opsi1' ||
+              i.customer_approved_option === 'opsi2' ||
+              i.customer_response === 'opsi1' ||
+              i.customer_response === 'opsi2' ||
+              i.ttd_status === 'signed')
+    );
+
+    const hasOtherPendingEst = allWoInvoices.some(
+      (i) => (targetInvoice ? i.id !== targetInvoice.id && i.invoice_number !== targetInvoice.invoice_number : true) &&
+             i.customer_response !== 'batal' && i.ttd_status !== 'rejected'
+    );
+
+    // Tentukan status Work Order baru:
+    // - Jika estimasi ini disetujui -> SPK menjadi 'approved'
+    // - Jika estimasi ini dibatalkan, namun ada estimasi lain yang disetujui -> SPK TETAP 'approved'
+    // - Jika estimasi ini dibatalkan, namun masih ada estimasi lain yang pending -> SPK tetap 'estimating' (bukan cancelled)
+    // - Hanya jika SEMUA estimasi dibatalkan -> SPK menjadi 'cancelled'
+    let newWoStatus: WorkOrderStatus = 'approved';
+    if (isBatal) {
+      if (otherApprovedEst) {
+        newWoStatus = 'approved';
+      } else if (hasOtherPendingEst) {
+        newWoStatus = 'estimating';
+      } else {
+        newWoStatus = 'cancelled';
+      }
+    }
+
     // 2. Update cache lokal Work Orders
-    const woId = targetInvoice?.work_order_id || idOrToken;
-    if (woId) {
+    if (targetWoId) {
       const woKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, activeBranch);
       const workOrders = getLocal<WorkOrder[]>(woKey, []);
-      const woIdx = workOrders.findIndex((w) => w.id === woId || w.spk_number === woId);
+      const woIdx = workOrders.findIndex((w) => w.id === targetWoId || w.spk_number === targetWoId);
       if (woIdx !== -1 && targetInvoice) {
         const tabKey = (targetInvoice as any).tab_id || targetInvoice.estimation_tab || 'tab_1';
         const sanitizedTarget = { ...targetInvoice };
         delete (sanitizedTarget as any).work_order;
         delete (sanitizedTarget as any).vehicle;
 
+        const currentWo = workOrders[woIdx];
+        const isCurrentlyAdvanced = ['servicing', 'waiting_parts', 'completed_service', 'paid', 'completed'].includes(currentWo.status);
+        const finalWoStatus = isCurrentlyAdvanced ? currentWo.status : newWoStatus;
+
+        // Tentukan estimasi rujukan utama di checklist_data:
+        // Jika tab ini dibatalkan tapi ada tab lain yang disetujui, utamakan tab yang disetujui!
+        const activeMainEst = isBatal && otherApprovedEst ? otherApprovedEst : sanitizedTarget;
+
         workOrders[woIdx] = {
-          ...workOrders[woIdx],
-          status: workOrders[woIdx].status === 'completed' ? 'completed' : newWoStatus,
-          signature_customer_url: signatureDataUrl,
+          ...currentWo,
+          status: finalWoStatus,
+          signature_customer_url: !isBatal ? signatureDataUrl : (otherApprovedEst?.signature_customer_url || currentWo.signature_customer_url),
           checklist_data: sanitizeChecklistData({
-            ...(workOrders[woIdx].checklist_data || {}),
-            estimation: sanitizedTarget,
+            ...(currentWo.checklist_data || {}),
+            estimation: activeMainEst,
             [`estimation_${tabKey}`]: sanitizedTarget,
-            signature_customer_url: signatureDataUrl,
-            customer_signed_name: customerName,
-            customer_signed_at: now,
-            customer_approved_option: approvedOption,
-            customer_response: approvedOption,
+            signature_customer_url: !isBatal ? signatureDataUrl : (otherApprovedEst?.signature_customer_url || (currentWo.checklist_data as any)?.signature_customer_url || currentWo.signature_customer_url),
+            customer_signed_name: !isBatal ? customerName : (otherApprovedEst?.customer_signed_name || (currentWo.checklist_data as any)?.customer_signed_name),
+            customer_signed_at: !isBatal ? now : (otherApprovedEst?.customer_signed_at || (currentWo.checklist_data as any)?.customer_signed_at),
+            customer_approved_option: !isBatal ? approvedOption : (otherApprovedEst?.customer_approved_option || approvedOption),
+            customer_response: !isBatal ? approvedOption : (otherApprovedEst?.customer_response || approvedOption),
           }),
           updated_at: now,
         };
@@ -2201,9 +2244,6 @@ export class DBService {
     // 3. Update Cloud Supabase (Work Orders & Invoices)
     if (supabase && isSupabaseConfigured && targetInvoice) {
       try {
-        const targetWoId = targetInvoice.work_order_id || idOrToken;
-
-        // Ambil data work_orders terbaru dari Supabase
         const { data: woData } = await supabase
           .from('work_orders')
           .select('*')
@@ -2214,21 +2254,24 @@ export class DBService {
           const remoteWo = woData[0];
           const existingChecklist = remoteWo.checklist_data || {};
           const tabKey = (targetInvoice as any).tab_id || targetInvoice.estimation_tab || 'tab_1';
+          const isCurrentlyAdvanced = ['servicing', 'waiting_parts', 'completed_service', 'paid', 'completed'].includes(remoteWo.status);
+          const finalWoStatus = isCurrentlyAdvanced ? remoteWo.status : newWoStatus;
+          const activeMainEst = isBatal && otherApprovedEst ? otherApprovedEst : targetInvoice;
 
           await supabase
             .from('work_orders')
             .update({
-              status: remoteWo.status === 'completed' ? 'completed' : newWoStatus,
-              signature_url: signatureDataUrl,
+              status: finalWoStatus,
+              signature_url: !isBatal ? signatureDataUrl : (otherApprovedEst?.signature_customer_url || remoteWo.signature_url),
               checklist_data: {
                 ...existingChecklist,
-                estimation: targetInvoice,
+                estimation: activeMainEst,
                 [`estimation_${tabKey}`]: targetInvoice,
-                signature_customer_url: signatureDataUrl,
-                customer_signed_name: customerName,
-                customer_signed_at: now,
-                customer_approved_option: approvedOption,
-                customer_response: approvedOption,
+                signature_customer_url: !isBatal ? signatureDataUrl : (otherApprovedEst?.signature_customer_url || remoteWo.signature_url),
+                customer_signed_name: !isBatal ? customerName : (otherApprovedEst?.customer_signed_name || remoteWo.customer_signed_name),
+                customer_signed_at: !isBatal ? now : (otherApprovedEst?.customer_signed_at || remoteWo.customer_signed_at),
+                customer_approved_option: !isBatal ? approvedOption : (otherApprovedEst?.customer_approved_option || approvedOption),
+                customer_response: !isBatal ? approvedOption : (otherApprovedEst?.customer_response || approvedOption),
               },
               updated_at: now,
             })

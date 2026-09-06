@@ -49,7 +49,17 @@ export function PrintableEstimation({
     printCleanDocument(documentRef.current, `Estimasi Biaya - ${estimation.invoice_number}`);
   };
 
-  const hasOpsi2 = Boolean(estimation.has_opsi2);
+  const hasOpsi2 = Boolean(
+    estimation.has_opsi2 ||
+    (estimation.items &&
+      estimation.items.some(
+        (it: any) =>
+          it.price_opsi2 !== undefined &&
+          it.price_opsi2 !== '' &&
+          it.price_opsi2 !== 0 &&
+          it.price_opsi2 !== '0'
+      ))
+  );
 
   const getWhatsAppMessage = () => {
     return (
@@ -69,30 +79,43 @@ export function PrintableEstimation({
     ? createWhatsAppLink(vehicle.phone_number, getWhatsAppMessage())
     : '#';
 
-  // Total Calculations
-  const tot1 = itemsTotal(estimation.items || [], 'opsi1') - (estimation.discount_amount || 0);
-  const tot2 = itemsTotal(estimation.items || [], 'opsi2') - (estimation.discount_amount || 0);
-
   function itemsTotal(itemsList: InvoiceItem[], option: 'opsi1' | 'opsi2'): number {
     return itemsList.reduce((sum, it) => {
       if (option === 'opsi1') {
-        const val = typeof it.total_opsi1 === 'number'
-          ? it.total_opsi1
-          : (typeof it.price_opsi1 === 'number' ? (it.qty || 1) * it.price_opsi1 : (typeof it.price === 'number' ? (it.qty || 1) * it.price : 0));
+        const isP1Empty = it.price_opsi1 === '' || it.price_opsi1 === 0 || it.price_opsi1 === '0';
+        if (isP1Empty && (it.price === undefined || it.price === 0 || it.price === '0')) return sum;
+        const p1Val = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : (it.price || 0);
+        const parsed = parseNumericPrice(p1Val);
+        const val =
+          typeof it.total_opsi1 === 'number' && it.total_opsi1 > 0
+            ? it.total_opsi1
+            : (it.qty || 1) * parsed;
         return sum + (Number.isNaN(val) ? 0 : val);
       } else {
         const isP2Empty = it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0';
         if (isP2Empty) return sum;
-        const p2Effective = it.price_opsi2 !== undefined ? it.price_opsi2 : (it.price_opsi1 !== undefined ? it.price_opsi1 : (it.price || 0));
-        const val = typeof it.total_opsi2 === 'number' && it.total_opsi2 > 0
-          ? it.total_opsi2
-          : (typeof p2Effective === 'number'
-            ? (it.qty || 1) * p2Effective
-            : 0);
+        const p2Effective = it.price_opsi2 !== undefined && it.price_opsi2 !== '' ? it.price_opsi2 : 0;
+        const parsed = parseNumericPrice(p2Effective);
+        const val =
+          typeof it.total_opsi2 === 'number' && it.total_opsi2 > 0
+            ? it.total_opsi2
+            : (it.qty || 1) * parsed;
         return sum + (Number.isNaN(val) ? 0 : val);
       }
     }, 0);
   }
+
+  // Total Calculations
+  const calculatedTot1 = itemsTotal(estimation.items || [], 'opsi1') - (estimation.discount_amount || 0);
+  const calculatedTot2 = itemsTotal(estimation.items || [], 'opsi2') - (estimation.discount_amount || 0);
+  const tot1 =
+    estimation.total_opsi1 !== undefined && estimation.total_opsi1 > 0
+      ? estimation.total_opsi1
+      : calculatedTot1;
+  const tot2 =
+    estimation.total_opsi2 !== undefined && estimation.total_opsi2 > 0
+      ? estimation.total_opsi2
+      : calculatedTot2;
 
 
   const complaintsText = estimation.work_order?.complaints || 'Ketika kena lubang kerasa banget, suara bising sebelah kanan';
@@ -265,33 +288,62 @@ export function PrintableEstimation({
               </thead>
               <tbody className="divide-y divide-slate-300">
                 {estimation.items.map((item, idx) => {
-                  const p1 = item.price_opsi1 !== undefined ? item.price_opsi1 : item.price;
-                  const tot1 = item.total_opsi1 !== undefined ? item.total_opsi1 : (typeof p1 === 'number' ? (item.qty || 1) * p1 : p1);
-                  const isP2Empty = item.price_opsi2 === '' || item.price_opsi2 === 0 || item.price_opsi2 === '0';
-                  const p2 = isP2Empty ? '-' : (item.price_opsi2 !== undefined ? item.price_opsi2 : p1);
-                  const tot2 = isP2Empty ? '-' : (item.total_opsi2 !== undefined && item.total_opsi2 !== 0 ? item.total_opsi2 : (typeof p2 === 'number' ? (item.qty || 1) * p2 : tot1));
+                  const isP1Empty =
+                    item.price_opsi1 === '' || item.price_opsi1 === 0 || item.price_opsi1 === '0';
+                  const p1 =
+                    item.price_opsi1 !== undefined && item.price_opsi1 !== ''
+                      ? item.price_opsi1
+                      : item.price !== undefined
+                      ? item.price
+                      : 0;
+                  const p1Num = parseNumericPrice(p1);
+                  const tot1 =
+                    isP1Empty && p1Num === 0
+                      ? 0
+                      : item.total_opsi1 !== undefined
+                      ? item.total_opsi1
+                      : (item.qty || 1) * p1Num;
+
+                  const isP2Empty =
+                    item.price_opsi2 === '' || item.price_opsi2 === 0 || item.price_opsi2 === '0';
+                  const p2 = isP2Empty ? 0 : item.price_opsi2 !== undefined ? item.price_opsi2 : 0;
+                  const p2Num = parseNumericPrice(p2);
+                  const tot2 =
+                    isP2Empty
+                      ? 0
+                      : item.total_opsi2 !== undefined && item.total_opsi2 !== 0
+                      ? item.total_opsi2
+                      : (item.qty || 1) * p2Num;
 
                   return (
                     <tr key={idx} className="hover:bg-slate-50 estimation-item-row">
-                      <td className="p-1.5 text-center font-bold border-r border-slate-300 align-middle">{idx + 1}</td>
-                      <td className="p-1.5 border-r border-slate-300 align-middle">
-                        <div className="font-bold text-slate-900 uppercase break-words whitespace-normal leading-snug">{item.name}</div>
+                      <td className="p-1.5 text-center font-bold border-r border-slate-300 align-middle">
+                        {idx + 1}
                       </td>
-                      <td className="p-1.5 text-center font-mono font-bold border-r border-slate-300 align-middle">{item.qty || 1}</td>
-                      <td className="p-1.5 text-center text-[10px] font-black uppercase text-slate-700 border-r border-slate-300 align-middle">{item.unit || 'PCS'}</td>
+                      <td className="p-1.5 border-r border-slate-300 align-middle">
+                        <div className="font-bold text-slate-900 uppercase break-words whitespace-normal leading-snug">
+                          {item.name}
+                        </div>
+                      </td>
+                      <td className="p-1.5 text-center font-mono font-bold border-r border-slate-300 align-middle">
+                        {item.qty || 1}
+                      </td>
+                      <td className="p-1.5 text-center text-[10px] font-black uppercase text-slate-700 border-r border-slate-300 align-middle">
+                        {item.unit || 'PCS'}
+                      </td>
                       <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold">
-                        {formatCurrency(p1)}
+                        {isP1Empty || p1Num === 0 ? '0' : formatCurrency(p1)}
                       </td>
                       <td className="p-1.5 text-right font-mono font-black text-slate-900 border-r border-slate-300 align-middle">
-                        {formatCurrency(tot1)}
+                        {isP1Empty || p1Num === 0 ? '0' : formatCurrency(tot1)}
                       </td>
                       {hasOpsi2 && (
                         <>
                           <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold bg-blue-50/20 text-blue-900">
-                            {p2 === '-' ? '-' : formatCurrency(p2)}
+                            {isP2Empty || p2Num === 0 ? '0' : formatCurrency(p2)}
                           </td>
                           <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
-                            {tot2 === '-' ? '-' : formatCurrency(tot2)}
+                            {isP2Empty || tot2 === 0 ? '0' : formatCurrency(tot2)}
                           </td>
                         </>
                       )}

@@ -95,14 +95,83 @@ function CashierContent() {
       if (found) {
         setSelectedSpk(found);
 
-        // Check if there is an estimation for this SPK
-        const est = invoices.find(
-          (inv) => inv.type === 'estimation' && inv.work_order_id === found.id
+        // Check estimations for this SPK - prioritize approved estimation
+        const allSpkEsts = invoices.filter(
+          (inv) =>
+            inv.type === 'estimation' &&
+            (inv.work_order_id === found.id ||
+              (found.spk_number && inv.work_order_id === found.spk_number) ||
+              (inv.work_order?.spk_number && found.spk_number && inv.work_order.spk_number === found.spk_number))
         );
-        if (est) {
-          setItems(est.items);
-          setDiscountAmount(est.discount_amount || 0);
-          setTaxPercent(est.tax_percent || 0);
+
+        const approvedEst = allSpkEsts.find(
+          (inv) =>
+            inv.customer_approved_option === 'opsi1' ||
+            inv.customer_approved_option === 'opsi2' ||
+            inv.customer_response === 'opsi1' ||
+            inv.customer_response === 'opsi2' ||
+            inv.ttd_status === 'signed'
+        );
+
+        const targetEst: Invoice | null =
+          approvedEst ||
+          (found.checklist_data?.estimation &&
+          (found.checklist_data.estimation as any).customer_response !== 'batal' &&
+          (found.checklist_data.estimation as any).ttd_status !== 'rejected'
+            ? (found.checklist_data.estimation as Invoice)
+            : null) ||
+          allSpkEsts.find((inv) => inv.customer_response !== 'batal' && inv.ttd_status !== 'rejected') ||
+          allSpkEsts[0] ||
+          null;
+
+        if (targetEst && targetEst.items && targetEst.items.length > 0) {
+          const chosenOpt = targetEst.customer_approved_option || targetEst.customer_response || 'opsi1';
+          const isOpsi2 = chosenOpt === 'opsi2';
+
+          const mappedItems: InvoiceItem[] = targetEst.items
+            .map((it) => {
+              let priceToUse: any = it.price;
+              let subtotalToUse: any = it.subtotal;
+
+              if (isOpsi2) {
+                const hasP2 =
+                  it.price_opsi2 !== undefined &&
+                  it.price_opsi2 !== '' &&
+                  it.price_opsi2 !== 0 &&
+                  it.price_opsi2 !== '0';
+                if (hasP2) {
+                  priceToUse = it.price_opsi2;
+                  subtotalToUse =
+                    it.total_opsi2 !== undefined && it.total_opsi2 !== 0
+                      ? it.total_opsi2
+                      : parseNumericPrice(priceToUse) * (it.qty || 1);
+                } else if (it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0') {
+                  priceToUse = 0;
+                  subtotalToUse = 0;
+                } else {
+                  priceToUse = it.price_opsi1 !== undefined ? it.price_opsi1 : it.price;
+                  subtotalToUse = it.total_opsi1 !== undefined ? it.total_opsi1 : it.subtotal;
+                }
+              } else {
+                priceToUse = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : it.price;
+                subtotalToUse = it.total_opsi1 !== undefined ? it.total_opsi1 : it.subtotal;
+              }
+
+              const numPrice = parseNumericPrice(priceToUse);
+              const numSubtotal = parseNumericPrice(subtotalToUse) || numPrice * (it.qty || 1);
+
+              return {
+                ...it,
+                price: numPrice,
+                subtotal: numSubtotal,
+              };
+            })
+            // Filter out items that have 0 price in the selected option (e.g. only existed in the other option)
+            .filter((it) => it.subtotal > 0 || it.price > 0 || Boolean(it.name));
+
+          setItems(mappedItems);
+          setDiscountAmount(targetEst.discount_amount || 0);
+          setTaxPercent(targetEst.tax_percent || 0);
         } else {
           setItems([]);
         }
@@ -110,19 +179,31 @@ function CashierContent() {
     }
   }, [selectedSpkId, workOrders, invoices]);
 
-  // Cek apakah estimasi untuk SPK terpilih sudah disetujui
-  const existingEstimation = invoices.find(
-    (inv) => inv.type === 'estimation' && inv.work_order_id === selectedSpk?.id
+  // Cek apakah ada estimasi yang disetujui untuk SPK terpilih
+  const spkInvoices = invoices.filter(
+    (inv) =>
+      inv.type === 'estimation' &&
+      (inv.work_order_id === selectedSpk?.id ||
+        (selectedSpk?.spk_number && inv.work_order_id === selectedSpk.spk_number))
   );
 
-  const isEstimationApproved = !existingEstimation || (
-    existingEstimation.customer_approved_option === 'opsi1' ||
-    existingEstimation.customer_approved_option === 'opsi2' ||
-    existingEstimation.customer_response === 'opsi1' ||
-    existingEstimation.customer_response === 'opsi2' ||
-    existingEstimation.ttd_status === 'signed' ||
-    ['approved', 'servicing', 'waiting_parts', 'completed_service', 'paid', 'completed'].includes(selectedSpk?.status || '')
+  const approvedEstimation = spkInvoices.find(
+    (inv) =>
+      inv.customer_approved_option === 'opsi1' ||
+      inv.customer_approved_option === 'opsi2' ||
+      inv.customer_response === 'opsi1' ||
+      inv.customer_response === 'opsi2' ||
+      inv.ttd_status === 'signed'
   );
+
+  const existingEstimation = approvedEstimation || spkInvoices[0] || null;
+
+  const isEstimationApproved =
+    spkInvoices.length === 0 ||
+    Boolean(approvedEstimation) ||
+    ['approved', 'servicing', 'waiting_parts', 'completed_service', 'paid', 'completed'].includes(
+      selectedSpk?.status || ''
+    );
 
   // Calculations
   const subtotal = items.reduce((sum, item) => sum + parseNumericPrice(item.subtotal), 0);
@@ -306,15 +387,23 @@ function CashierContent() {
             .map((wo) => {
               const isReadyToPay = wo.status === 'completed_service';
               const isPaid = wo.status === 'paid';
-              const woEst = invoices.find((inv) => inv.type === 'estimation' && inv.work_order_id === wo.id);
-              const isUnapproved = woEst && !(
-                woEst.customer_approved_option === 'opsi1' ||
-                woEst.customer_approved_option === 'opsi2' ||
-                woEst.customer_response === 'opsi1' ||
-                woEst.customer_response === 'opsi2' ||
-                woEst.ttd_status === 'signed' ||
-                ['approved', 'servicing', 'waiting_parts', 'completed_service', 'paid', 'completed'].includes(wo.status)
+              const woEsts = invoices.filter(
+                (inv) =>
+                  inv.type === 'estimation' &&
+                  (inv.work_order_id === wo.id || (wo.spk_number && inv.work_order_id === wo.spk_number))
               );
+              const hasApprovedEst = woEsts.some(
+                (inv) =>
+                  inv.customer_approved_option === 'opsi1' ||
+                  inv.customer_approved_option === 'opsi2' ||
+                  inv.customer_response === 'opsi1' ||
+                  inv.customer_response === 'opsi2' ||
+                  inv.ttd_status === 'signed'
+              );
+              const isUnapproved =
+                woEsts.length > 0 &&
+                !hasApprovedEst &&
+                !['approved', 'servicing', 'waiting_parts', 'completed_service', 'paid', 'completed'].includes(wo.status);
 
               return (
                 <option key={wo.id} value={wo.id}>
