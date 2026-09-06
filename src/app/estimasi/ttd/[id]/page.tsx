@@ -34,6 +34,7 @@ const formatRangeDisplay = (min: number, max: number): string => {
 export default function CustomerSignatureApprovalPage() {
   const params = useParams();
   const rawId = params?.id as string;
+  const cleanId = rawId ? decodeURIComponent(rawId) : '';
 
   const [estimation, setEstimation] = useState<Invoice | null>(null);
   const [settings, setSettings] = useState<WorkshopSettings | null>(null);
@@ -46,12 +47,12 @@ export default function CustomerSignatureApprovalPage() {
   const [notFound, setNotFound] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!rawId) return;
+    if (!cleanId) return;
     let isMounted = true;
 
     const loadData = async () => {
       try {
-        const result = await DBService.findEstimationByIdOrTokenAsync(rawId);
+        const result = await DBService.findEstimationByIdOrTokenAsync(cleanId);
         if (!isMounted) return;
 
         if (result && result.estimation) {
@@ -92,7 +93,7 @@ export default function CustomerSignatureApprovalPage() {
     return () => {
       isMounted = false;
     };
-  }, [rawId]);
+  }, [cleanId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,7 +111,7 @@ export default function CustomerSignatureApprovalPage() {
     setIsSubmitting(true);
     try {
       const updated = await DBService.approveEstimationSignature(
-        rawId,
+        cleanId,
         signatureDataUrl,
         signerName.trim() || estimation.vehicle?.customer_name || 'Customer',
         selectedOption

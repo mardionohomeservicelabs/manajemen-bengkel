@@ -62,6 +62,17 @@ export function PrintableEstimation({
   );
 
   const getWhatsAppMessage = () => {
+    let baseOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    if (
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+      process.env.NEXT_PUBLIC_APP_URL
+    ) {
+      baseOrigin = process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
+    }
+    const token = estimation.invoice_number || estimation.id;
+    const approvalUrl = baseOrigin ? `${baseOrigin}/estimasi/ttd/${encodeURIComponent(token)}` : '';
+
     return (
       `Halo Bpk/Ibu ${vehicle?.customer_name || 'Pelanggan'},\n` +
       `Berikut rincian Surat Estimasi Biaya Perbaikan dari ${settings.name}:\n\n` +
@@ -70,7 +81,8 @@ export function PrintableEstimation({
       `Total Estimasi Opsi 1: ${formatCurrency(estimation.total_opsi1 || estimation.total_amount)}\n` +
       (hasOpsi2 ? `Total Estimasi Opsi 2: ${formatCurrency(estimation.total_opsi2 || estimation.total_amount)}\n` : '') +
       `Estimator: ${signerEstimator || 'Via Rizkiana'}\n\n` +
-      `Mohon konfirmasi persetujuan pengerjaan dengan membalas pesan ini "SETUJU" atau klik tautan digital approval.\n` +
+      (approvalUrl ? `Silakan klik tautan resmi di bawah ini untuk melihat rincian & menyetujui secara digital:\n🔗 ${approvalUrl}\n\n` : '') +
+      `Mohon konfirmasi persetujuan pengerjaan dengan membuka tautan di atas atau membalas pesan ini "SETUJU".\n` +
       `Terima kasih.`
     );
   };

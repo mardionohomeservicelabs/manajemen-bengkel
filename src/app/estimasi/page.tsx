@@ -1396,8 +1396,23 @@ function EstimationBuilderContent() {
   // Generate public TTD URL
   const getPublicTtdUrl = () => {
     if (typeof window === 'undefined') return '';
-    const estId = currentEstimationRecord?.id || selectedSpk?.id || 'demo';
-    return `${window.location.origin}/estimasi/ttd/${estId}`;
+    // Utamakan nomor invoice (EST-...) atau SPK number yang terindeks dan tersimpan di database Supabase
+    const estToken =
+      currentEstimationRecord?.invoice_number ||
+      currentEstimationRecord?.id ||
+      selectedSpk?.spk_number ||
+      selectedSpk?.id ||
+      'demo';
+
+    let baseOrigin = window.location.origin;
+    if (
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+      process.env.NEXT_PUBLIC_APP_URL
+    ) {
+      baseOrigin = process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
+    }
+
+    return `${baseOrigin}/estimasi/ttd/${encodeURIComponent(estToken)}`;
   };
 
   const handleCopyLink = () => {

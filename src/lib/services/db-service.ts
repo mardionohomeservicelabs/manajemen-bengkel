@@ -1958,6 +1958,7 @@ export class DBService {
    * Menemukan estimasi berdasarkan ID atau Token publik lintas semua cabang (Cache Lokal)
    */
   static findEstimationByIdOrToken(idOrToken: string): { estimation: Invoice; branch: BranchId } | null {
+    if (!idOrToken) return null;
     const branches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
     for (const b of branches) {
       const invs = this.getInvoices(b);
@@ -1971,16 +1972,41 @@ export class DBService {
       if (found) {
         return { estimation: found, branch: b };
       }
+
+      // Cek juga work_orders di cache lokal jika disimpan dalam checklist_data
+      const wos = this.getWorkOrders(b);
+      const foundWo = wos.find(
+        (w) =>
+          w.id === idOrToken ||
+          w.spk_number === idOrToken ||
+          (w.checklist_data as any)?.estimation?.invoice_number === idOrToken ||
+          (w.checklist_data as any)?.estimation?.id === idOrToken
+      );
+      if (foundWo && foundWo.checklist_data?.estimation) {
+        const est = foundWo.checklist_data.estimation;
+        return {
+          estimation: {
+            ...est,
+            work_order_id: foundWo.id,
+            vehicle: foundWo.vehicle,
+            work_order: foundWo,
+          },
+          branch: b,
+        };
+      }
     }
     return null;
   }
 
   /**
    * Menemukan estimasi secara asinkron dari Cache Lokal maupun Cloud Supabase
+   * Mendukung pencarian via invoice_number (EST-...), spk_number (SPK-...), maupun UUID
    */
   static async findEstimationByIdOrTokenAsync(
     idOrToken: string
   ): Promise<{ estimation: Invoice; branch: BranchId } | null> {
+    if (!idOrToken) return null;
+
     // 1. Coba cari di cache lokal terlebih dahulu
     const localTarget = this.findEstimationByIdOrToken(idOrToken);
     if (localTarget) {
@@ -1990,11 +2016,21 @@ export class DBService {
     // 2. Jika tidak ada di lokal (misal customer membuka link di HP pribadi), query langsung ke Supabase
     if (supabase && isSupabaseConfigured) {
       try {
-        // Cari di tabel invoices dengan join work_order dan vehicle
-        const { data: invData, error: invErr } = await supabase
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const isUuid = uuidRegex.test(idOrToken);
+
+        // 2a. Cari di tabel invoices (HANYA query id / work_order_id jika idOrToken memang UUID valid)
+        let invQuery = supabase
           .from('invoices')
-          .select('*, vehicle:vehicles_customers(*), work_order:work_orders(*)')
-          .or(`id.eq.${idOrToken},invoice_number.eq.${idOrToken},work_order_id.eq.${idOrToken}`)
+          .select('*, vehicle:vehicles_customers(*), work_order:work_orders(*)');
+
+        if (isUuid) {
+          invQuery = invQuery.or(`id.eq.${idOrToken},invoice_number.eq.${idOrToken},work_order_id.eq.${idOrToken}`);
+        } else {
+          invQuery = invQuery.eq('invoice_number', idOrToken);
+        }
+
+        const { data: invData, error: invErr } = await invQuery
           .order('created_at', { ascending: false })
           .limit(1);
 
@@ -2002,10 +2038,10 @@ export class DBService {
           const row = invData[0];
           const branch: BranchId = (row.work_order?.checklist_data?.received_at_branch as BranchId) || 'MHS 1';
           const checklist = row.work_order?.checklist_data || {};
-          
+
           // Cari nested estimation di dalam checklist_data yang paling cocok
           let nestedEst: any = checklist.estimation || null;
-          if (!nestedEst) {
+          if (!nestedEst || (row.invoice_number && nestedEst.invoice_number !== row.invoice_number)) {
             for (const k of Object.keys(checklist)) {
               if (k.startsWith('estimation') && checklist[k]?.invoice_number === row.invoice_number) {
                 nestedEst = checklist[k];
@@ -2023,9 +2059,17 @@ export class DBService {
           }
 
           const rawItems = nestedEst?.items || (Array.isArray(row.items) ? row.items : []);
-          const hasOpsi2 = nestedEst?.has_opsi2 !== undefined 
-            ? nestedEst.has_opsi2 
-            : true;
+          const hasOpsi2 =
+            nestedEst?.has_opsi2 !== undefined
+              ? nestedEst.has_opsi2
+              : Array.isArray(rawItems) &&
+                rawItems.some(
+                  (it: any) =>
+                    it.price_opsi2 !== undefined &&
+                    it.price_opsi2 !== '' &&
+                    it.price_opsi2 !== 0 &&
+                    it.price_opsi2 !== '0'
+                );
 
           const inv: Invoice = {
             id: row.id,
@@ -2044,8 +2088,13 @@ export class DBService {
             payment_status: row.payment_status || 'pending',
             payment_method: row.payment_method || undefined,
             admin_notes: nestedEst?.admin_notes || row.admin_notes || undefined,
-            signature_customer_url: nestedEst?.signature_customer_url || nestedEst?.customer_signature || row.work_order?.signature_url || undefined,
-            signature_admin_url: nestedEst?.signature_admin_url || nestedEst?.estimator_signature || undefined,
+            signature_customer_url:
+              nestedEst?.signature_customer_url ||
+              nestedEst?.customer_signature ||
+              row.work_order?.signature_url ||
+              undefined,
+            signature_admin_url:
+              nestedEst?.signature_admin_url || nestedEst?.estimator_signature || undefined,
             created_at: nestedEst?.created_at || row.created_at,
             updated_at: nestedEst?.updated_at || row.updated_at,
             estimation_type: nestedEst?.estimation_type || undefined,
@@ -2055,20 +2104,35 @@ export class DBService {
             vehicle_status: nestedEst?.vehicle_status || undefined,
             payment_plan: nestedEst?.payment_plan || undefined,
             estimator_name: nestedEst?.estimator_name || undefined,
-            estimator_signature: nestedEst?.estimator_signature || nestedEst?.signature_admin_url || undefined,
+            estimator_signature:
+              nestedEst?.estimator_signature || nestedEst?.signature_admin_url || undefined,
             estimated_duration: nestedEst?.estimated_duration || undefined,
             customer_response: nestedEst?.customer_response || undefined,
             customer_response_note: nestedEst?.customer_response_note || undefined,
-            has_discount: nestedEst?.has_discount !== undefined ? nestedEst.has_discount : (Number(row.discount_amount) > 0),
+            has_discount:
+              nestedEst?.has_discount !== undefined
+                ? nestedEst.has_discount
+                : Number(row.discount_amount) > 0,
             has_opsi2: hasOpsi2,
-            has_tax: nestedEst?.has_tax !== undefined ? nestedEst.has_tax : (Number(row.tax_percent) > 0),
+            has_tax:
+              nestedEst?.has_tax !== undefined ? nestedEst.has_tax : Number(row.tax_percent) > 0,
             has_range_price: nestedEst?.has_range_price || false,
-            total_opsi1: nestedEst?.total_opsi1 !== undefined ? nestedEst.total_opsi1 : Number(row.subtotal || row.total_amount),
+            total_opsi1:
+              nestedEst?.total_opsi1 !== undefined
+                ? nestedEst.total_opsi1
+                : Number(row.subtotal || row.total_amount),
             total_opsi1_max: nestedEst?.total_opsi1_max,
-            total_opsi2: nestedEst?.total_opsi2 !== undefined ? nestedEst.total_opsi2 : Number(row.total_amount),
+            total_opsi2:
+              nestedEst?.total_opsi2 !== undefined
+                ? nestedEst.total_opsi2
+                : Number(row.total_amount),
             total_opsi2_max: nestedEst?.total_opsi2_max,
             ttd_status: nestedEst?.ttd_status || (nestedEst?.customer_signature ? 'signed' : 'pending'),
-            customer_signature: nestedEst?.customer_signature || nestedEst?.signature_customer_url || row.work_order?.signature_url || undefined,
+            customer_signature:
+              nestedEst?.customer_signature ||
+              nestedEst?.signature_customer_url ||
+              row.work_order?.signature_url ||
+              undefined,
             customer_signed_at: nestedEst?.customer_signed_at || undefined,
             customer_signed_name: nestedEst?.customer_signed_name || undefined,
             customer_approved_option: nestedEst?.customer_approved_option || undefined,
@@ -2078,32 +2142,68 @@ export class DBService {
           return { estimation: inv, branch };
         }
 
-        // 3. Jika tidak ada di tabel invoices, cari langsung di tabel work_orders
-        const { data: woData, error: woErr } = await supabase
+        // 2b. Cari di tabel work_orders (HANYA query id jika idOrToken memang UUID valid)
+        let woQuery = supabase
           .from('work_orders')
-          .select('*, vehicle:vehicles_customers(*)')
-          .or(`id.eq.${idOrToken},spk_number.eq.${idOrToken}`)
-          .limit(1);
+          .select('*, vehicle:vehicles_customers(*)');
 
-        if (!woErr && woData && woData.length > 0) {
+        if (isUuid) {
+          woQuery = woQuery.or(`id.eq.${idOrToken},spk_number.eq.${idOrToken}`);
+        } else {
+          woQuery = woQuery.eq('spk_number', idOrToken);
+        }
+
+        let { data: woData } = await woQuery.limit(1);
+
+        // Jika belum ketemu dan idOrToken bukan UUID, cari di checklist_data JSON
+        if ((!woData || woData.length === 0) && !isUuid) {
+          const { data: jsonWoData } = await supabase
+            .from('work_orders')
+            .select('*, vehicle:vehicles_customers(*)')
+            .or(
+              `checklist_data->estimation->>invoice_number.eq.${idOrToken},checklist_data->estimation->>id.eq.${idOrToken}`
+            )
+            .limit(1);
+          if (jsonWoData && jsonWoData.length > 0) {
+            woData = jsonWoData;
+          }
+        }
+
+        if (woData && woData.length > 0) {
           const wo = woData[0];
           const checklist = wo.checklist_data || {};
           const branch: BranchId = (checklist.received_at_branch as BranchId) || 'MHS 1';
-          
+
           let estData: any = checklist.estimation || null;
-          if (!estData) {
-            for (const k of Object.keys(checklist)) {
-              if (k.startsWith('estimation') && checklist[k]?.items) {
-                estData = checklist[k];
-                break;
-              }
+          // Cari spesifik tab jika idOrToken cocok dengan salah satu invoice_number / id tab
+          for (const k of Object.keys(checklist)) {
+            if (
+              k.startsWith('estimation') &&
+              (checklist[k]?.invoice_number === idOrToken ||
+                checklist[k]?.id === idOrToken ||
+                checklist[k]?.tab_id === idOrToken)
+            ) {
+              estData = checklist[k];
+              break;
             }
           }
 
           if (estData) {
+            const hasOpsi2 =
+              estData.has_opsi2 !== undefined
+                ? estData.has_opsi2
+                : Array.isArray(estData.items) &&
+                  estData.items.some(
+                    (it: any) =>
+                      it.price_opsi2 !== undefined &&
+                      it.price_opsi2 !== '' &&
+                      it.price_opsi2 !== 0 &&
+                      it.price_opsi2 !== '0'
+                  );
+
             const inv: Invoice = {
               ...estData,
-              has_opsi2: estData.has_opsi2 !== undefined ? estData.has_opsi2 : true,
+              has_opsi2: hasOpsi2,
               work_order_id: wo.id,
               vehicle: wo.vehicle || undefined,
               work_order: wo,
@@ -2244,11 +2344,27 @@ export class DBService {
     // 3. Update Cloud Supabase (Work Orders & Invoices)
     if (supabase && isSupabaseConfigured && targetInvoice) {
       try {
-        const { data: woData } = await supabase
-          .from('work_orders')
-          .select('*')
-          .or(`id.eq.${targetWoId},spk_number.eq.${targetWoId}`)
-          .limit(1);
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const isTargetWoUuid = targetWoId && uuidRegex.test(targetWoId);
+
+        let remoteWoQuery = supabase.from('work_orders').select('*');
+        if (isTargetWoUuid) {
+          remoteWoQuery = remoteWoQuery.or(`id.eq.${targetWoId},spk_number.eq.${targetWoId}`);
+        } else {
+          remoteWoQuery = remoteWoQuery.eq('spk_number', targetWoId);
+        }
+
+        let { data: woData } = await remoteWoQuery.limit(1);
+        if ((!woData || woData.length === 0) && !isTargetWoUuid) {
+          const { data: jsonWo } = await supabase
+            .from('work_orders')
+            .select('*')
+            .or(
+              `checklist_data->estimation->>invoice_number.eq.${targetWoId},checklist_data->estimation->>id.eq.${targetWoId}`
+            )
+            .limit(1);
+          if (jsonWo && jsonWo.length > 0) woData = jsonWo;
+        }
 
         if (woData && woData[0]) {
           const remoteWo = woData[0];
@@ -2278,14 +2394,20 @@ export class DBService {
             .eq('id', remoteWo.id);
         }
 
-        // Update invoices tanpa kolom yang tidak ada di schema
-        await supabase
-          .from('invoices')
-          .update({
-            payment_status: targetInvoice.payment_status || 'pending',
-            updated_at: now,
-          })
-          .or(`id.eq.${targetInvoice.id},invoice_number.eq.${targetInvoice.invoice_number}`);
+        // Update invoices tanpa kolom yang tidak ada di schema (hindari error syntax UUID)
+        const isInvUuid = targetInvoice.id && uuidRegex.test(targetInvoice.id);
+        let invUpdateQuery = supabase.from('invoices').update({
+          payment_status: targetInvoice.payment_status || 'pending',
+          updated_at: now,
+        });
+
+        if (isInvUuid) {
+          invUpdateQuery = invUpdateQuery.or(`id.eq.${targetInvoice.id},invoice_number.eq.${targetInvoice.invoice_number}`);
+        } else if (targetInvoice.invoice_number) {
+          invUpdateQuery = invUpdateQuery.eq('invoice_number', targetInvoice.invoice_number);
+        }
+
+        await invUpdateQuery;
       } catch (err) {
         console.warn('Supabase approveEstimationSignature error:', err);
       }
@@ -2371,11 +2493,27 @@ export class DBService {
     if (supabase && isSupabaseConfigured && targetInvoice) {
       try {
         const targetWoId = targetInvoice.work_order_id || idOrToken;
-        const { data: woData } = await supabase
-          .from('work_orders')
-          .select('*')
-          .or(`id.eq.${targetWoId},spk_number.eq.${targetWoId}`)
-          .limit(1);
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const isTargetWoUuid = targetWoId && uuidRegex.test(targetWoId);
+
+        let remoteWoQuery = supabase.from('work_orders').select('*');
+        if (isTargetWoUuid) {
+          remoteWoQuery = remoteWoQuery.or(`id.eq.${targetWoId},spk_number.eq.${targetWoId}`);
+        } else {
+          remoteWoQuery = remoteWoQuery.eq('spk_number', targetWoId);
+        }
+
+        let { data: woData } = await remoteWoQuery.limit(1);
+        if ((!woData || woData.length === 0) && !isTargetWoUuid) {
+          const { data: jsonWo } = await supabase
+            .from('work_orders')
+            .select('*')
+            .or(
+              `checklist_data->estimation->>invoice_number.eq.${targetWoId},checklist_data->estimation->>id.eq.${targetWoId}`
+            )
+            .limit(1);
+          if (jsonWo && jsonWo.length > 0) woData = jsonWo;
+        }
 
         if (woData && woData[0]) {
           const remoteWo = woData[0];

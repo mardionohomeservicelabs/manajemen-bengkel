@@ -53,8 +53,33 @@ export default function HistoryArchivePage() {
       return timeB - timeA;
     });
 
+  // Valid Invoices: Kecualikan seluruh estimasi yang dibatalkan / ditolak customer
+  const validInvoices = invoices.filter((inv) => {
+    const isCancelled =
+      inv.customer_response === 'batal' ||
+      inv.customer_approved_option === 'batal' ||
+      inv.ttd_status === 'rejected' ||
+      inv.payment_status === 'cancelled';
+    if (isCancelled) return false;
+
+    // Jika estimasi dan SPK-nya dibatalkan, jangan tampilkan di histori nota
+    if (inv.type === 'estimation') {
+      const relatedWo = workOrders.find(
+        (w) =>
+          w.id === inv.work_order_id ||
+          (w.spk_number && w.spk_number === inv.work_order_id) ||
+          (inv.work_order?.spk_number && w.spk_number === inv.work_order.spk_number)
+      );
+      if (relatedWo && relatedWo.status === 'cancelled') {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
   // Filtered Invoices
-  const filteredInvoices = invoices
+  const filteredInvoices = validInvoices
     .filter((inv) => {
       const matchesSearch =
         inv.invoice_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -112,7 +137,7 @@ export default function HistoryArchivePage() {
           }`}
         >
           <Receipt className="w-3.5 h-3.5" />
-          <span>Histori Nota & Pembayaran ({invoices.length})</span>
+          <span>Histori Nota & Pembayaran ({validInvoices.length})</span>
         </button>
       </div>
 
