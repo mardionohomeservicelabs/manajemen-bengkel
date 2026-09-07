@@ -498,28 +498,28 @@ export default function CustomerSignatureApprovalPage() {
                 {hasSecondTable && (
                   <>
                     {/* Subtotal Row Table 1 */}
-                    <tr className="bg-[#0B2545] text-[#FACC15] font-black text-[11px] border-y-2 border-slate-900">
-                      <td colSpan={5} className="p-2 text-center uppercase tracking-wider font-black text-[#FACC15]">
-                        TOTAL
+                    <tr className="bg-slate-100/90 text-slate-800 font-bold text-[11px] border-y border-slate-200">
+                      <td colSpan={5} className="p-2 text-center uppercase tracking-wider font-extrabold text-slate-700 text-[10.5px]">
+                        TOTAL TABEL 1
                       </td>
-                      <td className="p-2 text-right font-mono font-black text-[#FACC15] border-r border-slate-700/50 whitespace-nowrap">
+                      <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-200 whitespace-nowrap">
                         {formatRangeDisplay(t1Totals.s1Min, t1Totals.s1Max)}
                       </td>
                       {hasOpsi2 && (
                         <>
-                          <td className="p-2 bg-[#0B2545] border-r border-slate-700/50"></td>
-                          <td className="p-2 text-right font-mono font-black text-[#FACC15] whitespace-nowrap">
+                          <td className="p-2 bg-blue-50/20 border-r border-slate-200"></td>
+                          <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30 whitespace-nowrap">
                             {formatRangeDisplay(t1Totals.s2Min, t1Totals.s2Max)}
                           </td>
                         </>
                       )}
                     </tr>
 
-                    {/* Slice Divider (Bright yellow banner) */}
-                    <tr className="bg-[#FFEE00] border-y-2 border-slate-900">
+                    {/* Slice Divider */}
+                    <tr className="bg-slate-100/90 border-y-2 border-slate-300">
                       <td
                         colSpan={hasOpsi2 ? 8 : 6}
-                        className="py-1.5 px-4 text-center font-black text-black uppercase tracking-wider text-xs shadow-inner"
+                        className="py-2 px-4 text-center font-extrabold text-slate-800 uppercase tracking-wider text-[11px]"
                       >
                         {table2Title}
                       </td>
@@ -567,17 +567,17 @@ export default function CustomerSignatureApprovalPage() {
                     })}
 
                     {/* Subtotal Row Table 2 */}
-                    <tr className="bg-[#0B2545] text-[#FACC15] font-black text-[11px] border-y-2 border-slate-900">
-                      <td colSpan={5} className="p-2 text-center uppercase tracking-wider font-black text-[#FACC15]">
-                        TOTAL
+                    <tr className="bg-slate-100/90 text-slate-800 font-bold text-[11px] border-y border-slate-200">
+                      <td colSpan={5} className="p-2 text-center uppercase tracking-wider font-extrabold text-slate-700 text-[10.5px]">
+                        TOTAL {table2Title ? `(${table2Title.toUpperCase()})` : 'TABEL 2'}
                       </td>
-                      <td className="p-2 text-right font-mono font-black text-[#FACC15] border-r border-slate-700/50 whitespace-nowrap">
+                      <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-200 whitespace-nowrap">
                         {formatRangeDisplay(t2Totals.s1Min, t2Totals.s1Max)}
                       </td>
                       {hasOpsi2 && (
                         <>
-                          <td className="p-2 bg-[#0B2545] border-r border-slate-700/50"></td>
-                          <td className="p-2 text-right font-mono font-black text-[#FACC15] whitespace-nowrap">
+                          <td className="p-2 bg-blue-50/20 border-r border-slate-200"></td>
+                          <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30 whitespace-nowrap">
                             {formatRangeDisplay(t2Totals.s2Min, t2Totals.s2Max)}
                           </td>
                         </>
@@ -587,17 +587,17 @@ export default function CustomerSignatureApprovalPage() {
                 )}
               </tbody>
               <tfoot>
-                <tr className="bg-[#0B2545] text-[#FACC15] font-black text-[11px] border-t-2 border-slate-900">
-                  <td colSpan={5} className="p-2.5 text-center uppercase tracking-wider font-black text-[#FACC15]">
+                <tr className="bg-slate-100 border-t-2 border-slate-300 font-black text-[11px]">
+                  <td colSpan={5} className="p-2 text-center uppercase tracking-wider text-slate-800 border-r border-slate-200">
                     JUMLAH KESELURUHAN
                   </td>
-                  <td className="p-2.5 text-right font-mono font-black text-[#FACC15] border-r border-slate-700/50 whitespace-nowrap">
+                  <td className="p-2 text-right font-mono text-slate-950 border-r border-slate-200">
                     {formatRangeDisplay(totalFinalOpsi1Min, totalFinalOpsi1Max)}
                   </td>
                   {hasOpsi2 && (
                     <>
-                      <td className="p-2.5 bg-[#0B2545] border-r border-slate-700/50"></td>
-                      <td className="p-2.5 text-right font-mono font-black text-[#FACC15] whitespace-nowrap">
+                      <td className="p-2 border-r border-slate-200 bg-blue-50/20"></td>
+                      <td className="p-2 text-right font-mono text-blue-950 bg-blue-50/30">
                         {formatRangeDisplay(totalFinalOpsi2Min, totalFinalOpsi2Max)}
                       </td>
                     </>

@@ -393,29 +393,29 @@ export function PrintableEstimation({
                 {/* If Double Table: Render Subtotal Table 1, Slice Divider, Table 2 Items, and Subtotal Table 2 */}
                 {isDoubleTable && (
                   <>
-                    {/* Subtotal Row Table 1 (Dark navy with yellow text) */}
-                    <tr className="bg-[#0B2545] text-[#FACC15] font-black border-y-2 border-slate-900 text-xs">
-                      <td colSpan={5} className="p-2 text-center uppercase tracking-wider font-black text-[#FACC15]">
-                        TOTAL
+                    {/* Subtotal Row Table 1 */}
+                    <tr className="bg-slate-100/90 text-slate-800 font-bold border-y border-slate-300 text-xs">
+                      <td colSpan={5} className="p-1.5 text-center uppercase tracking-wider font-extrabold text-slate-700 text-[10.5px]">
+                        TOTAL TABEL 1
                       </td>
-                      <td className="p-2 text-right font-mono font-black text-[#FACC15] border-r border-slate-700/50 whitespace-nowrap">
+                      <td className="p-1.5 text-right font-mono font-extrabold text-slate-950 border-r border-slate-300 whitespace-nowrap">
                         {formatTotalCell(t1Totals.tot1Min, t1Totals.tot1Max)}
                       </td>
                       {hasOpsi2 && (
                         <>
-                          <td className="p-2 bg-[#0B2545] border-r border-slate-700/50"></td>
-                          <td className="p-2 text-right font-mono font-black text-[#FACC15] whitespace-nowrap">
+                          <td className="p-1.5 bg-blue-50/30 border-r border-slate-300"></td>
+                          <td className="p-1.5 text-right font-mono font-extrabold text-blue-950 bg-blue-50/30 whitespace-nowrap">
                             {formatTotalCell(t1Totals.tot2Min, t1Totals.tot2Max)}
                           </td>
                         </>
                       )}
                     </tr>
 
-                    {/* Slice Divider (Bright yellow banner matching screenshot) */}
-                    <tr className="bg-[#FFEE00] border-y-2 border-slate-900">
+                    {/* Slice Divider */}
+                    <tr className="bg-slate-200/90 border-y border-slate-300">
                       <td
                         colSpan={hasOpsi2 ? 8 : 6}
-                        className="py-1.5 px-4 text-center font-black text-black uppercase tracking-wider text-xs shadow-inner"
+                        className="py-1 px-4 text-center font-extrabold text-slate-800 uppercase tracking-wider text-[11px]"
                       >
                         {table2Title}
                       </td>
@@ -488,18 +488,18 @@ export function PrintableEstimation({
                       );
                     })}
 
-                    {/* Subtotal Row Table 2 (Dark navy with yellow text) */}
-                    <tr className="bg-[#0B2545] text-[#FACC15] font-black border-y-2 border-slate-900 text-xs">
-                      <td colSpan={5} className="p-2 text-center uppercase tracking-wider font-black text-[#FACC15]">
-                        TOTAL
+                    {/* Subtotal Row Table 2 */}
+                    <tr className="bg-slate-100/90 text-slate-800 font-bold border-y border-slate-300 text-xs">
+                      <td colSpan={5} className="p-1.5 text-center uppercase tracking-wider font-extrabold text-slate-700 text-[10.5px]">
+                        TOTAL {table2Title ? `(${table2Title.toUpperCase()})` : 'TABEL 2'}
                       </td>
-                      <td className="p-2 text-right font-mono font-black text-[#FACC15] border-r border-slate-700/50 whitespace-nowrap">
+                      <td className="p-1.5 text-right font-mono font-extrabold text-slate-950 border-r border-slate-300 whitespace-nowrap">
                         {formatTotalCell(t2Totals.tot1Min, t2Totals.tot1Max)}
                       </td>
                       {hasOpsi2 && (
                         <>
-                          <td className="p-2 bg-[#0B2545] border-r border-slate-700/50"></td>
-                          <td className="p-2 text-right font-mono font-black text-[#FACC15] whitespace-nowrap">
+                          <td className="p-1.5 bg-blue-50/30 border-r border-slate-300"></td>
+                          <td className="p-1.5 text-right font-mono font-extrabold text-blue-950 bg-blue-50/30 whitespace-nowrap">
                             {formatTotalCell(t2Totals.tot2Min, t2Totals.tot2Max)}
                           </td>
                         </>
@@ -508,19 +508,19 @@ export function PrintableEstimation({
                   </>
                 )}
               </tbody>
-              {/* Grand Total Row: JUMLAH KESELURUHAN (Exact layout from user screenshot) */}
+              {/* Grand Total Row: JUMLAH KESELURUHAN (Clean styling matching previous version) */}
               <tfoot>
-                <tr className="bg-[#0B2545] text-[#FACC15] font-black border-t-2 border-slate-900 text-xs">
-                  <td colSpan={5} className="p-2.5 text-center uppercase tracking-wider font-black text-sm text-[#FACC15]">
+                <tr className="bg-slate-100 font-black border-t-2 border-slate-900 text-xs">
+                  <td colSpan={5} className="p-2 text-center uppercase tracking-wider text-slate-900 font-black">
                     JUMLAH KESELURUHAN
                   </td>
-                  <td className="p-2.5 text-right font-mono font-black text-[#FACC15] border-r border-slate-700/50 text-sm whitespace-nowrap">
+                  <td className="p-2 text-right font-mono font-black text-slate-950 border-r border-slate-300 text-sm whitespace-nowrap">
                     {formatTotalCell(grandTot1Min, grandTot1Max)}
                   </td>
                   {hasOpsi2 && (
                     <>
-                      <td className="p-2.5 bg-[#0B2545] border-r border-slate-700/50"></td>
-                      <td className="p-2.5 text-right font-mono font-black text-[#FACC15] text-sm whitespace-nowrap">
+                      <td className="p-2 bg-blue-50/40 border-r border-slate-300"></td>
+                      <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/40 text-sm whitespace-nowrap">
                         {formatTotalCell(grandTot2Min, grandTot2Max)}
                       </td>
                     </>

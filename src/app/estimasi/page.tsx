@@ -2185,7 +2185,7 @@ function EstimationBuilderContent() {
                 }
               }}
               className={`w-11 h-6 rounded-full transition-colors p-0.5 flex items-center ${
-                hasSecondTable ? 'bg-amber-500' : 'bg-slate-300'
+                hasSecondTable ? 'bg-blue-600' : 'bg-slate-300'
               }`}
             >
               <div
@@ -2197,7 +2197,7 @@ function EstimationBuilderContent() {
             <div className="flex items-center space-x-1.5">
               <span className="text-xs font-black text-slate-800">Double Estimasi (Tabel 1 + Slice + Tabel 2)</span>
               {hasSecondTable && (
-                <span className="text-[10px] font-black text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
+                <span className="text-[10px] font-black text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
                   Aktif ({table2Title})
                 </span>
               )}
@@ -2464,12 +2464,12 @@ function EstimationBuilderContent() {
               {/* If Double Table is Enabled: Render Subtotal Table 1, Slice Divider, Table 2 Items, and Subtotal Table 2 */}
               {hasSecondTable && (
                 <>
-                  {/* Subtotal Row Table 1 (Dark navy with bold yellow text) */}
-                  <tr className="bg-[#0B2545] text-[#FACC15] font-black border-y-2 border-slate-900 text-xs">
-                    <td colSpan={5} className="p-2.5 text-center uppercase tracking-wider font-black text-[#FACC15]">
-                      TOTAL
+                  {/* Subtotal Row Table 1 */}
+                  <tr className="bg-slate-100/90 text-slate-800 font-bold border-y border-slate-200 text-xs">
+                    <td colSpan={5} className="p-2.5 text-center uppercase tracking-wider font-extrabold text-slate-700 text-[11px]">
+                      TOTAL TABEL 1
                     </td>
-                    <td className="p-2.5 text-right font-mono font-black text-[#FACC15] border-r border-slate-700/50 whitespace-nowrap">
+                    <td className="p-2.5 text-right font-mono font-black text-slate-900 border-r border-slate-200 whitespace-nowrap">
                       {showRangePrice ? (
                         t1Totals.tot1Min === t1Totals.tot1Max
                           ? formatCurrency(t1Totals.tot1Min)
@@ -2480,8 +2480,8 @@ function EstimationBuilderContent() {
                     </td>
                     {showOpsi2 && (
                       <>
-                        <td className="p-2.5 bg-[#0B2545] border-r border-slate-700/50"></td>
-                        <td className="p-2.5 text-right font-mono font-black text-[#FACC15] whitespace-nowrap">
+                        <td className="p-2.5 bg-blue-50/20 border-r border-slate-200"></td>
+                        <td className="p-2.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 whitespace-nowrap">
                           {showRangePrice ? (
                             t1Totals.tot2Min === t1Totals.tot2Max
                               ? formatCurrency(t1Totals.tot2Min)
@@ -2492,24 +2492,26 @@ function EstimationBuilderContent() {
                         </td>
                       </>
                     )}
-                    {!isLocked && <td className="p-2.5 bg-[#0B2545]"></td>}
+                    {!isLocked && <td className="p-2.5 bg-slate-100/90"></td>}
                   </tr>
 
-                  {/* Slice Divider (Bright yellow banner with editable title) */}
-                  <tr className="bg-[#FFEE00] border-y-2 border-slate-900">
+                  {/* Slice Divider */}
+                  <tr className="bg-slate-100/90 border-y-2 border-slate-300">
                     <td
                       colSpan={showOpsi2 ? (!isLocked ? 9 : 8) : (!isLocked ? 7 : 6)}
-                      className="py-2 px-4 text-center font-black text-black uppercase tracking-wider text-xs shadow-inner"
+                      className="py-2.5 px-4 text-center"
                     >
-                      <div className="flex items-center justify-center space-x-2">
-                        <span className="text-black font-black text-xs uppercase tracking-wider select-none">BAGIAN / SECTION 2:</span>
+                      <div className="flex items-center justify-center space-x-2.5">
+                        <span className="text-slate-600 font-bold text-xs uppercase tracking-wider select-none">
+                          Bagian / Section 2:
+                        </span>
                         <input
                           type="text"
                           disabled={isLocked}
                           value={table2Title}
                           onChange={(e) => setTable2Title(e.target.value)}
                           placeholder="BAGIAN REM"
-                          className="bg-white/95 text-slate-950 font-black text-xs uppercase px-3 py-1 rounded-lg border-2 border-black/40 text-center tracking-wider focus:outline-none focus:ring-2 focus:ring-black w-64 shadow-xs"
+                          className="bg-white text-slate-900 font-extrabold text-xs uppercase px-3 py-1.5 rounded-xl border border-slate-300 text-center tracking-wider focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 w-64 shadow-2xs"
                         />
                         {!isLocked && (
                           <button
@@ -2519,10 +2521,10 @@ function EstimationBuilderContent() {
                                 setHasSecondTable(false);
                               }
                             }}
-                            className="text-red-900 hover:text-red-950 text-[11px] font-black px-2.5 py-1 rounded-lg bg-red-100 hover:bg-red-200 border border-red-300 transition cursor-pointer select-none"
+                            className="text-rose-700 hover:text-rose-800 text-[11px] font-bold px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer select-none"
                             title="Hapus Tabel 2"
                           >
-                            ✕ Hapus Slice / Tabel 2
+                            ✕ Hapus Tabel 2
                           </button>
                         )}
                       </div>
@@ -2552,9 +2554,9 @@ function EstimationBuilderContent() {
                     const rowTot2Max = rowRange2 ? rowRange2.max * (item.qty || 1) : 0;
 
                     return (
-                      <tr key={`t2-${idx}`} className="hover:bg-amber-50/40 transition-colors group/row">
+                      <tr key={`t2-${idx}`} className="hover:bg-slate-50 transition-colors group/row">
                         {/* Index */}
-                        <td className="p-3 text-center text-slate-600 font-bold border-r border-slate-200 align-middle bg-amber-50/20">{displayNum}</td>
+                        <td className="p-3 text-center text-slate-600 font-bold border-r border-slate-200 align-middle bg-slate-50/30">{displayNum}</td>
 
                         {/* Saran/Perbaikan/Ganti Sparepart */}
                         <td className="p-2 border-r border-slate-200 align-middle">
@@ -2564,7 +2566,7 @@ function EstimationBuilderContent() {
                             value={item.name}
                             onChange={(e) => handleUpdateItemField(idx, 'name', e.target.value, 2)}
                             placeholder={`Nama Saran / Sparepart (${table2Title || 'Tabel 2'})...`}
-                            className="w-full text-xs font-bold p-2.5 rounded-xl border border-slate-200 bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none text-slate-800 placeholder:text-slate-300 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed resize-none overflow-hidden break-words whitespace-pre-wrap leading-tight"
+                            className="w-full text-xs font-bold p-2.5 rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 placeholder:text-slate-300 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed resize-none overflow-hidden break-words whitespace-pre-wrap leading-tight"
                           />
                         </td>
 
@@ -2576,7 +2578,7 @@ function EstimationBuilderContent() {
                             disabled={isLocked}
                             value={item.qty}
                             onChange={(e) => handleUpdateItemField(idx, 'qty', e.target.value, 2)}
-                            className="w-14 text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
+                            className="w-14 text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
                           />
                         </td>
 
@@ -2586,7 +2588,7 @@ function EstimationBuilderContent() {
                             disabled={isLocked}
                             value={item.unit || 'PCS'}
                             onChange={(e) => handleUpdateItemField(idx, 'unit', e.target.value, 2)}
-                            className="w-20 text-xs font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none uppercase text-slate-800 cursor-pointer disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
+                            className="w-20 text-xs font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase text-slate-800 cursor-pointer disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
                           >
                             {UNIT_OPTIONS.map((u) => (
                               <option key={u} value={u}>
@@ -2606,7 +2608,7 @@ function EstimationBuilderContent() {
                               value={item.price_opsi1 !== undefined ? item.price_opsi1 : ''}
                               onChange={(e) => handleUpdateItemField(idx, 'price_opsi1', e.target.value, 2)}
                               placeholder={showRangePrice ? '150000 - 160000' : '0 / CEK'}
-                              className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
+                              className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
                                 showRangePrice ? 'w-48' : 'w-28'
                               }`}
                             />
@@ -2644,7 +2646,7 @@ function EstimationBuilderContent() {
                                       ? String(item.price_opsi1)
                                       : (showRangePrice ? '150000 - 160000' : '0 (Kosong)')
                                   }
-                                  className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
+                                  className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
                                     showRangePrice ? 'w-48' : 'w-28'
                                   }`}
                                 />
@@ -2688,7 +2690,7 @@ function EstimationBuilderContent() {
                                 type="button"
                                 onClick={() => handleMoveRowUp(idx, 2)}
                                 disabled={idx === 0}
-                                className="p-1.5 rounded-lg text-slate-300 hover:text-amber-600 hover:bg-amber-50 transition disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
+                                className="p-1.5 rounded-lg text-slate-300 hover:text-blue-600 hover:bg-blue-50 transition disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
                                 title="Pindah ke Atas"
                               >
                                 <ChevronUp className="w-3.5 h-3.5" />
@@ -2697,7 +2699,7 @@ function EstimationBuilderContent() {
                                 type="button"
                                 onClick={() => handleMoveRowDown(idx, 2)}
                                 disabled={idx === itemsTable2.length - 1}
-                                className="p-1.5 rounded-lg text-slate-300 hover:text-amber-600 hover:bg-amber-50 transition disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
+                                className="p-1.5 rounded-lg text-slate-300 hover:text-blue-600 hover:bg-blue-50 transition disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
                                 title="Pindah ke Bawah"
                               >
                                 <ChevronDown className="w-3.5 h-3.5" />
@@ -2717,12 +2719,12 @@ function EstimationBuilderContent() {
                     );
                   })}
 
-                  {/* Subtotal Row Table 2 (Dark navy with bold yellow text) */}
-                  <tr className="bg-[#0B2545] text-[#FACC15] font-black border-y-2 border-slate-900 text-xs">
-                    <td colSpan={5} className="p-2.5 text-center uppercase tracking-wider font-black text-[#FACC15]">
-                      TOTAL ({table2Title || 'BAGIAN REM'})
+                  {/* Subtotal Row Table 2 */}
+                  <tr className="bg-slate-100/90 text-slate-800 font-bold border-y border-slate-200 text-xs">
+                    <td colSpan={5} className="p-2.5 text-center uppercase tracking-wider font-extrabold text-slate-700 text-[11px]">
+                      TOTAL {table2Title ? `(${table2Title.toUpperCase()})` : 'TABEL 2'}
                     </td>
-                    <td className="p-2.5 text-right font-mono font-black text-[#FACC15] border-r border-slate-700/50 whitespace-nowrap">
+                    <td className="p-2.5 text-right font-mono font-black text-slate-900 border-r border-slate-200 whitespace-nowrap">
                       {showRangePrice ? (
                         t2Totals.tot1Min === t2Totals.tot1Max
                           ? formatCurrency(t2Totals.tot1Min)
@@ -2733,8 +2735,8 @@ function EstimationBuilderContent() {
                     </td>
                     {showOpsi2 && (
                       <>
-                        <td className="p-2.5 bg-[#0B2545] border-r border-slate-700/50"></td>
-                        <td className="p-2.5 text-right font-mono font-black text-[#FACC15] whitespace-nowrap">
+                        <td className="p-2.5 bg-blue-50/20 border-r border-slate-200"></td>
+                        <td className="p-2.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 whitespace-nowrap">
                           {showRangePrice ? (
                             t2Totals.tot2Min === t2Totals.tot2Max
                               ? formatCurrency(t2Totals.tot2Min)
@@ -2745,40 +2747,40 @@ function EstimationBuilderContent() {
                         </td>
                       </>
                     )}
-                    {!isLocked && <td className="p-2.5 bg-[#0B2545]"></td>}
+                    {!isLocked && <td className="p-2.5 bg-slate-100/90"></td>}
                   </tr>
                 </>
               )}
             </tbody>
-            {/* Table Summary Footer: JUMLAH KESELURUHAN (Exact layout from image) */}
+            {/* Table Summary Footer: JUMLAH KESELURUHAN (Clean styling matching previous version) */}
             <tfoot>
-              <tr className="bg-[#0B2545] text-[#FACC15] font-black border-t-2 border-slate-900">
-                <td colSpan={5} className="p-3 text-center uppercase tracking-wider font-black text-sm text-[#FACC15]">
+              <tr className="bg-slate-100/90 font-black border-t-2 border-slate-300">
+                <td colSpan={5} className="p-3 text-center uppercase tracking-wider text-slate-800 text-xs">
                   JUMLAH KESELURUHAN
                 </td>
-                <td className="p-3 text-right font-mono font-black border-r border-slate-700/50 text-[#FACC15]">
+                <td className="p-3 text-right font-mono font-black border-r border-slate-200">
                   {showRangePrice ? (
-                    <span className="text-sm font-black whitespace-nowrap">
+                    <span className="text-sm text-slate-950 whitespace-nowrap">
                       {totalFinalOpsi1 === totalFinalOpsi1Max
                         ? formatCurrency(totalFinalOpsi1)
                         : `${formatCurrency(totalFinalOpsi1)} – ${formatCurrency(totalFinalOpsi1Max)}`}
                     </span>
                   ) : (
-                    <span className="text-sm font-black whitespace-nowrap">{formatCurrency(totalFinalOpsi1)}</span>
+                    <span className="text-sm text-slate-950 whitespace-nowrap">{formatCurrency(totalFinalOpsi1)}</span>
                   )}
                 </td>
                 {showOpsi2 && (
                   <>
-                    <td className="p-3 bg-[#0B2545] border-r border-slate-700/50"></td>
-                    <td className="p-3 text-right font-mono font-black text-[#FACC15]">
+                    <td className="p-3 bg-blue-50/20 border-r border-slate-200"></td>
+                    <td className="p-3 text-right font-mono font-black text-blue-950 bg-blue-50/20">
                       {showRangePrice ? (
-                        <span className="text-sm font-black whitespace-nowrap">
+                        <span className="text-sm whitespace-nowrap">
                           {totalFinalOpsi2 === totalFinalOpsi2Max
                             ? formatCurrency(totalFinalOpsi2)
                             : `${formatCurrency(totalFinalOpsi2)} – ${formatCurrency(totalFinalOpsi2Max)}`}
                         </span>
                       ) : (
-                        <span className="text-sm font-black whitespace-nowrap">{formatCurrency(totalFinalOpsi2)}</span>
+                        <span className="text-sm whitespace-nowrap">{formatCurrency(totalFinalOpsi2)}</span>
                       )}
                     </td>
                   </>
@@ -2817,12 +2819,12 @@ function EstimationBuilderContent() {
             </div>
 
             {hasSecondTable ? (
-              <div className="flex flex-wrap items-center gap-2.5 bg-amber-50/70 border border-amber-300/80 p-1.5 rounded-2xl">
-                <span className="text-xs font-black text-amber-900 uppercase pl-2">{table2Title || 'Tabel 2'}:</span>
+              <div className="flex flex-wrap items-center gap-2.5 bg-slate-50 border border-slate-200 p-1.5 rounded-2xl">
+                <span className="text-xs font-black text-slate-700 uppercase pl-2">{table2Title || 'Tabel 2'}:</span>
                 <button
                   type="button"
                   onClick={() => handleAddEmptyRow(2)}
-                  className="inline-flex items-center space-x-1.5 bg-amber-200 hover:bg-amber-300 text-amber-950 font-bold text-xs px-3.5 py-1.5 rounded-xl transition cursor-pointer shadow-2xs"
+                  className="inline-flex items-center space-x-1.5 bg-white hover:bg-slate-100 text-slate-800 font-bold text-xs px-3.5 py-1.5 rounded-xl border border-slate-200 transition cursor-pointer shadow-2xs"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Tambah Baris ({table2Title || 'Tabel 2'})</span>
@@ -2834,7 +2836,7 @@ function EstimationBuilderContent() {
                     setCatalogTargetTable(2);
                     setShowCatalogModal(true);
                   }}
-                  className="inline-flex items-center space-x-1.5 bg-white hover:bg-amber-100 text-amber-900 font-bold text-xs px-3.5 py-1.5 rounded-xl border border-amber-300 transition cursor-pointer shadow-2xs"
+                  className="inline-flex items-center space-x-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs px-3.5 py-1.5 rounded-xl border border-blue-200 transition cursor-pointer shadow-2xs"
                 >
                   <PackageCheck className="w-4 h-4" />
                   <span>Katalog ({table2Title || 'Tabel 2'})</span>
@@ -2844,7 +2846,7 @@ function EstimationBuilderContent() {
               <button
                 type="button"
                 onClick={() => setHasSecondTable(true)}
-                className="inline-flex items-center space-x-2 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs px-4 py-2 rounded-xl shadow-xs transition cursor-pointer border border-yellow-500"
+                className="inline-flex items-center space-x-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-4 py-2 rounded-xl transition cursor-pointer border border-slate-300"
               >
                 <span>➕</span>
                 <span>Tambah Slice / Tabel 2 (Double Estimasi)</span>
