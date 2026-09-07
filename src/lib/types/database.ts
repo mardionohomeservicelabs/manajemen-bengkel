@@ -368,6 +368,7 @@ export interface Invoice {
 
   // --- Double Estimasi (Tabel 1 & Tabel 2) ---
   has_second_table?: boolean;
+  table1_title?: string;
   table2_title?: string;
   items_table2?: InvoiceItem[];
   table1_total_opsi1?: number;

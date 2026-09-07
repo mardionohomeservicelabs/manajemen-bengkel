@@ -79,6 +79,7 @@ export function PrintableEstimation({
         : estimation.items.filter((it: any) => it.section === 2))
     : [];
 
+  const table1Title = estimation.table1_title || (estimation as any).checklist_data?.table1_title || 'BAGIAN 1';
   const table2Title = estimation.table2_title || (estimation as any).checklist_data?.table2_title || 'BAGIAN REM';
 
   // Perhitungan Subtotal Per Bagian
@@ -324,6 +325,18 @@ export function PrintableEstimation({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-300">
+                {/* Table 1 Slice Divider (Rendered when Double Table is enabled) */}
+                {isDoubleTable && (
+                  <tr className="bg-slate-200/90 border-b border-slate-300">
+                    <td
+                      colSpan={hasOpsi2 ? 8 : 6}
+                      className="py-1 px-4 text-center font-extrabold text-slate-800 uppercase tracking-wider text-[11px]"
+                    >
+                      {table1Title}
+                    </td>
+                  </tr>
+                )}
+
                 {/* Table 1 Items */}
                 {table1Items.map((item, idx) => {
                   const qty = item.qty || 1;
@@ -396,7 +409,7 @@ export function PrintableEstimation({
                     {/* Subtotal Row Table 1 */}
                     <tr className="bg-slate-100/90 text-slate-800 font-bold border-y border-slate-300 text-xs">
                       <td colSpan={5} className="p-1.5 text-center uppercase tracking-wider font-extrabold text-slate-700 text-[10.5px]">
-                        TOTAL TABEL 1
+                        TOTAL {table1Title ? `(${table1Title.toUpperCase()})` : 'TABEL 1'}
                       </td>
                       <td className="p-1.5 text-right font-mono font-extrabold text-slate-950 border-r border-slate-300 whitespace-nowrap">
                         {formatTotalCell(t1Totals.tot1Min, t1Totals.tot1Max)}

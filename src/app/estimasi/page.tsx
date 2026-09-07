@@ -286,6 +286,7 @@ function EstimationBuilderContent() {
 
   // Double Estimasi (Tabel 1 + Slice Divider + Tabel 2)
   const [hasSecondTable, setHasSecondTable] = useState<boolean>(false);
+  const [table1Title, setTable1Title] = useState<string>('BAGIAN 1');
   const [table2Title, setTable2Title] = useState<string>('BAGIAN REM');
   const [itemsTable2, setItemsTable2] = useState<InvoiceItem[]>(EMPTY_ESTIMATION_ROW);
   const [catalogTargetTable, setCatalogTargetTable] = useState<1 | 2>(1);
@@ -494,6 +495,7 @@ function EstimationBuilderContent() {
         (sourceData.items && sourceData.items.some((it: any) => it.section === 2))
       );
       setHasSecondTable(has2nd);
+      setTable1Title(sourceData.table1_title || sourceData.checklist_data?.table1_title || 'BAGIAN 1');
       setTable2Title(sourceData.table2_title || sourceData.checklist_data?.table2_title || 'BAGIAN REM');
 
       const normalizeEstItem = (it: any) => {
@@ -591,6 +593,7 @@ function EstimationBuilderContent() {
         has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
         has_range_price: showRangePrice,
         has_second_table: hasSecondTable,
+        table1_title: table1Title,
         table2_title: table2Title,
         items_table2: itemsTable2,
         discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
@@ -764,6 +767,7 @@ function EstimationBuilderContent() {
         has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
         has_range_price: showRangePrice,
         has_second_table: hasSecondTable,
+        table1_title: table1Title,
         table2_title: table2Title,
         items_table2: itemsTable2,
         discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
@@ -811,6 +815,7 @@ function EstimationBuilderContent() {
         (sourceData.items && sourceData.items.some((it: any) => it.section === 2))
       );
       setHasSecondTable(has2nd);
+      setTable1Title(sourceData.table1_title || sourceData.checklist_data?.table1_title || 'BAGIAN 1');
       setTable2Title(sourceData.table2_title || sourceData.checklist_data?.table2_title || 'BAGIAN REM');
 
       const normalizeEstItem = (i: any) => {
@@ -880,6 +885,7 @@ function EstimationBuilderContent() {
     } else {
       setItems([...EMPTY_ESTIMATION_ROW]);
       setHasSecondTable(false);
+      setTable1Title('BAGIAN 1');
       setTable2Title('BAGIAN REM');
       setItemsTable2([...EMPTY_ESTIMATION_ROW]);
       setEstimatedDuration('');
@@ -890,7 +896,7 @@ function EstimationBuilderContent() {
   }, [selectedSpkId, selectedSpk, isLocked, activeTabId, items, estimationType, estimationDate, estimationTime,
       vehicleStatus, paymentPlan, estimatorName, estimatorSignature, customerSignature, customerSignedName,
       estimatedDuration, customerResponse, customerResponseNote,
-      showDiscount, showOpsi2, showTax, showRangePrice, hasSecondTable, table2Title, itemsTable2, discountAmount, taxPercent, adminNotes, loadTabData, invoices]);
+      showDiscount, showOpsi2, showTax, showRangePrice, hasSecondTable, table1Title, table2Title, itemsTable2, discountAmount, taxPercent, adminNotes, loadTabData, invoices]);
 
   // Real-time auto-save ke LocalStorage dan pembaruan indikator tersimpan otomatis (anti mati lampu / reload)
   useEffect(() => {
@@ -910,6 +916,7 @@ function EstimationBuilderContent() {
       has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
       has_range_price: showRangePrice,
       has_second_table: hasSecondTable,
+      table1_title: table1Title,
       table2_title: table2Title,
       items_table2: itemsTable2,
       discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
@@ -949,7 +956,7 @@ function EstimationBuilderContent() {
     estimationDate, estimationTime, vehicleStatus, paymentPlan,
     estimatorName, estimatorSignature, customerSignature, customerSignedName,
     estimatedDuration, customerResponse, customerResponseNote,
-    showDiscount, showOpsi2, showTax, showRangePrice, hasSecondTable, table2Title, itemsTable2, discountAmount, taxPercent, adminNotes, tabList,
+    showDiscount, showOpsi2, showTax, showRangePrice, hasSecondTable, table1Title, table2Title, itemsTable2, discountAmount, taxPercent, adminNotes, tabList,
   ]);
 
   // Calculations (handles string/text prices like CEK cleanly)
@@ -1213,7 +1220,7 @@ function EstimationBuilderContent() {
     } else {
       setItemsTable2([...itemsTable2, newRow]);
     }
-    showToast(`Ditambahkan ke ${target === 1 ? 'Tabel 1' : table2Title}: ${inventoryItem.name}`, 'info');
+    showToast(`Ditambahkan ke ${target === 1 ? (table1Title || 'Tabel 1') : (table2Title || 'Tabel 2')}: ${inventoryItem.name}`, 'info');
     setShowCatalogModal(false);
   };
 
@@ -1272,6 +1279,7 @@ function EstimationBuilderContent() {
         has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
         has_range_price: showRangePrice,
         has_second_table: hasSecondTable,
+        table1_title: table1Title,
         table2_title: table2Title,
         items_table2: itemsTable2,
         discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
@@ -1285,6 +1293,7 @@ function EstimationBuilderContent() {
     setEstimationType(tabName);
     setItems(EMPTY_ESTIMATION_ROW);
     setHasSecondTable(false);
+    setTable1Title('BAGIAN 1');
     setTable2Title('BAGIAN REM');
     setItemsTable2(EMPTY_ESTIMATION_ROW);
     setLastSavedTime(null);
@@ -1301,7 +1310,7 @@ function EstimationBuilderContent() {
         const initDraft = {
           items: EMPTY_ESTIMATION_ROW, estimation_type: tabName, estimation_tab: newTabId,
           has_discount: false, has_opsi2: false, has_tax: false, has_range_price: false,
-          has_second_table: false, table2_title: 'BAGIAN REM', items_table2: EMPTY_ESTIMATION_ROW,
+          has_second_table: false, table1_title: 'BAGIAN 1', table2_title: 'BAGIAN REM', items_table2: EMPTY_ESTIMATION_ROW,
         };
         localStorage.setItem(`mhs_est_draft_${selectedSpkId}_${newTabId}`, JSON.stringify(initDraft));
       } catch {}
@@ -1400,6 +1409,7 @@ function EstimationBuilderContent() {
         vehicle_id: selectedSpk.vehicle_id,
         items: allInvoiceItems,
         has_second_table: hasSecondTable,
+        table1_title: table1Title,
         table2_title: table2Title,
         items_table2: hasSecondTable ? itemsTable2 : [],
         subtotal_table1_opsi1: t1Totals.tot1Min,
@@ -2195,10 +2205,10 @@ function EstimationBuilderContent() {
               />
             </div>
             <div className="flex items-center space-x-1.5">
-              <span className="text-xs font-black text-slate-800">Double Estimasi (Tabel 1 + Slice + Tabel 2)</span>
+              <span className="text-xs font-black text-slate-800">Double Estimasi (2 Tabel &amp; Subtotal Terpisah)</span>
               {hasSecondTable && (
                 <span className="text-[10px] font-black text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
-                  Aktif ({table2Title})
+                  Aktif ({table1Title} &amp; {table2Title})
                 </span>
               )}
             </div>
@@ -2272,6 +2282,30 @@ function EstimationBuilderContent() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
+              {/* Table 1 Slice Divider / Title Banner */}
+              {hasSecondTable && (
+                <tr className="bg-slate-100/90 border-b-2 border-slate-300">
+                  <td
+                    colSpan={showOpsi2 ? (!isLocked ? 9 : 8) : (!isLocked ? 7 : 6)}
+                    className="py-2.5 px-4 text-center"
+                  >
+                    <div className="flex items-center justify-center space-x-2.5">
+                      <span className="text-slate-600 font-bold text-xs uppercase tracking-wider select-none">
+                        Bagian / Section 1:
+                      </span>
+                      <input
+                        type="text"
+                        disabled={isLocked}
+                        value={table1Title}
+                        onChange={(e) => setTable1Title(e.target.value)}
+                        placeholder="BAGIAN 1"
+                        className="bg-white text-slate-900 font-extrabold text-xs uppercase px-3 py-1.5 rounded-xl border border-slate-300 text-center tracking-wider focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 w-64 shadow-2xs"
+                      />
+                    </div>
+                  </td>
+                </tr>
+              )}
+
               {/* Table 1 Items */}
               {items.map((item, idx) => {
                 const tot1 = item.total_opsi1 !== undefined ? item.total_opsi1 : (typeof item.price_opsi1 === 'number' ? (item.qty || 1) * item.price_opsi1 : 0);
@@ -2467,7 +2501,7 @@ function EstimationBuilderContent() {
                   {/* Subtotal Row Table 1 */}
                   <tr className="bg-slate-100/90 text-slate-800 font-bold border-y border-slate-200 text-xs">
                     <td colSpan={5} className="p-2.5 text-center uppercase tracking-wider font-extrabold text-slate-700 text-[11px]">
-                      TOTAL TABEL 1
+                      TOTAL {table1Title ? `(${table1Title.toUpperCase()})` : 'TABEL 1'}
                     </td>
                     <td className="p-2.5 text-right font-mono font-black text-slate-900 border-r border-slate-200 whitespace-nowrap">
                       {showRangePrice ? (
@@ -2795,14 +2829,14 @@ function EstimationBuilderContent() {
         {!isLocked && (
           <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
             <div className="flex flex-wrap items-center gap-2.5">
-              <span className="text-xs font-black text-slate-500 uppercase">Tabel 1:</span>
+              <span className="text-xs font-black text-slate-500 uppercase">{table1Title || 'Tabel 1'}:</span>
               <button
                 type="button"
                 onClick={() => handleAddEmptyRow(1)}
                 className="inline-flex items-center space-x-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3.5 py-2 rounded-xl transition cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
-                <span>Tambah Baris (Tabel 1)</span>
+                <span>Tambah Baris ({table1Title || 'Tabel 1'})</span>
               </button>
 
               <button
@@ -2814,7 +2848,7 @@ function EstimationBuilderContent() {
                 className="inline-flex items-center space-x-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs px-3.5 py-2 rounded-xl border border-blue-200 transition cursor-pointer"
               >
                 <PackageCheck className="w-4 h-4" />
-                <span>Katalog (Tabel 1)</span>
+                <span>Katalog ({table1Title || 'Tabel 1'})</span>
               </button>
             </div>
 
@@ -3148,6 +3182,7 @@ function EstimationBuilderContent() {
                     customer_response: customerResponse as any,
                     customer_response_note: customerResponseNote || undefined,
                     has_second_table: hasSecondTable,
+                    table1_title: table1Title,
                     table2_title: table2Title,
                     items_table2: hasSecondTable ? itemsTable2 : undefined,
                     created_at: currentEstimationRecord?.created_at || new Date().toISOString(),
@@ -3373,18 +3408,18 @@ function EstimationBuilderContent() {
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                       >
-                        Tabel 1
+                        Tabel 1 ({table1Title || 'Bagian 1'})
                       </button>
                       <button
                         type="button"
                         onClick={() => setCatalogTargetTable(2)}
                         className={`text-[10px] font-black px-2 py-0.5 rounded-md transition cursor-pointer ${
                           catalogTargetTable === 2
-                            ? 'bg-amber-400 text-slate-950 shadow-2xs font-black'
+                            ? 'bg-blue-600 text-white shadow-2xs'
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                       >
-                        Tabel 2 ({table2Title || 'Slice 2'})
+                        Tabel 2 ({table2Title || 'Bagian 2'})
                       </button>
                     </div>
                   )}

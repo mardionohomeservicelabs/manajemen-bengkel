@@ -177,6 +177,11 @@ export default function CustomerSignatureApprovalPage() {
     items.some((it) => it.section === 2)
   );
 
+  const table1Title =
+    estimation.table1_title ||
+    checklistData.table1_title ||
+    'BAGIAN 1';
+
   const table2Title =
     estimation.table2_title ||
     checklistData.table2_title ||
@@ -454,6 +459,18 @@ export default function CustomerSignatureApprovalPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
+                {/* Table 1 Slice Divider (Rendered when Double Table is enabled) */}
+                {hasSecondTable && (
+                  <tr className="bg-slate-100/90 border-b-2 border-slate-300">
+                    <td
+                      colSpan={hasOpsi2 ? 8 : 6}
+                      className="py-2 px-4 text-center font-extrabold text-slate-800 uppercase tracking-wider text-[11px]"
+                    >
+                      {table1Title}
+                    </td>
+                  </tr>
+                )}
+
                 {/* Table 1 Items */}
                 {table1Items.map((item, idx) => {
                   const p1Raw = item.price_opsi1 !== undefined && item.price_opsi1 !== '' ? item.price_opsi1 : (item.price !== undefined ? item.price : 0);
@@ -500,7 +517,7 @@ export default function CustomerSignatureApprovalPage() {
                     {/* Subtotal Row Table 1 */}
                     <tr className="bg-slate-100/90 text-slate-800 font-bold text-[11px] border-y border-slate-200">
                       <td colSpan={5} className="p-2 text-center uppercase tracking-wider font-extrabold text-slate-700 text-[10.5px]">
-                        TOTAL TABEL 1
+                        TOTAL {table1Title ? `(${table1Title.toUpperCase()})` : 'TABEL 1'}
                       </td>
                       <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-200 whitespace-nowrap">
                         {formatRangeDisplay(t1Totals.s1Min, t1Totals.s1Max)}
