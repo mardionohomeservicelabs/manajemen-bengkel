@@ -30,10 +30,12 @@ import {
   Lock,
   Unlock,
   Building2,
+  FileEdit,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PrintableSPK } from '@/components/ui/PrintableSPK';
 import { EditLicensePlateModal } from '@/components/ui/EditLicensePlateModal';
+import { EditSPKModal } from '@/components/ui/EditSPKModal';
 
 function SPKListContent() {
   const {
@@ -55,6 +57,7 @@ function SPKListContent() {
   const [selectedBranch, setSelectedBranch] = useState<'ALL' | BranchId>((branchParam as BranchId) || 'ALL');
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
   const [editingPlateOrder, setEditingPlateOrder] = useState<WorkOrder | null>(null);
+  const [editingSpkOrder, setEditingSpkOrder] = useState<WorkOrder | null>(null);
 
   const baseOrders = selectedBranch === 'ALL'
     ? allWorkOrders
@@ -297,6 +300,17 @@ function SPKListContent() {
                       </td>
 
                       <td className="p-3.5 align-top text-right space-x-1.5 whitespace-nowrap">
+                        {(order.status !== 'completed' || currentRole === 'owner') && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingSpkOrder(order)}
+                            className="inline-flex items-center space-x-1 bg-maroon-50 hover:bg-maroon-100 text-maroon-800 font-bold px-2.5 py-1.5 rounded-lg text-xs transition border border-maroon-200 cursor-pointer"
+                            title="Edit Isi SPK (Keluhan, Mekanik, Kendaraan, dll.)"
+                          >
+                            <FileEdit className="w-3.5 h-3.5 text-maroon-700" />
+                            <span>Edit SPK</span>
+                          </button>
+                        )}
                         {order.status === 'completed' && currentRole === 'owner' && (
                           <button
                             type="button"
@@ -312,7 +326,7 @@ function SPKListContent() {
                           <button
                             type="button"
                             onClick={() => setEditingPlateOrder(order)}
-                            className="inline-flex items-center space-x-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2.5 py-1.5 rounded-lg text-xs transition border border-blue-200"
+                            className="inline-flex items-center space-x-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2.5 py-1.5 rounded-lg text-xs transition border border-blue-200 cursor-pointer"
                             title="Ganti Plat Nomor Kendaraan"
                           >
                             <Car className="w-3.5 h-3.5" />
@@ -321,7 +335,7 @@ function SPKListContent() {
                         )}
                         <button
                           onClick={() => setSelectedOrder(order)}
-                          className="inline-flex items-center space-x-1 bg-slate-100 hover:bg-maroon-50 text-slate-700 hover:text-maroon-700 px-2.5 py-1.5 rounded-lg text-xs font-medium transition"
+                          className="inline-flex items-center space-x-1 bg-slate-100 hover:bg-maroon-50 text-slate-700 hover:text-maroon-700 px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer"
                           title="Pratinjau Lembar SPK & Checklist"
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -346,9 +360,25 @@ function SPKListContent() {
               workOrder={selectedOrder}
               settings={settings}
               onClose={() => setSelectedOrder(null)}
+              onEdit={() => {
+                setEditingSpkOrder(selectedOrder);
+                setSelectedOrder(null);
+              }}
             />
           </div>
         </div>
+      )}
+
+      {/* Modal Edit Isi SPK */}
+      {editingSpkOrder && (
+        <EditSPKModal
+          workOrder={editingSpkOrder}
+          onClose={() => setEditingSpkOrder(null)}
+          onSuccess={() => {
+            setEditingSpkOrder(null);
+            refreshData();
+          }}
+        />
       )}
 
       {/* Modal Edit Plat Nomor */}

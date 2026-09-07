@@ -77,6 +77,20 @@ export function parseNumericPrice(val: number | string | undefined): number {
   return 0;
 }
 
+export function parseRangePrice(val: any): { min: number; max: number } {
+  if (typeof val === 'number') return { min: isNaN(val) ? 0 : val, max: isNaN(val) ? 0 : val };
+  if (!val) return { min: 0, max: 0 };
+  const str = String(val).replace(/[Rp\s]/g, '');
+  const parts = str.split(/[-\u2012\u2013\u2014\u2212~]/);
+  if (parts.length >= 2) {
+    const minVal = parseInt(parts[0].replace(/\D/g, ''), 10) || 0;
+    const maxVal = parseInt(parts[1].replace(/\D/g, ''), 10) || minVal;
+    return { min: Math.min(minVal, maxVal), max: Math.max(minVal, maxVal) };
+  }
+  const single = parseInt(str.replace(/\D/g, ''), 10) || 0;
+  return { min: single, max: single };
+}
+
 export function formatDate(dateString?: string | Date): string {
   if (!dateString) return '-';
   const date = typeof dateString === 'string' ? new Date(dateString) : dateString;

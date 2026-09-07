@@ -260,8 +260,8 @@ export function PrintableInvoice({
                     <tr key={idx} className="hover:bg-slate-50">
                       <td className="p-2 text-center font-bold border-r border-slate-300">{idx + 1}</td>
                       <td className="p-2 border-r border-slate-300">
-                        <div className="font-bold text-slate-900">{item.name}</div>
-                        {item.code && <div className="text-[9.5px] text-slate-500 font-mono">{item.code}</div>}
+                        <div className="font-bold text-slate-900 uppercase">{(item.name || '').toUpperCase()}</div>
+                        {item.code && <div className="text-[9.5px] text-slate-500 font-mono uppercase">{item.code}</div>}
                       </td>
                       <td className="p-2 text-center border-r border-slate-300">
                         <span
@@ -445,7 +445,7 @@ export function PrintableInvoice({
           <div className="py-2 border-b border-dashed border-slate-400 space-y-1">
             {invoice.items.map((item, idx) => (
               <div key={idx} className="space-y-0.5">
-                <div className="font-bold">{item.name}</div>
+                <div className="font-bold uppercase">{(item.name || '').toUpperCase()}</div>
                 <div className="flex justify-between text-[10px] text-slate-700">
                   <span>{item.qty} x {formatCurrency(item.price)}</span>
                   <span className="font-bold">{formatCurrency(item.subtotal)}</span>

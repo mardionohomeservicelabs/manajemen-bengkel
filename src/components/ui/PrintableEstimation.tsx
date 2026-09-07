@@ -9,6 +9,7 @@ import {
   formatPlate,
   createWhatsAppLink,
   parseNumericPrice,
+  parseRangePrice,
   formatNumberOrText,
   formatKM,
 } from '@/lib/utils';
@@ -61,6 +62,69 @@ export function PrintableEstimation({
       ))
   );
 
+  // Deteksi mode Double Estimasi (Tabel 1 & Tabel 2)
+  const isDoubleTable = Boolean(
+    estimation.has_second_table ||
+    (estimation.items_table2 && estimation.items_table2.length > 0) ||
+    (estimation.items && estimation.items.some((it: any) => it.section === 2))
+  );
+
+  const table1Items = isDoubleTable
+    ? estimation.items.filter((it: any) => it.section !== 2)
+    : (estimation.items || []);
+
+  const table2Items = isDoubleTable
+    ? ((estimation.items_table2 && estimation.items_table2.length > 0)
+        ? estimation.items_table2
+        : estimation.items.filter((it: any) => it.section === 2))
+    : [];
+
+  const table2Title = estimation.table2_title || (estimation as any).checklist_data?.table2_title || 'BAGIAN REM';
+
+  // Perhitungan Subtotal Per Bagian
+  function calculateSectionTotals(itemsList: InvoiceItem[]) {
+    let tot1Min = 0;
+    let tot1Max = 0;
+    let tot2Min = 0;
+    let tot2Max = 0;
+
+    itemsList.forEach((it) => {
+      const qty = it.qty || 1;
+      const isP1Empty = it.price_opsi1 === '' || it.price_opsi1 === 0 || it.price_opsi1 === '0';
+      const p1Raw = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
+      const isP2Empty = it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0';
+      const p2Raw = isP2Empty ? 0 : (it.price_opsi2 !== undefined && it.price_opsi2 !== '' ? it.price_opsi2 : p1Raw);
+
+      const r1 = parseRangePrice(p1Raw);
+      const r2 = parseRangePrice(p2Raw);
+
+      if (!isP1Empty && (typeof p1Raw !== 'string' || !/[a-zA-Z]/.test(p1Raw) || r1.min > 0)) {
+        tot1Min += r1.min * qty;
+        tot1Max += r1.max * qty;
+      }
+      if (!isP2Empty && (typeof p2Raw !== 'string' || !/[a-zA-Z]/.test(p2Raw) || r2.min > 0)) {
+        tot2Min += r2.min * qty;
+        tot2Max += r2.max * qty;
+      }
+    });
+
+    return { tot1Min, tot1Max, tot2Min, tot2Max };
+  }
+
+  const t1Totals = calculateSectionTotals(table1Items);
+  const t2Totals = calculateSectionTotals(table2Items);
+
+  const grandTot1Min = isDoubleTable ? (t1Totals.tot1Min + t2Totals.tot1Min) : t1Totals.tot1Min;
+  const grandTot1Max = isDoubleTable ? (t1Totals.tot1Max + t2Totals.tot1Max) : t1Totals.tot1Max;
+  const grandTot2Min = isDoubleTable ? (t1Totals.tot2Min + t2Totals.tot2Min) : t1Totals.tot2Min;
+  const grandTot2Max = isDoubleTable ? (t1Totals.tot2Max + t2Totals.tot2Max) : t1Totals.tot2Max;
+
+  function formatTotalCell(min: number, max: number): string {
+    if (min === 0 && max === 0) return 'Rp 0';
+    if (min === max) return formatCurrency(min);
+    return `${formatCurrency(min)} – ${formatCurrency(max)}`;
+  }
+
   const getWhatsAppMessage = () => {
     let baseOrigin = typeof window !== 'undefined' ? window.location.origin : '';
     if (
@@ -78,8 +142,8 @@ export function PrintableEstimation({
       `Berikut rincian Surat Estimasi Biaya Perbaikan dari ${settings.name}:\n\n` +
       `No. Estimasi: ${estimation.invoice_number}\n` +
       `Kendaraan: ${vehicle?.car_brand} ${vehicle?.car_model} (${vehicle?.license_plate})\n` +
-      `Total Estimasi Opsi 1: ${formatCurrency(estimation.total_opsi1 || estimation.total_amount)}\n` +
-      (hasOpsi2 ? `Total Estimasi Opsi 2: ${formatCurrency(estimation.total_opsi2 || estimation.total_amount)}\n` : '') +
+      `Total Estimasi Opsi 1: ${formatTotalCell(grandTot1Min, grandTot1Max)}\n` +
+      (hasOpsi2 ? `Total Estimasi Opsi 2: ${formatTotalCell(grandTot2Min, grandTot2Max)}\n` : '') +
       `Estimator: ${signerEstimator || 'Via Rizkiana'}\n\n` +
       (approvalUrl ? `Silakan klik tautan resmi di bawah ini untuk melihat rincian & menyetujui secara digital:\n🔗 ${approvalUrl}\n\n` : '') +
       `Mohon konfirmasi persetujuan pengerjaan dengan membuka tautan di atas atau membalas pesan ini "SETUJU".\n` +
@@ -90,45 +154,6 @@ export function PrintableEstimation({
   const waLink = vehicle?.phone_number
     ? createWhatsAppLink(vehicle.phone_number, getWhatsAppMessage())
     : '#';
-
-  function itemsTotal(itemsList: InvoiceItem[], option: 'opsi1' | 'opsi2'): number {
-    return itemsList.reduce((sum, it) => {
-      if (option === 'opsi1') {
-        const isP1Empty = it.price_opsi1 === '' || it.price_opsi1 === 0 || it.price_opsi1 === '0';
-        if (isP1Empty && (it.price === undefined || it.price === 0 || it.price === '0')) return sum;
-        const p1Val = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : (it.price || 0);
-        const parsed = parseNumericPrice(p1Val);
-        const val =
-          typeof it.total_opsi1 === 'number' && it.total_opsi1 > 0
-            ? it.total_opsi1
-            : (it.qty || 1) * parsed;
-        return sum + (Number.isNaN(val) ? 0 : val);
-      } else {
-        const isP2Empty = it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0';
-        if (isP2Empty) return sum;
-        const p2Effective = it.price_opsi2 !== undefined && it.price_opsi2 !== '' ? it.price_opsi2 : 0;
-        const parsed = parseNumericPrice(p2Effective);
-        const val =
-          typeof it.total_opsi2 === 'number' && it.total_opsi2 > 0
-            ? it.total_opsi2
-            : (it.qty || 1) * parsed;
-        return sum + (Number.isNaN(val) ? 0 : val);
-      }
-    }, 0);
-  }
-
-  // Total Calculations
-  const calculatedTot1 = itemsTotal(estimation.items || [], 'opsi1') - (estimation.discount_amount || 0);
-  const calculatedTot2 = itemsTotal(estimation.items || [], 'opsi2') - (estimation.discount_amount || 0);
-  const tot1 =
-    estimation.total_opsi1 !== undefined && estimation.total_opsi1 > 0
-      ? estimation.total_opsi1
-      : calculatedTot1;
-  const tot2 =
-    estimation.total_opsi2 !== undefined && estimation.total_opsi2 > 0
-      ? estimation.total_opsi2
-      : calculatedTot2;
-
 
   const complaintsText = estimation.work_order?.complaints || 'Ketika kena lubang kerasa banget, suara bising sebelah kanan';
 
@@ -299,7 +324,9 @@ export function PrintableEstimation({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-300">
-                {estimation.items.map((item, idx) => {
+                {/* Table 1 Items */}
+                {table1Items.map((item, idx) => {
+                  const qty = item.qty || 1;
                   const isP1Empty =
                     item.price_opsi1 === '' || item.price_opsi1 === 0 || item.price_opsi1 === '0';
                   const p1 =
@@ -308,27 +335,27 @@ export function PrintableEstimation({
                       : item.price !== undefined
                       ? item.price
                       : 0;
-                  const p1Num = parseNumericPrice(p1);
-                  const tot1 =
-                    isP1Empty && p1Num === 0
-                      ? 0
-                      : item.total_opsi1 !== undefined
-                      ? item.total_opsi1
-                      : (item.qty || 1) * p1Num;
+                  const r1 = parseRangePrice(p1);
+                  const tot1Formatted =
+                    isP1Empty || (r1.min === 0 && r1.max === 0)
+                      ? '0'
+                      : r1.min === r1.max
+                      ? formatCurrency(r1.min * qty)
+                      : `${formatCurrency(r1.min * qty)} – ${formatCurrency(r1.max * qty)}`;
 
                   const isP2Empty =
                     item.price_opsi2 === '' || item.price_opsi2 === 0 || item.price_opsi2 === '0';
                   const p2 = isP2Empty ? 0 : item.price_opsi2 !== undefined ? item.price_opsi2 : 0;
-                  const p2Num = parseNumericPrice(p2);
-                  const tot2 =
-                    isP2Empty
-                      ? 0
-                      : item.total_opsi2 !== undefined && item.total_opsi2 !== 0
-                      ? item.total_opsi2
-                      : (item.qty || 1) * p2Num;
+                  const r2 = parseRangePrice(p2);
+                  const tot2Formatted =
+                    isP2Empty || (r2.min === 0 && r2.max === 0)
+                      ? '0'
+                      : r2.min === r2.max
+                      ? formatCurrency(r2.min * qty)
+                      : `${formatCurrency(r2.min * qty)} – ${formatCurrency(r2.max * qty)}`;
 
                   return (
-                    <tr key={idx} className="hover:bg-slate-50 estimation-item-row">
+                    <tr key={`t1-${idx}`} className="hover:bg-slate-50 estimation-item-row">
                       <td className="p-1.5 text-center font-bold border-r border-slate-300 align-middle">
                         {idx + 1}
                       </td>
@@ -338,49 +365,163 @@ export function PrintableEstimation({
                         </div>
                       </td>
                       <td className="p-1.5 text-center font-mono font-bold border-r border-slate-300 align-middle">
-                        {item.qty || 1}
+                        {qty}
                       </td>
                       <td className="p-1.5 text-center text-[10px] font-black uppercase text-slate-700 border-r border-slate-300 align-middle">
                         {item.unit || 'PCS'}
                       </td>
                       <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold">
-                        {isP1Empty || p1Num === 0 ? '0' : formatCurrency(p1)}
+                        {isP1Empty || (r1.min === 0 && r1.max === 0) ? '0' : formatCurrency(p1)}
                       </td>
                       <td className="p-1.5 text-right font-mono font-black text-slate-900 border-r border-slate-300 align-middle">
-                        {isP1Empty || p1Num === 0 ? '0' : formatCurrency(tot1)}
+                        {tot1Formatted}
                       </td>
                       {hasOpsi2 && (
                         <>
                           <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold bg-blue-50/20 text-blue-900">
-                            {isP2Empty || p2Num === 0 ? '0' : formatCurrency(p2)}
+                            {isP2Empty || (r2.min === 0 && r2.max === 0) ? '0' : formatCurrency(p2)}
                           </td>
                           <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
-                            {isP2Empty || tot2 === 0 ? '0' : formatCurrency(tot2)}
+                            {tot2Formatted}
                           </td>
                         </>
                       )}
                     </tr>
                   );
                 })}
+
+                {/* If Double Table: Render Subtotal Table 1, Slice Divider, Table 2 Items, and Subtotal Table 2 */}
+                {isDoubleTable && (
+                  <>
+                    {/* Subtotal Row Table 1 (Dark navy with yellow text) */}
+                    <tr className="bg-[#0B2545] text-[#FACC15] font-black border-y-2 border-slate-900 text-xs">
+                      <td colSpan={5} className="p-2 text-center uppercase tracking-wider font-black text-[#FACC15]">
+                        TOTAL
+                      </td>
+                      <td className="p-2 text-right font-mono font-black text-[#FACC15] border-r border-slate-700/50 whitespace-nowrap">
+                        {formatTotalCell(t1Totals.tot1Min, t1Totals.tot1Max)}
+                      </td>
+                      {hasOpsi2 && (
+                        <>
+                          <td className="p-2 bg-[#0B2545] border-r border-slate-700/50"></td>
+                          <td className="p-2 text-right font-mono font-black text-[#FACC15] whitespace-nowrap">
+                            {formatTotalCell(t1Totals.tot2Min, t1Totals.tot2Max)}
+                          </td>
+                        </>
+                      )}
+                    </tr>
+
+                    {/* Slice Divider (Bright yellow banner matching screenshot) */}
+                    <tr className="bg-[#FFEE00] border-y-2 border-slate-900">
+                      <td
+                        colSpan={hasOpsi2 ? 8 : 6}
+                        className="py-1.5 px-4 text-center font-black text-black uppercase tracking-wider text-xs shadow-inner"
+                      >
+                        {table2Title}
+                      </td>
+                    </tr>
+
+                    {/* Table 2 Items (Sequential numbering continuing from Table 1) */}
+                    {table2Items.map((item, idx) => {
+                      const displayNum = table1Items.length + idx + 1;
+                      const qty = item.qty || 1;
+                      const isP1Empty =
+                        item.price_opsi1 === '' || item.price_opsi1 === 0 || item.price_opsi1 === '0';
+                      const p1 =
+                        item.price_opsi1 !== undefined && item.price_opsi1 !== ''
+                          ? item.price_opsi1
+                          : item.price !== undefined
+                          ? item.price
+                          : 0;
+                      const r1 = parseRangePrice(p1);
+                      const tot1Formatted =
+                        isP1Empty || (r1.min === 0 && r1.max === 0)
+                          ? '0'
+                          : r1.min === r1.max
+                          ? formatCurrency(r1.min * qty)
+                          : `${formatCurrency(r1.min * qty)} – ${formatCurrency(r1.max * qty)}`;
+
+                      const isP2Empty =
+                        item.price_opsi2 === '' || item.price_opsi2 === 0 || item.price_opsi2 === '0';
+                      const p2 = isP2Empty ? 0 : item.price_opsi2 !== undefined ? item.price_opsi2 : 0;
+                      const r2 = parseRangePrice(p2);
+                      const tot2Formatted =
+                        isP2Empty || (r2.min === 0 && r2.max === 0)
+                          ? '0'
+                          : r2.min === r2.max
+                          ? formatCurrency(r2.min * qty)
+                          : `${formatCurrency(r2.min * qty)} – ${formatCurrency(r2.max * qty)}`;
+
+                      return (
+                        <tr key={`t2-${idx}`} className="hover:bg-slate-50 estimation-item-row">
+                          <td className="p-1.5 text-center font-bold border-r border-slate-300 align-middle">
+                            {displayNum}
+                          </td>
+                          <td className="p-1.5 border-r border-slate-300 align-middle">
+                            <div className="font-bold text-slate-900 uppercase break-words whitespace-normal leading-snug">
+                              {item.name}
+                            </div>
+                          </td>
+                          <td className="p-1.5 text-center font-mono font-bold border-r border-slate-300 align-middle">
+                            {qty}
+                          </td>
+                          <td className="p-1.5 text-center text-[10px] font-black uppercase text-slate-700 border-r border-slate-300 align-middle">
+                            {item.unit || 'PCS'}
+                          </td>
+                          <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold">
+                            {isP1Empty || (r1.min === 0 && r1.max === 0) ? '0' : formatCurrency(p1)}
+                          </td>
+                          <td className="p-1.5 text-right font-mono font-black text-slate-900 border-r border-slate-300 align-middle">
+                            {tot1Formatted}
+                          </td>
+                          {hasOpsi2 && (
+                            <>
+                              <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold bg-blue-50/20 text-blue-900">
+                                {isP2Empty || (r2.min === 0 && r2.max === 0) ? '0' : formatCurrency(p2)}
+                              </td>
+                              <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
+                                {tot2Formatted}
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      );
+                    })}
+
+                    {/* Subtotal Row Table 2 (Dark navy with yellow text) */}
+                    <tr className="bg-[#0B2545] text-[#FACC15] font-black border-y-2 border-slate-900 text-xs">
+                      <td colSpan={5} className="p-2 text-center uppercase tracking-wider font-black text-[#FACC15]">
+                        TOTAL
+                      </td>
+                      <td className="p-2 text-right font-mono font-black text-[#FACC15] border-r border-slate-700/50 whitespace-nowrap">
+                        {formatTotalCell(t2Totals.tot1Min, t2Totals.tot1Max)}
+                      </td>
+                      {hasOpsi2 && (
+                        <>
+                          <td className="p-2 bg-[#0B2545] border-r border-slate-700/50"></td>
+                          <td className="p-2 text-right font-mono font-black text-[#FACC15] whitespace-nowrap">
+                            {formatTotalCell(t2Totals.tot2Min, t2Totals.tot2Max)}
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  </>
+                )}
               </tbody>
               {/* Grand Total Row: JUMLAH KESELURUHAN (Exact layout from user screenshot) */}
               <tfoot>
-                <tr className="bg-slate-100 font-black border-t-2 border-slate-900 text-xs">
-                  <td colSpan={5} className="p-2 text-center uppercase tracking-wider text-slate-900 font-black">
+                <tr className="bg-[#0B2545] text-[#FACC15] font-black border-t-2 border-slate-900 text-xs">
+                  <td colSpan={5} className="p-2.5 text-center uppercase tracking-wider font-black text-sm text-[#FACC15]">
                     JUMLAH KESELURUHAN
                   </td>
-                  <td className="p-2 text-right font-mono font-black text-slate-950 border-r border-slate-300 text-sm whitespace-nowrap">
-                    {(estimation as any).total_opsi1_max && (estimation as any).total_opsi1_max > tot1
-                      ? `${formatCurrency(tot1)} – ${formatCurrency((estimation as any).total_opsi1_max)}`
-                      : formatCurrency(tot1)}
+                  <td className="p-2.5 text-right font-mono font-black text-[#FACC15] border-r border-slate-700/50 text-sm whitespace-nowrap">
+                    {formatTotalCell(grandTot1Min, grandTot1Max)}
                   </td>
                   {hasOpsi2 && (
                     <>
-                      <td className="p-2 bg-blue-50/40 border-r border-slate-300"></td>
-                      <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/40 text-sm whitespace-nowrap">
-                        {(estimation as any).total_opsi2_max && (estimation as any).total_opsi2_max > tot2
-                          ? `${formatCurrency(tot2)} – ${formatCurrency((estimation as any).total_opsi2_max)}`
-                          : formatCurrency(tot2)}
+                      <td className="p-2.5 bg-[#0B2545] border-r border-slate-700/50"></td>
+                      <td className="p-2.5 text-right font-mono font-black text-[#FACC15] text-sm whitespace-nowrap">
+                        {formatTotalCell(grandTot2Min, grandTot2Max)}
                       </td>
                     </>
                   )}

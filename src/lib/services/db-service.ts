@@ -1176,6 +1176,19 @@ export class DBService {
     let saved: WorkOrder;
 
     if (workOrder.id) {
+      // Periksa apakah order ini sebelumnya berada di cabang lain jika cabang diubah
+      const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+      for (const b of allBranches) {
+        if (b === targetBranch) continue;
+        const bKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b);
+        const bOrders = getLocal<WorkOrder[]>(bKey, []);
+        const bIdx = bOrders.findIndex((o) => o.id === workOrder.id);
+        if (bIdx !== -1) {
+          bOrders.splice(bIdx, 1);
+          setLocal(bKey, bOrders);
+        }
+      }
+
       const idx = orders.findIndex((o) => o.id === workOrder.id);
       if (idx !== -1) {
         saved = {
@@ -1260,22 +1273,39 @@ export class DBService {
           checklist_data: mergedChecklist,
         };
 
-        let { data, error } = await supabase
-          .from('work_orders')
-          .upsert(payload, { onConflict: 'spk_number' })
-          .select('*, vehicle:vehicles_customers(*)');
+        let data: any = null;
+        let error: any = null;
 
-        // Jika terjadi pelanggaran keunikan (duplicate key), otomatis generate nomor unik baru & coba lagi
-        if (error && (error.code === '23505' || error.message?.toLowerCase().includes('duplicate key') || error.message?.toLowerCase().includes('unique'))) {
-          const freshSpk = await this.generateUniqueSpkNumberAsync(targetBranch);
-          payload.spk_number = freshSpk;
-          localSaved.spk_number = freshSpk;
-          const retryRes = await supabase
+        const isExistingInDb = Boolean(workOrder.id && !workOrder.id.startsWith('spk-'));
+        if (isExistingInDb) {
+          payload.updated_at = new Date().toISOString();
+          const updateRes = await supabase
+            .from('work_orders')
+            .update(payload)
+            .eq('id', workOrder.id)
+            .select('*, vehicle:vehicles_customers(*)');
+          data = updateRes.data;
+          error = updateRes.error;
+        } else {
+          const upsertRes = await supabase
             .from('work_orders')
             .upsert(payload, { onConflict: 'spk_number' })
             .select('*, vehicle:vehicles_customers(*)');
-          data = retryRes.data;
-          error = retryRes.error;
+          data = upsertRes.data;
+          error = upsertRes.error;
+
+          // Jika terjadi pelanggaran keunikan (duplicate key) pada insert baru, otomatis generate nomor unik baru & coba lagi
+          if (error && (error.code === '23505' || error.message?.toLowerCase().includes('duplicate key') || error.message?.toLowerCase().includes('unique'))) {
+            const freshSpk = await this.generateUniqueSpkNumberAsync(targetBranch);
+            payload.spk_number = freshSpk;
+            localSaved.spk_number = freshSpk;
+            const retryRes = await supabase
+              .from('work_orders')
+              .upsert(payload, { onConflict: 'spk_number' })
+              .select('*, vehicle:vehicles_customers(*)');
+            data = retryRes.data;
+            error = retryRes.error;
+          }
         }
 
         if (error) {

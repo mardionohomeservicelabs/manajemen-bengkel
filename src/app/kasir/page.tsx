@@ -162,6 +162,7 @@ function CashierContent() {
 
               return {
                 ...it,
+                name: (it.name || '').toUpperCase(),
                 price: numPrice,
                 subtotal: numSubtotal,
               };
@@ -223,7 +224,7 @@ function CashierContent() {
       const newItem: InvoiceItem = {
         item_id: item.id,
         code: item.item_code,
-        name: item.name,
+        name: (item.name || '').toUpperCase(),
         is_service: item.is_service,
         qty: 1,
         price: item.sell_price,
@@ -286,13 +287,17 @@ function CashierContent() {
     try {
       const branch = selectedSpk.received_at_branch;
       const invoiceNumber = await generateUniqueInvoiceNumberAsync('invoice', branch);
+      const uppercaseItems = items.map((it) => ({
+        ...it,
+        name: (it.name || '').toUpperCase(),
+      }));
 
       const newInvoice = await saveInvoiceAsync({
         invoice_number: invoiceNumber,
         type: 'invoice',
         work_order_id: selectedSpk.id,
         vehicle_id: selectedSpk.vehicle_id,
-        items,
+        items: uppercaseItems,
         subtotal,
         discount_amount: discountAmount,
         tax_percent: taxPercent,
@@ -517,8 +522,8 @@ function CashierContent() {
                   {items.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50/60">
                       <td className="p-2.5">
-                        <div className="font-bold text-slate-900">{item.name}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">{item.code}</div>
+                        <div className="font-bold text-slate-900 uppercase">{(item.name || '').toUpperCase()}</div>
+                        <div className="text-[10px] text-slate-400 font-mono uppercase">{item.code}</div>
                       </td>
                       <td className="p-2.5 text-center">
                         <input
@@ -704,7 +709,7 @@ function CashierContent() {
                 <tbody className="divide-y divide-slate-100">
                   {items.map((item, idx) => (
                     <tr key={idx}>
-                      <td className="p-2 font-semibold text-slate-800">{item.name}</td>
+                      <td className="p-2 font-semibold text-slate-800 uppercase">{(item.name || '').toUpperCase()}</td>
                       <td className="p-2 text-center font-mono">{item.qty}</td>
                       <td className="p-2 text-right font-mono text-slate-600">{formatCurrency(item.price)}</td>
                       <td className="p-2 text-right font-mono font-bold text-slate-900">{formatCurrency(item.subtotal)}</td>

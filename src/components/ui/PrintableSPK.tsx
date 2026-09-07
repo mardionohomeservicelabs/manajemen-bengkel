@@ -15,6 +15,7 @@ import {
   Share2,
   X,
   FileText,
+  Pencil,
 } from 'lucide-react';
 import {
   OfficialDocumentHeader,
@@ -26,9 +27,10 @@ interface PrintableSPKProps {
   workOrder: WorkOrder;
   settings: WorkshopSettings;
   onClose?: () => void;
+  onEdit?: () => void;
 }
 
-export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps) {
+export function PrintableSPK({ workOrder, settings, onClose, onEdit }: PrintableSPKProps) {
   const vehicle = workOrder.vehicle;
   const documentRef = useRef<HTMLDivElement>(null);
 
@@ -109,6 +111,17 @@ export function PrintableSPK({ workOrder, settings, onClose }: PrintableSPKProps
         </div>
 
         <div className="flex items-center space-x-2.5 flex-wrap gap-2">
+          {onEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="inline-flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition shadow-md cursor-pointer"
+              title="Edit Isi SPK (Pekerjaan, Pelanggan, Mekanik, dll.)"
+            >
+              <Pencil className="w-4 h-4" />
+              <span>Edit Isi SPK</span>
+            </button>
+          )}
           <button
             onClick={handlePrint}
             className="inline-flex items-center space-x-1.5 bg-[#8B0000] hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-md"

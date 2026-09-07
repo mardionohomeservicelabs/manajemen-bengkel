@@ -33,10 +33,12 @@ import {
   CheckCircle,
   FolderCheck,
   Building2,
+  FileEdit,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PrintableSPK } from '@/components/ui/PrintableSPK';
 import { EditLicensePlateModal } from '@/components/ui/EditLicensePlateModal';
+import { EditSPKModal } from '@/components/ui/EditSPKModal';
 
 const ACTIVE_COLUMNS: { id: WorkOrderStatus; title: string; color: string; border: string; bg: string }[] = [
   {
@@ -103,6 +105,7 @@ function QueueBoardContent() {
   );
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
   const [editingPlateOrder, setEditingPlateOrder] = useState<WorkOrder | null>(null);
+  const [editingSpkOrder, setEditingSpkOrder] = useState<WorkOrder | null>(null);
   const [dbSearchQuery, setDbSearchQuery] = useState('');
 
   // Sinkronkan data saat halaman dibuka
@@ -422,7 +425,7 @@ function QueueBoardContent() {
                                     <button
                                       type="button"
                                       onClick={() => setSelectedOrder(order)}
-                                      className="text-[10.5px] bg-slate-100 hover:bg-slate-200 text-slate-700 py-1.5 px-2 rounded-lg font-bold text-center transition"
+                                      className="text-[10.5px] bg-slate-100 hover:bg-slate-200 text-slate-700 py-1.5 px-2 rounded-lg font-bold text-center transition cursor-pointer"
                                     >
                                       SPK &amp; Cek
                                     </button>
@@ -434,17 +437,32 @@ function QueueBoardContent() {
                                     </Link>
                                   </div>
 
-                                  {/* Ganti Plat Button */}
-                                  {vehicle && (
+                                  {/* Edit Isi SPK & Ganti Plat Buttons */}
+                                  <div className="grid grid-cols-2 gap-1.5">
                                     <button
                                       type="button"
-                                      onClick={() => setEditingPlateOrder(order)}
-                                      className="w-full inline-flex items-center justify-center space-x-1 text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-700 py-1 px-2 rounded-lg font-bold border border-blue-200 transition"
+                                      onClick={() => setEditingSpkOrder(order)}
+                                      className="inline-flex items-center justify-center space-x-1 text-[10px] bg-maroon-50 hover:bg-maroon-100 text-maroon-900 py-1 px-1.5 rounded-lg font-bold border border-maroon-200 transition cursor-pointer"
+                                      title="Ubah rincian data SPK, keluhan, teknisi, dll."
                                     >
-                                      <Car className="w-3 h-3" />
-                                      <span>Ganti Plat Nomor</span>
+                                      <FileEdit className="w-3 h-3 text-maroon-700" />
+                                      <span>Edit Isi SPK</span>
                                     </button>
-                                  )}
+
+                                    {vehicle ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingPlateOrder(order)}
+                                        className="inline-flex items-center justify-center space-x-1 text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-700 py-1 px-1.5 rounded-lg font-bold border border-blue-200 transition cursor-pointer"
+                                        title="Ganti Plat Nomor Kendaraan"
+                                      >
+                                        <Car className="w-3 h-3" />
+                                        <span>Ganti Plat</span>
+                                      </button>
+                                    ) : (
+                                      <div />
+                                    )}
+                                  </div>
 
                                   {/* Status Specific Action Cards & Buttons */}
                                   {order.status === 'completed_service' && (
@@ -644,8 +662,17 @@ function QueueBoardContent() {
                                 )}
                                 <button
                                   type="button"
+                                  onClick={() => setEditingSpkOrder(order)}
+                                  className="px-2.5 py-1.5 rounded bg-maroon-50 hover:bg-maroon-100 text-maroon-800 border border-maroon-200 font-bold text-xs inline-flex items-center space-x-1 cursor-pointer"
+                                  title="Edit Isi SPK (Keluhan, Mekanik, Kendaraan, dll.)"
+                                >
+                                  <FileEdit className="w-3 h-3" />
+                                  <span>Edit SPK</span>
+                                </button>
+                                <button
+                                  type="button"
                                   onClick={() => setSelectedOrder(order)}
-                                  className="px-2.5 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                                  className="px-2.5 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
                                 >
                                   SPK
                                 </button>
@@ -811,9 +838,25 @@ function QueueBoardContent() {
               workOrder={selectedOrder}
               settings={settings}
               onClose={() => setSelectedOrder(null)}
+              onEdit={() => {
+                setEditingSpkOrder(selectedOrder);
+                setSelectedOrder(null);
+              }}
             />
           </div>
         </div>
+      )}
+
+      {/* Modal Edit Isi SPK */}
+      {editingSpkOrder && (
+        <EditSPKModal
+          workOrder={editingSpkOrder}
+          onClose={() => setEditingSpkOrder(null)}
+          onSuccess={() => {
+            setEditingSpkOrder(null);
+            refreshData();
+          }}
+        />
       )}
 
       {/* Modal Edit Plat Nomor */}

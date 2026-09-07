@@ -321,6 +321,8 @@ export interface InvoiceItem {
   option_group?: string;
   /** Whether this option row is the selected/active one for total calculation */
   is_active_option?: boolean;
+  /** Double Estimasi Section (1 = Tabel 1, 2 = Tabel 2) */
+  section?: number;
 }
 
 export interface Invoice {
@@ -363,6 +365,20 @@ export interface Invoice {
   total_opsi2?: number;
   total_opsi2_max?: number;
   tab_id?: string;
+
+  // --- Double Estimasi (Tabel 1 & Tabel 2) ---
+  has_second_table?: boolean;
+  table2_title?: string;
+  items_table2?: InvoiceItem[];
+  table1_total_opsi1?: number;
+  table1_total_opsi1_max?: number;
+  table1_total_opsi2?: number;
+  table1_total_opsi2_max?: number;
+  table2_total_opsi1?: number;
+  table2_total_opsi1_max?: number;
+  table2_total_opsi2?: number;
+  table2_total_opsi2_max?: number;
+  checklist_data?: Record<string, any>;
 
   // --- Digital Signature & Customer Approval ---
   customer_signature?: string; // Base64 data URL

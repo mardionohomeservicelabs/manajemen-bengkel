@@ -168,23 +168,88 @@ export default function CustomerSignatureApprovalPage() {
   const vehicle = estimation.vehicle;
   const items = estimation.items || [];
   
+  // Deteksi Double Estimasi
+  const checklistData = (estimation as any).checklist_data || {};
+  const hasSecondTable = Boolean(
+    estimation.has_second_table ||
+    checklistData.has_second_table ||
+    (checklistData.items_table2 && checklistData.items_table2.length > 0) ||
+    items.some((it) => it.section === 2)
+  );
+
+  const table2Title =
+    estimation.table2_title ||
+    checklistData.table2_title ||
+    'BAGIAN REM';
+
+  let table1Items: typeof items = [];
+  let table2Items: typeof items = [];
+
+  if (hasSecondTable) {
+    if (items.some((it) => it.section === 2)) {
+      table1Items = items.filter((it) => it.section !== 2);
+      table2Items = items.filter((it) => it.section === 2);
+    } else if (checklistData.items_table2 && checklistData.items_table2.length > 0) {
+      table1Items = items;
+      table2Items = checklistData.items_table2;
+    } else {
+      table1Items = items;
+      table2Items = [];
+    }
+  } else {
+    table1Items = items;
+    table2Items = [];
+  }
+
+  const allItems = hasSecondTable && table2Items.length > 0 && !items.some(it => it.section === 2)
+    ? [...table1Items, ...table2Items]
+    : items;
+
+  // Helper kalkulasi subtotal per tabel
+  const calcSectionTotals = (itemList: typeof items) => {
+    let s1Min = 0, s1Max = 0, s2Min = 0, s2Max = 0;
+    itemList.forEach((it) => {
+      const qty = it.qty || 1;
+      const isP1Empty = it.price_opsi1 === '' || it.price_opsi1 === 0 || it.price_opsi1 === '0';
+      const p1Raw = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
+      const isP2Empty = it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0';
+      const p2Raw = isP2Empty ? 0 : (it.price_opsi2 !== undefined && it.price_opsi2 !== '' ? it.price_opsi2 : p1Raw);
+
+      const r1 = parseRangePrice(p1Raw);
+      const r2 = parseRangePrice(p2Raw);
+
+      if (!isP1Empty) {
+        s1Min += r1.min * qty;
+        s1Max += r1.max * qty;
+      }
+      if (!isP2Empty) {
+        s2Min += r2.min * qty;
+        s2Max += r2.max * qty;
+      }
+    });
+    return { s1Min, s1Max, s2Min, s2Max };
+  };
+
+  const t1Totals = calcSectionTotals(table1Items);
+  const t2Totals = calcSectionTotals(table2Items);
+
   // Opsi 2 aktif jika explicitly true atau terdapat item yang memiliki price_opsi2
   const hasOpsi2 = Boolean(
     estimation.has_opsi2 === true ||
-    (estimation.has_opsi2 !== false && items.some(it => it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0'))
+    (estimation.has_opsi2 !== false && allItems.some(it => it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0'))
   );
 
   const discount = estimation.discount_amount || 0;
   const taxPercent = estimation.tax_percent || 0;
 
   // Kalkulasi Opsi 1
-  const subtotalOpsi1Min = items.reduce((sum, it) => {
+  const subtotalOpsi1Min = allItems.reduce((sum, it) => {
     const p = it.price_opsi1 !== undefined ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
     const { min } = parseRangePrice(p);
     return sum + min * (it.qty || 1);
   }, 0);
 
-  const subtotalOpsi1Max = items.reduce((sum, it) => {
+  const subtotalOpsi1Max = allItems.reduce((sum, it) => {
     const p = it.price_opsi1 !== undefined ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
     const { max } = parseRangePrice(p);
     return sum + max * (it.qty || 1);
@@ -197,14 +262,14 @@ export default function CustomerSignatureApprovalPage() {
   const totalFinalOpsi1Max = Math.max(0, subtotalOpsi1Max - discount + taxAmountOpsi1Max);
 
   // Kalkulasi Opsi 2
-  const subtotalOpsi2Min = items.reduce((sum, it) => {
+  const subtotalOpsi2Min = allItems.reduce((sum, it) => {
     if (it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0') return sum;
     const p = it.price_opsi2 !== undefined ? it.price_opsi2 : (it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : it.price || 0);
     const { min } = parseRangePrice(p);
     return sum + min * (it.qty || 1);
   }, 0);
 
-  const subtotalOpsi2Max = items.reduce((sum, it) => {
+  const subtotalOpsi2Max = allItems.reduce((sum, it) => {
     if (it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0') return sum;
     const p = it.price_opsi2 !== undefined ? it.price_opsi2 : (it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : it.price || 0);
     const { max } = parseRangePrice(p);
@@ -389,7 +454,8 @@ export default function CustomerSignatureApprovalPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {items.map((item, idx) => {
+                {/* Table 1 Items */}
+                {table1Items.map((item, idx) => {
                   const p1Raw = item.price_opsi1 !== undefined && item.price_opsi1 !== '' ? item.price_opsi1 : (item.price !== undefined ? item.price : 0);
                   const isP2Empty = item.price_opsi2 === '' || item.price_opsi2 === 0 || item.price_opsi2 === '0';
                   const p2Raw = isP2Empty ? 0 : (item.price_opsi2 !== undefined ? item.price_opsi2 : p1Raw);
@@ -409,7 +475,7 @@ export default function CustomerSignatureApprovalPage() {
                   const tot2Display = isP2Empty ? '-' : (tot2Min === tot2Max ? formatNumberOrText(tot2Min) : `${formatNumberOrText(tot2Min)} – ${formatNumberOrText(tot2Max)}`);
 
                   return (
-                    <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                    <tr key={`t1-${idx}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
                       <td className="p-2 text-center text-slate-400 font-bold border-r border-slate-100">{idx + 1}</td>
                       <td className="p-2 border-r border-slate-100">
                         <div className="font-bold text-slate-900 uppercase text-[10.5px]">{item.name}</div>
@@ -427,20 +493,111 @@ export default function CustomerSignatureApprovalPage() {
                     </tr>
                   );
                 })}
+
+                {/* If Double Table: Render Subtotal Table 1, Slice Divider, Table 2 Items, and Subtotal Table 2 */}
+                {hasSecondTable && (
+                  <>
+                    {/* Subtotal Row Table 1 */}
+                    <tr className="bg-[#0B2545] text-[#FACC15] font-black text-[11px] border-y-2 border-slate-900">
+                      <td colSpan={5} className="p-2 text-center uppercase tracking-wider font-black text-[#FACC15]">
+                        TOTAL
+                      </td>
+                      <td className="p-2 text-right font-mono font-black text-[#FACC15] border-r border-slate-700/50 whitespace-nowrap">
+                        {formatRangeDisplay(t1Totals.s1Min, t1Totals.s1Max)}
+                      </td>
+                      {hasOpsi2 && (
+                        <>
+                          <td className="p-2 bg-[#0B2545] border-r border-slate-700/50"></td>
+                          <td className="p-2 text-right font-mono font-black text-[#FACC15] whitespace-nowrap">
+                            {formatRangeDisplay(t1Totals.s2Min, t1Totals.s2Max)}
+                          </td>
+                        </>
+                      )}
+                    </tr>
+
+                    {/* Slice Divider (Bright yellow banner) */}
+                    <tr className="bg-[#FFEE00] border-y-2 border-slate-900">
+                      <td
+                        colSpan={hasOpsi2 ? 8 : 6}
+                        className="py-1.5 px-4 text-center font-black text-black uppercase tracking-wider text-xs shadow-inner"
+                      >
+                        {table2Title}
+                      </td>
+                    </tr>
+
+                    {/* Table 2 Items */}
+                    {table2Items.map((item, idx) => {
+                      const displayNum = table1Items.length + idx + 1;
+                      const p1Raw = item.price_opsi1 !== undefined && item.price_opsi1 !== '' ? item.price_opsi1 : (item.price !== undefined ? item.price : 0);
+                      const isP2Empty = item.price_opsi2 === '' || item.price_opsi2 === 0 || item.price_opsi2 === '0';
+                      const p2Raw = isP2Empty ? 0 : (item.price_opsi2 !== undefined ? item.price_opsi2 : p1Raw);
+
+                      const { min: p1Min, max: p1Max } = parseRangePrice(p1Raw);
+                      const { min: p2Min, max: p2Max } = parseRangePrice(p2Raw);
+
+                      const qty = item.qty || 1;
+                      const tot1Min = p1Min * qty;
+                      const tot1Max = p1Max * qty;
+                      const tot2Min = isP2Empty ? 0 : p2Min * qty;
+                      const tot2Max = isP2Empty ? 0 : p2Max * qty;
+
+                      const p1Display = p1Min === p1Max ? formatNumberOrText(p1Min) : `${formatNumberOrText(p1Min)} – ${formatNumberOrText(p1Max)}`;
+                      const tot1Display = tot1Min === tot1Max ? formatNumberOrText(tot1Min) : `${formatNumberOrText(tot1Min)} – ${formatNumberOrText(tot1Max)}`;
+                      const p2Display = isP2Empty ? '-' : (p2Min === p2Max ? formatNumberOrText(p2Min) : `${formatNumberOrText(p2Min)} – ${formatNumberOrText(p2Max)}`);
+                      const tot2Display = isP2Empty ? '-' : (tot2Min === tot2Max ? formatNumberOrText(tot2Min) : `${formatNumberOrText(tot2Min)} – ${formatNumberOrText(tot2Max)}`);
+
+                      return (
+                        <tr key={`t2-${idx}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                          <td className="p-2 text-center text-slate-400 font-bold border-r border-slate-100">{displayNum}</td>
+                          <td className="p-2 border-r border-slate-100">
+                            <div className="font-bold text-slate-900 uppercase text-[10.5px]">{item.name}</div>
+                          </td>
+                          <td className="p-2 text-center font-mono font-bold text-slate-700 border-r border-slate-100">{qty}</td>
+                          <td className="p-2 text-center text-[10px] font-black uppercase text-slate-600 border-r border-slate-100">{item.unit || 'PCS'}</td>
+                          <td className="p-2 text-right font-mono text-slate-700 border-r border-slate-100">{p1Display}</td>
+                          <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-100">{tot1Display}</td>
+                          {hasOpsi2 && (
+                            <>
+                              <td className="p-2 text-right font-mono text-blue-800 border-r border-slate-100 bg-blue-50/20">{p2Display}</td>
+                              <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">{tot2Display}</td>
+                            </>
+                          )}
+                        </tr>
+                      );
+                    })}
+
+                    {/* Subtotal Row Table 2 */}
+                    <tr className="bg-[#0B2545] text-[#FACC15] font-black text-[11px] border-y-2 border-slate-900">
+                      <td colSpan={5} className="p-2 text-center uppercase tracking-wider font-black text-[#FACC15]">
+                        TOTAL
+                      </td>
+                      <td className="p-2 text-right font-mono font-black text-[#FACC15] border-r border-slate-700/50 whitespace-nowrap">
+                        {formatRangeDisplay(t2Totals.s1Min, t2Totals.s1Max)}
+                      </td>
+                      {hasOpsi2 && (
+                        <>
+                          <td className="p-2 bg-[#0B2545] border-r border-slate-700/50"></td>
+                          <td className="p-2 text-right font-mono font-black text-[#FACC15] whitespace-nowrap">
+                            {formatRangeDisplay(t2Totals.s2Min, t2Totals.s2Max)}
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  </>
+                )}
               </tbody>
               <tfoot>
-                <tr className="bg-slate-100 border-t-2 border-slate-300 font-black text-[11px]">
-                  <td colSpan={4} className="p-2 text-center uppercase tracking-wider text-slate-800 border-r border-slate-200">
+                <tr className="bg-[#0B2545] text-[#FACC15] font-black text-[11px] border-t-2 border-slate-900">
+                  <td colSpan={5} className="p-2.5 text-center uppercase tracking-wider font-black text-[#FACC15]">
                     JUMLAH KESELURUHAN
                   </td>
-                  <td className="p-2 border-r border-slate-200"></td>
-                  <td className="p-2 text-right font-mono text-slate-950 border-r border-slate-200">
+                  <td className="p-2.5 text-right font-mono font-black text-[#FACC15] border-r border-slate-700/50 whitespace-nowrap">
                     {formatRangeDisplay(totalFinalOpsi1Min, totalFinalOpsi1Max)}
                   </td>
                   {hasOpsi2 && (
                     <>
-                      <td className="p-2 border-r border-slate-200 bg-blue-50/20"></td>
-                      <td className="p-2 text-right font-mono text-blue-950 bg-blue-50/30">
+                      <td className="p-2.5 bg-[#0B2545] border-r border-slate-700/50"></td>
+                      <td className="p-2.5 text-right font-mono font-black text-[#FACC15] whitespace-nowrap">
                         {formatRangeDisplay(totalFinalOpsi2Min, totalFinalOpsi2Max)}
                       </td>
                     </>
