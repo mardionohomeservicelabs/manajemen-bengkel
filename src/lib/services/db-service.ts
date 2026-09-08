@@ -22,7 +22,7 @@ import {
 import { supabase, isSupabaseConfigured } from '../supabase/client';
 import { generateSpkNumber, generateInvoiceNumber, getBranchCode } from '../utils';
 
-export const SYSTEM_DATA_EPOCH = '2026-09-05T06:40:00.000Z';
+export const SYSTEM_DATA_EPOCH = '2026-09-08T14:15:00.000Z';
 
 const BASE_STORAGE_KEYS = {
   VEHICLES: 'acwms_vehicles',
@@ -480,6 +480,7 @@ export class DBService {
           setLocal(getBranchKey(BASE_STORAGE_KEYS.CRM_LOGS, b), []);
           setLocal(getBranchKey(BASE_STORAGE_KEYS.MOVEMENTS, b), []);
           setLocal(getBranchKey(BASE_STORAGE_KEYS.AUDIT, b), []);
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.INVENTORY, b), []);
         });
         setLocal(BASE_STORAGE_KEYS.OFFLINE_QUEUE, []);
 
@@ -489,10 +490,17 @@ export class DBService {
           if (k && (
             k.startsWith('mhs_est_') ||
             k.startsWith('mhs_last_active_') ||
+            k.startsWith('mhs_active_tab_') ||
+            k.startsWith('mhs_open_tabs_') ||
             k.startsWith('acwms_work_orders') ||
             k.startsWith('acwms_invoices') ||
             k.startsWith('acwms_checkups') ||
-            k.startsWith('acwms_vehicles')
+            k.startsWith('acwms_vehicles') ||
+            k.startsWith('acwms_inventory') ||
+            k.startsWith('acwms_stock_movements') ||
+            k.startsWith('acwms_crm_logs') ||
+            k.startsWith('acwms_audit_logs') ||
+            k.startsWith('acwms_offline_queue')
           )) {
             keysToRemove.push(k);
           }
@@ -504,6 +512,10 @@ export class DBService {
           setLocal(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), []);
           setLocal(getBranchKey(BASE_STORAGE_KEYS.INVOICES, b), []);
           setLocal(getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, b), []);
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.CRM_LOGS, b), []);
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.MOVEMENTS, b), []);
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.AUDIT, b), []);
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.INVENTORY, b), []);
         });
 
         localStorage.setItem('acwms_last_reset_epoch', SYSTEM_DATA_EPOCH);
