@@ -2329,6 +2329,22 @@ function EstimationBuilderContent() {
                 const rowTot2Min = rowRange2 ? rowRange2.min * (item.qty || 1) : 0;
                 const rowTot2Max = rowRange2 ? rowRange2.max * (item.qty || 1) : 0;
 
+                const isP1Text = (typeof item.price_opsi1 === 'string' && /[a-zA-Z]/.test(item.price_opsi1.trim())) ||
+                                 (typeof item.total_opsi1 === 'string' && /[a-zA-Z]/.test(item.total_opsi1.trim()));
+                const p1TextVal = (typeof item.price_opsi1 === 'string' && /[a-zA-Z]/.test(item.price_opsi1.trim()))
+                  ? item.price_opsi1.trim().toUpperCase()
+                  : (typeof item.total_opsi1 === 'string' && /[a-zA-Z]/.test(item.total_opsi1.trim()))
+                  ? item.total_opsi1.trim().toUpperCase()
+                  : 'CEK';
+
+                const isP2Text = !isP2Empty && ((typeof item.price_opsi2 === 'string' && /[a-zA-Z]/.test(item.price_opsi2.trim())) ||
+                                               (typeof item.total_opsi2 === 'string' && /[a-zA-Z]/.test(item.total_opsi2.trim())));
+                const p2TextVal = (typeof item.price_opsi2 === 'string' && /[a-zA-Z]/.test(item.price_opsi2.trim()))
+                  ? item.price_opsi2.trim().toUpperCase()
+                  : (typeof item.total_opsi2 === 'string' && /[a-zA-Z]/.test(item.total_opsi2.trim()))
+                  ? item.total_opsi2.trim().toUpperCase()
+                  : 'CEK';
+
                 return (
                   <tr key={`t1-${idx}`} className="hover:bg-slate-50/70 transition-colors group/row">
                     {/* Index */}
@@ -2393,7 +2409,11 @@ function EstimationBuilderContent() {
 
                     {/* Total Opsi 1 */}
                     <td className="p-3 text-right border-r border-slate-200 align-middle">
-                      {showRangePrice ? (
+                      {isP1Text ? (
+                        <span className="font-mono font-black text-sm text-slate-900 whitespace-nowrap">
+                          {p1TextVal}
+                        </span>
+                      ) : showRangePrice ? (
                         <span className="font-mono font-black text-sm text-slate-900 whitespace-nowrap">
                           {rowTot1Min === rowTot1Max
                             ? formatCurrency(rowTot1Min)
@@ -2439,7 +2459,11 @@ function EstimationBuilderContent() {
                           </div>
                         </td>
                         <td className="p-3 text-right align-middle bg-blue-50/20">
-                          {showRangePrice ? (
+                          {isP2Text ? (
+                            <span className="font-mono font-black text-sm text-blue-950 whitespace-nowrap">
+                              {p2TextVal}
+                            </span>
+                          ) : showRangePrice ? (
                             <span className="font-mono font-black text-sm text-blue-950 whitespace-nowrap">
                               {isP2Empty ? (
                                 <span className="text-slate-400 font-normal">Rp 0</span>
@@ -2587,6 +2611,22 @@ function EstimationBuilderContent() {
                     const rowTot2Min = rowRange2 ? rowRange2.min * (item.qty || 1) : 0;
                     const rowTot2Max = rowRange2 ? rowRange2.max * (item.qty || 1) : 0;
 
+                    const isP1Text = (typeof item.price_opsi1 === 'string' && /[a-zA-Z]/.test(item.price_opsi1.trim())) ||
+                                     (typeof item.total_opsi1 === 'string' && /[a-zA-Z]/.test(item.total_opsi1.trim()));
+                    const p1TextVal = (typeof item.price_opsi1 === 'string' && /[a-zA-Z]/.test(item.price_opsi1.trim()))
+                      ? item.price_opsi1.trim().toUpperCase()
+                      : (typeof item.total_opsi1 === 'string' && /[a-zA-Z]/.test(item.total_opsi1.trim()))
+                      ? item.total_opsi1.trim().toUpperCase()
+                      : 'CEK';
+
+                    const isP2Text = !isP2Empty && ((typeof item.price_opsi2 === 'string' && /[a-zA-Z]/.test(item.price_opsi2.trim())) ||
+                                                   (typeof item.total_opsi2 === 'string' && /[a-zA-Z]/.test(item.total_opsi2.trim())));
+                    const p2TextVal = (typeof item.price_opsi2 === 'string' && /[a-zA-Z]/.test(item.price_opsi2.trim()))
+                      ? item.price_opsi2.trim().toUpperCase()
+                      : (typeof item.total_opsi2 === 'string' && /[a-zA-Z]/.test(item.total_opsi2.trim()))
+                      ? item.total_opsi2.trim().toUpperCase()
+                      : 'CEK';
+
                     return (
                       <tr key={`t2-${idx}`} className="hover:bg-slate-50 transition-colors group/row">
                         {/* Index */}
@@ -2651,7 +2691,11 @@ function EstimationBuilderContent() {
 
                         {/* Total Opsi 1 */}
                         <td className="p-3 text-right border-r border-slate-200 align-middle">
-                          {showRangePrice ? (
+                          {isP1Text ? (
+                            <span className="font-mono font-black text-sm text-slate-900 whitespace-nowrap">
+                              {p1TextVal}
+                            </span>
+                          ) : showRangePrice ? (
                             <span className="font-mono font-black text-sm text-slate-900 whitespace-nowrap">
                               {rowTot1Min === rowTot1Max
                                 ? formatCurrency(rowTot1Min)
@@ -2697,7 +2741,11 @@ function EstimationBuilderContent() {
                               </div>
                             </td>
                             <td className="p-3 text-right align-middle bg-blue-50/20">
-                              {showRangePrice ? (
+                              {isP2Text ? (
+                                <span className="font-mono font-black text-sm text-blue-950 whitespace-nowrap">
+                                  {p2TextVal}
+                                </span>
+                              ) : showRangePrice ? (
                                 <span className="font-mono font-black text-sm text-blue-950 whitespace-nowrap">
                                   {isP2Empty ? (
                                     <span className="text-slate-400 font-normal">Rp 0</span>
@@ -3143,12 +3191,42 @@ function EstimationBuilderContent() {
               <button
                 type="button"
                 onClick={() => {
-                  const combinedItems = hasSecondTable
+                  const mapItemForLive = (it: InvoiceItem, sec: number): InvoiceItem => {
+                    const isP1Text = (typeof it.price_opsi1 === 'string' && /[a-zA-Z]/.test(it.price_opsi1)) ||
+                                     (typeof it.price === 'string' && /[a-zA-Z]/.test(String(it.price))) ||
+                                     (typeof it.total_opsi1 === 'string' && /[a-zA-Z]/.test(it.total_opsi1));
+                    const isP2Text = (typeof it.price_opsi2 === 'string' && /[a-zA-Z]/.test(it.price_opsi2)) ||
+                                     (typeof it.total_opsi2 === 'string' && /[a-zA-Z]/.test(it.total_opsi2));
+                    const p1Text = (it.price_opsi1 || it.price || it.total_opsi1 || 'CEK').toString().trim().toUpperCase();
+                    const p2Text = (it.price_opsi2 || it.total_opsi2 || 'CEK').toString().trim().toUpperCase();
+                    const p1Val = isP1Text ? p1Text : it.price_opsi1;
+                    const p2Val = isP2Text ? p2Text : it.price_opsi2;
+
+                    const finalPrice: string | number = isP1Text
+                      ? p1Text
+                      : (it.price !== undefined ? it.price : (it.price_opsi1 !== undefined ? it.price_opsi1 : 0));
+                    const finalSubtotal: string | number = isP1Text
+                      ? p1Text
+                      : (it.subtotal !== undefined ? it.subtotal : (it.total_opsi1 !== undefined ? it.total_opsi1 : 0));
+
+                    return {
+                      ...it,
+                      section: sec,
+                      price_opsi1: p1Val,
+                      total_opsi1: isP1Text ? p1Text : it.total_opsi1,
+                      price: finalPrice,
+                      subtotal: finalSubtotal,
+                      price_opsi2: p2Val,
+                      total_opsi2: isP2Text ? p2Text : it.total_opsi2,
+                    };
+                  };
+
+                  const combinedItems: InvoiceItem[] = hasSecondTable
                     ? [
-                        ...items.map(it => ({ ...it, section: 1 })),
-                        ...itemsTable2.map(it => ({ ...it, section: 2 }))
+                        ...items.map(it => mapItemForLive(it, 1)),
+                        ...itemsTable2.map(it => mapItemForLive(it, 2))
                       ]
-                    : items.map(it => ({ ...it, section: 1 }));
+                    : items.map(it => mapItemForLive(it, 1));
 
                   const currentTabObj = tabList.find(t => t.id === activeTabId);
                   const activeTabTitle = currentTabObj?.name || estimationType || 'Umum';
@@ -3184,7 +3262,7 @@ function EstimationBuilderContent() {
                     has_second_table: hasSecondTable,
                     table1_title: table1Title,
                     table2_title: table2Title,
-                    items_table2: hasSecondTable ? itemsTable2 : undefined,
+                    items_table2: hasSecondTable ? itemsTable2.map(it => mapItemForLive(it, 2)) : undefined,
                     created_at: currentEstimationRecord?.created_at || new Date().toISOString(),
                     updated_at: new Date().toISOString(),
                     vehicle: selectedSpk?.vehicle,

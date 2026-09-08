@@ -31,6 +31,53 @@ const formatRangeDisplay = (min: number, max: number): string => {
   return `${formatCurrency(min)} – ${formatCurrency(max)}`;
 };
 
+// Helper format baris persetujuan estimasi: jika ada tulisan 'CEK'/'cek', muncul 'CEK' bukan 0
+const formatTtdItemRow = (
+  priceRaw: any,
+  totalRaw: any,
+  qty: number,
+  isOpsi2: boolean = false
+): { priceDisplay: string; totalDisplay: string } => {
+  const isP2Empty = isOpsi2 && (priceRaw === '' || priceRaw === undefined || priceRaw === null);
+  if (isP2Empty) {
+    return { priceDisplay: '-', totalDisplay: '-' };
+  }
+
+  const isPriceEmpty = priceRaw === '' || priceRaw === undefined || priceRaw === null;
+
+  // Cek apakah ada teks seperti 'CEK', 'cek', dll.
+  const isPriceText = typeof priceRaw === 'string' && /[a-zA-Z]/.test(priceRaw.trim());
+  const isTotalText = totalRaw !== undefined && totalRaw !== null && typeof totalRaw === 'string' && /[a-zA-Z]/.test(totalRaw.trim());
+
+  if (isPriceText || isTotalText) {
+    const textVal = isPriceText
+      ? priceRaw.toString().trim().toUpperCase()
+      : totalRaw.toString().trim().toUpperCase();
+    const totVal = isTotalText
+      ? totalRaw.toString().trim().toUpperCase()
+      : textVal;
+    return {
+      priceDisplay: textVal,
+      totalDisplay: totVal,
+    };
+  }
+
+  if (isPriceEmpty) {
+    return { priceDisplay: isOpsi2 ? '-' : '0', totalDisplay: isOpsi2 ? '-' : '0' };
+  }
+
+  const { min, max } = parseRangePrice(priceRaw);
+  const isZero = priceRaw === 0 || priceRaw === '0' || (min === 0 && max === 0);
+  if (isZero) {
+    return { priceDisplay: isOpsi2 ? '-' : '0', totalDisplay: isOpsi2 ? '-' : '0' };
+  }
+
+  const priceDisplay = min === max ? formatNumberOrText(min) : `${formatNumberOrText(min)} – ${formatNumberOrText(max)}`;
+  const totalDisplay = min === max ? formatNumberOrText(min * qty) : `${formatNumberOrText(min * qty)} – ${formatNumberOrText(max * qty)}`;
+
+  return { priceDisplay, totalDisplay };
+};
+
 export default function CustomerSignatureApprovalPage() {
   const params = useParams();
   const rawId = params?.id as string;
@@ -473,23 +520,10 @@ export default function CustomerSignatureApprovalPage() {
 
                 {/* Table 1 Items */}
                 {table1Items.map((item, idx) => {
-                  const p1Raw = item.price_opsi1 !== undefined && item.price_opsi1 !== '' ? item.price_opsi1 : (item.price !== undefined ? item.price : 0);
-                  const isP2Empty = item.price_opsi2 === '' || item.price_opsi2 === 0 || item.price_opsi2 === '0';
-                  const p2Raw = isP2Empty ? 0 : (item.price_opsi2 !== undefined ? item.price_opsi2 : p1Raw);
-
-                  const { min: p1Min, max: p1Max } = parseRangePrice(p1Raw);
-                  const { min: p2Min, max: p2Max } = parseRangePrice(p2Raw);
-
                   const qty = item.qty || 1;
-                  const tot1Min = p1Min * qty;
-                  const tot1Max = p1Max * qty;
-                  const tot2Min = isP2Empty ? 0 : p2Min * qty;
-                  const tot2Max = isP2Empty ? 0 : p2Max * qty;
-
-                  const p1Display = p1Min === p1Max ? formatNumberOrText(p1Min) : `${formatNumberOrText(p1Min)} – ${formatNumberOrText(p1Max)}`;
-                  const tot1Display = tot1Min === tot1Max ? formatNumberOrText(tot1Min) : `${formatNumberOrText(tot1Min)} – ${formatNumberOrText(tot1Max)}`;
-                  const p2Display = isP2Empty ? '-' : (p2Min === p2Max ? formatNumberOrText(p2Min) : `${formatNumberOrText(p2Min)} – ${formatNumberOrText(p2Max)}`);
-                  const tot2Display = isP2Empty ? '-' : (tot2Min === tot2Max ? formatNumberOrText(tot2Min) : `${formatNumberOrText(tot2Min)} – ${formatNumberOrText(tot2Max)}`);
+                  const p1Raw = item.price_opsi1 !== undefined && item.price_opsi1 !== '' ? item.price_opsi1 : (item.price !== undefined ? item.price : 0);
+                  const p1Info = formatTtdItemRow(p1Raw, item.total_opsi1, qty, false);
+                  const p2Info = formatTtdItemRow(item.price_opsi2, item.total_opsi2, qty, true);
 
                   return (
                     <tr key={`t1-${idx}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
@@ -499,12 +533,12 @@ export default function CustomerSignatureApprovalPage() {
                       </td>
                       <td className="p-2 text-center font-mono font-bold text-slate-700 border-r border-slate-100">{qty}</td>
                       <td className="p-2 text-center text-[10px] font-black uppercase text-slate-600 border-r border-slate-100">{item.unit || 'PCS'}</td>
-                      <td className="p-2 text-right font-mono text-slate-700 border-r border-slate-100">{p1Display}</td>
-                      <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-100">{tot1Display}</td>
+                      <td className="p-2 text-right font-mono text-slate-700 border-r border-slate-100">{p1Info.priceDisplay}</td>
+                      <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-100">{p1Info.totalDisplay}</td>
                       {hasOpsi2 && (
                         <>
-                          <td className="p-2 text-right font-mono text-blue-800 border-r border-slate-100 bg-blue-50/20">{p2Display}</td>
-                          <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">{tot2Display}</td>
+                          <td className="p-2 text-right font-mono text-blue-800 border-r border-slate-100 bg-blue-50/20">{p2Info.priceDisplay}</td>
+                          <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">{p2Info.totalDisplay}</td>
                         </>
                       )}
                     </tr>
@@ -545,23 +579,10 @@ export default function CustomerSignatureApprovalPage() {
                     {/* Table 2 Items */}
                     {table2Items.map((item, idx) => {
                       const displayNum = table1Items.length + idx + 1;
-                      const p1Raw = item.price_opsi1 !== undefined && item.price_opsi1 !== '' ? item.price_opsi1 : (item.price !== undefined ? item.price : 0);
-                      const isP2Empty = item.price_opsi2 === '' || item.price_opsi2 === 0 || item.price_opsi2 === '0';
-                      const p2Raw = isP2Empty ? 0 : (item.price_opsi2 !== undefined ? item.price_opsi2 : p1Raw);
-
-                      const { min: p1Min, max: p1Max } = parseRangePrice(p1Raw);
-                      const { min: p2Min, max: p2Max } = parseRangePrice(p2Raw);
-
                       const qty = item.qty || 1;
-                      const tot1Min = p1Min * qty;
-                      const tot1Max = p1Max * qty;
-                      const tot2Min = isP2Empty ? 0 : p2Min * qty;
-                      const tot2Max = isP2Empty ? 0 : p2Max * qty;
-
-                      const p1Display = p1Min === p1Max ? formatNumberOrText(p1Min) : `${formatNumberOrText(p1Min)} – ${formatNumberOrText(p1Max)}`;
-                      const tot1Display = tot1Min === tot1Max ? formatNumberOrText(tot1Min) : `${formatNumberOrText(tot1Min)} – ${formatNumberOrText(tot1Max)}`;
-                      const p2Display = isP2Empty ? '-' : (p2Min === p2Max ? formatNumberOrText(p2Min) : `${formatNumberOrText(p2Min)} – ${formatNumberOrText(p2Max)}`);
-                      const tot2Display = isP2Empty ? '-' : (tot2Min === tot2Max ? formatNumberOrText(tot2Min) : `${formatNumberOrText(tot2Min)} – ${formatNumberOrText(tot2Max)}`);
+                      const p1Raw = item.price_opsi1 !== undefined && item.price_opsi1 !== '' ? item.price_opsi1 : (item.price !== undefined ? item.price : 0);
+                      const p1Info = formatTtdItemRow(p1Raw, item.total_opsi1, qty, false);
+                      const p2Info = formatTtdItemRow(item.price_opsi2, item.total_opsi2, qty, true);
 
                       return (
                         <tr key={`t2-${idx}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
@@ -571,12 +592,12 @@ export default function CustomerSignatureApprovalPage() {
                           </td>
                           <td className="p-2 text-center font-mono font-bold text-slate-700 border-r border-slate-100">{qty}</td>
                           <td className="p-2 text-center text-[10px] font-black uppercase text-slate-600 border-r border-slate-100">{item.unit || 'PCS'}</td>
-                          <td className="p-2 text-right font-mono text-slate-700 border-r border-slate-100">{p1Display}</td>
-                          <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-100">{tot1Display}</td>
+                          <td className="p-2 text-right font-mono text-slate-700 border-r border-slate-100">{p1Info.priceDisplay}</td>
+                          <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-100">{p1Info.totalDisplay}</td>
                           {hasOpsi2 && (
                             <>
-                              <td className="p-2 text-right font-mono text-blue-800 border-r border-slate-100 bg-blue-50/20">{p2Display}</td>
-                              <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">{tot2Display}</td>
+                              <td className="p-2 text-right font-mono text-blue-800 border-r border-slate-100 bg-blue-50/20">{p2Info.priceDisplay}</td>
+                              <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">{p2Info.totalDisplay}</td>
                             </>
                           )}
                         </tr>

@@ -126,6 +126,55 @@ export function PrintableEstimation({
     return `${formatCurrency(min)} – ${formatCurrency(max)}`;
   }
 
+  // Helper format harga satuan & total baris item: jika tertulis 'CEK'/'cek', tetap muncul 'CEK' dan bukan 0
+  function formatEstimationRowItem(
+    priceRaw: any,
+    totalRaw: any,
+    qty: number,
+    isOpsi2: boolean = false
+  ): { priceDisplay: string; totalDisplay: string } {
+    const isP2Empty = isOpsi2 && (priceRaw === '' || priceRaw === undefined || priceRaw === null);
+    if (isP2Empty) {
+      return { priceDisplay: '0', totalDisplay: '0' };
+    }
+
+    const isPriceEmpty = priceRaw === '' || priceRaw === undefined || priceRaw === null;
+
+    // Cek apakah kolom berisi teks seperti 'CEK', 'cek', 'Cek', dll.
+    const isPriceText = typeof priceRaw === 'string' && /[a-zA-Z]/.test(priceRaw.trim());
+    const isTotalText = totalRaw !== undefined && totalRaw !== null && typeof totalRaw === 'string' && /[a-zA-Z]/.test(totalRaw.trim());
+
+    if (isPriceText || isTotalText) {
+      const textVal = isPriceText
+        ? priceRaw.toString().trim().toUpperCase()
+        : totalRaw.toString().trim().toUpperCase();
+      const totVal = isTotalText
+        ? totalRaw.toString().trim().toUpperCase()
+        : textVal;
+      return {
+        priceDisplay: textVal,
+        totalDisplay: totVal,
+      };
+    }
+
+    if (isPriceEmpty) {
+      return { priceDisplay: '0', totalDisplay: '0' };
+    }
+
+    const r = parseRangePrice(priceRaw);
+    const isZero = priceRaw === 0 || priceRaw === '0' || (r.min === 0 && r.max === 0);
+    if (isZero) {
+      return { priceDisplay: '0', totalDisplay: '0' };
+    }
+
+    const priceDisplay = formatCurrency(priceRaw);
+    const totalDisplay = r.min === r.max
+      ? formatCurrency(r.min * qty)
+      : `${formatCurrency(r.min * qty)} – ${formatCurrency(r.max * qty)}`;
+
+    return { priceDisplay, totalDisplay };
+  }
+
   const getWhatsAppMessage = () => {
     let baseOrigin = typeof window !== 'undefined' ? window.location.origin : '';
     if (
@@ -340,32 +389,18 @@ export function PrintableEstimation({
                 {/* Table 1 Items */}
                 {table1Items.map((item, idx) => {
                   const qty = item.qty || 1;
-                  const isP1Empty =
-                    item.price_opsi1 === '' || item.price_opsi1 === 0 || item.price_opsi1 === '0';
-                  const p1 =
+                  const p1Raw =
                     item.price_opsi1 !== undefined && item.price_opsi1 !== ''
                       ? item.price_opsi1
                       : item.price !== undefined
                       ? item.price
                       : 0;
-                  const r1 = parseRangePrice(p1);
-                  const tot1Formatted =
-                    isP1Empty || (r1.min === 0 && r1.max === 0)
-                      ? '0'
-                      : r1.min === r1.max
-                      ? formatCurrency(r1.min * qty)
-                      : `${formatCurrency(r1.min * qty)} – ${formatCurrency(r1.max * qty)}`;
+                  const p1Info = formatEstimationRowItem(p1Raw, item.total_opsi1, qty, false);
 
                   const isP2Empty =
-                    item.price_opsi2 === '' || item.price_opsi2 === 0 || item.price_opsi2 === '0';
-                  const p2 = isP2Empty ? 0 : item.price_opsi2 !== undefined ? item.price_opsi2 : 0;
-                  const r2 = parseRangePrice(p2);
-                  const tot2Formatted =
-                    isP2Empty || (r2.min === 0 && r2.max === 0)
-                      ? '0'
-                      : r2.min === r2.max
-                      ? formatCurrency(r2.min * qty)
-                      : `${formatCurrency(r2.min * qty)} – ${formatCurrency(r2.max * qty)}`;
+                    item.price_opsi2 === '' || item.price_opsi2 === undefined || item.price_opsi2 === null;
+                  const p2Raw = isP2Empty ? '' : item.price_opsi2;
+                  const p2Info = formatEstimationRowItem(p2Raw, item.total_opsi2, qty, true);
 
                   return (
                     <tr key={`t1-${idx}`} className="hover:bg-slate-50 estimation-item-row">
@@ -384,18 +419,18 @@ export function PrintableEstimation({
                         {item.unit || 'PCS'}
                       </td>
                       <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold">
-                        {isP1Empty || (r1.min === 0 && r1.max === 0) ? '0' : formatCurrency(p1)}
+                        {p1Info.priceDisplay}
                       </td>
                       <td className="p-1.5 text-right font-mono font-black text-slate-900 border-r border-slate-300 align-middle">
-                        {tot1Formatted}
+                        {p1Info.totalDisplay}
                       </td>
                       {hasOpsi2 && (
                         <>
                           <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold bg-blue-50/20 text-blue-900">
-                            {isP2Empty || (r2.min === 0 && r2.max === 0) ? '0' : formatCurrency(p2)}
+                            {p2Info.priceDisplay}
                           </td>
                           <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
-                            {tot2Formatted}
+                            {p2Info.totalDisplay}
                           </td>
                         </>
                       )}
@@ -438,32 +473,18 @@ export function PrintableEstimation({
                     {table2Items.map((item, idx) => {
                       const displayNum = table1Items.length + idx + 1;
                       const qty = item.qty || 1;
-                      const isP1Empty =
-                        item.price_opsi1 === '' || item.price_opsi1 === 0 || item.price_opsi1 === '0';
-                      const p1 =
+                      const p1Raw =
                         item.price_opsi1 !== undefined && item.price_opsi1 !== ''
                           ? item.price_opsi1
                           : item.price !== undefined
                           ? item.price
                           : 0;
-                      const r1 = parseRangePrice(p1);
-                      const tot1Formatted =
-                        isP1Empty || (r1.min === 0 && r1.max === 0)
-                          ? '0'
-                          : r1.min === r1.max
-                          ? formatCurrency(r1.min * qty)
-                          : `${formatCurrency(r1.min * qty)} – ${formatCurrency(r1.max * qty)}`;
+                      const p1Info = formatEstimationRowItem(p1Raw, item.total_opsi1, qty, false);
 
                       const isP2Empty =
-                        item.price_opsi2 === '' || item.price_opsi2 === 0 || item.price_opsi2 === '0';
-                      const p2 = isP2Empty ? 0 : item.price_opsi2 !== undefined ? item.price_opsi2 : 0;
-                      const r2 = parseRangePrice(p2);
-                      const tot2Formatted =
-                        isP2Empty || (r2.min === 0 && r2.max === 0)
-                          ? '0'
-                          : r2.min === r2.max
-                          ? formatCurrency(r2.min * qty)
-                          : `${formatCurrency(r2.min * qty)} – ${formatCurrency(r2.max * qty)}`;
+                        item.price_opsi2 === '' || item.price_opsi2 === undefined || item.price_opsi2 === null;
+                      const p2Raw = isP2Empty ? '' : item.price_opsi2;
+                      const p2Info = formatEstimationRowItem(p2Raw, item.total_opsi2, qty, true);
 
                       return (
                         <tr key={`t2-${idx}`} className="hover:bg-slate-50 estimation-item-row">
@@ -482,18 +503,18 @@ export function PrintableEstimation({
                             {item.unit || 'PCS'}
                           </td>
                           <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold">
-                            {isP1Empty || (r1.min === 0 && r1.max === 0) ? '0' : formatCurrency(p1)}
+                            {p1Info.priceDisplay}
                           </td>
                           <td className="p-1.5 text-right font-mono font-black text-slate-900 border-r border-slate-300 align-middle">
-                            {tot1Formatted}
+                            {p1Info.totalDisplay}
                           </td>
                           {hasOpsi2 && (
                             <>
                               <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold bg-blue-50/20 text-blue-900">
-                                {isP2Empty || (r2.min === 0 && r2.max === 0) ? '0' : formatCurrency(p2)}
+                                {p2Info.priceDisplay}
                               </td>
                               <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
-                                {tot2Formatted}
+                                {p2Info.totalDisplay}
                               </td>
                             </>
                           )}
