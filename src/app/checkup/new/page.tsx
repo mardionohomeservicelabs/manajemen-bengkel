@@ -68,8 +68,8 @@ function NewCheckupPageContent() {
   // Selected Active SPK
   const [selectedSpkId, setSelectedSpkId] = useState<string>(spkIdParam || '');
   const selectedSpk = allWorkOrders.find((w) => w.id === selectedSpkId);
-  const isCompleted = selectedSpk?.status === 'completed';
-  const isLocked = isCompleted && currentRole !== 'owner';
+  const isCompleted = selectedSpk?.status === 'completed' || selectedSpk?.status === 'paid';
+  const isLocked = Boolean(isCompleted);
 
   // Common Header Info
   const [customerName, setCustomerName] = useState('');
@@ -625,20 +625,28 @@ function NewCheckupPageContent() {
                 <span>Formulir QC Terkunci (Pekerjaan Selesai)</span>
               </h4>
               <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
-                Pekerjaan untuk SPK <strong>{selectedSpk?.spk_number}</strong> telah berstatus Selesai. Hasil pemeriksaan checklist tidak dapat diubah lagi. <em>Plat nomor kendaraan tetap dapat diubah jika diperlukan.</em>
+                Pekerjaan untuk kendaraan <strong>{licensePlate}</strong> ({customerName}) dengan SPK <strong>{selectedSpk?.spk_number}</strong> telah berstatus Selesai / Lunas. Pengisian dan perubahan checklist telah ditutup permanen (hanya dapat melihat hasil checkup).
               </p>
             </div>
           </div>
-          {selectedSpk?.vehicle && (
-            <button
-              type="button"
-              onClick={() => setShowEditPlateModal(true)}
-              className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-amber-300 rounded-xl text-xs font-bold transition shadow-xs flex-shrink-0 cursor-pointer"
+          <div className="flex items-center space-x-2">
+            <Link
+              href="/checkup"
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex-shrink-0"
             >
-              <Car className="w-4 h-4 text-blue-600" />
-              <span>Ubah Plat Nomor</span>
-            </button>
-          )}
+              <span>Lihat Hasil Checkup</span>
+            </Link>
+            {selectedSpk?.vehicle && (
+              <button
+                type="button"
+                onClick={() => setShowEditPlateModal(true)}
+                className="inline-flex items-center space-x-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-amber-300 rounded-xl text-xs font-bold transition shadow-xs flex-shrink-0 cursor-pointer"
+              >
+                <Car className="w-4 h-4 text-blue-600" />
+                <span>Ubah Plat</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -710,56 +718,6 @@ function NewCheckupPageContent() {
           </div>
         </button>
       </div>
-
-      {/* Lock/Unlock Banner when selected SPK is completed */}
-      {isCompleted && currentRole === 'owner' && (
-        <div className="bg-emerald-50 border-2 border-emerald-400 text-emerald-950 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs font-bold text-lg">
-              🔓
-            </div>
-            <div>
-              <h4 className="font-black text-sm text-emerald-950">
-                Akses Penuh Owner — Formulir Checkup Terbuka
-              </h4>
-              <p className="text-xs text-emerald-800 mt-0.5 leading-relaxed">
-                SPK <strong>{selectedSpk?.spk_number}</strong> telah berstatus Selesai, namun sebagai <strong>Owner</strong> Anda dapat menyimpan perubahan atau membuka kembali kunci status SPK.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={async () => {
-              if (selectedSpk) {
-                await unlockWorkOrderAsync(selectedSpk.id, 'servicing');
-              }
-            }}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer flex-shrink-0"
-            title="Buka status SPK kembali ke Sedang Dikerjakan"
-          >
-            <Unlock className="w-4 h-4" />
-            <span>Buka Kunci SPK (Pindah ke Dikerjakan)</span>
-          </button>
-        </div>
-      )}
-
-      {isCompleted && currentRole !== 'owner' && (
-        <div className="bg-amber-50 border-2 border-amber-400 text-amber-950 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
-              <Lock className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="font-black text-sm text-amber-950">
-                Formulir QC Terkunci (Pekerjaan Selesai)
-              </h4>
-              <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
-                SPK <strong>{selectedSpk?.spk_number}</strong> telah berstatus Selesai. Pengisian atau perubahan formulir terkunci. <em>Kunci dapat dibuka oleh peran Owner.</em>
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Common Info Header */}

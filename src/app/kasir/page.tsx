@@ -206,6 +206,21 @@ function CashierContent() {
       selectedSpk?.status || ''
     );
 
+  // Cek apakah SPK / Mobil sudah selesai atau lunas
+  const existingPaidInvoice = invoices.find(
+    (inv) =>
+      inv.type === 'invoice' &&
+      inv.payment_status === 'paid' &&
+      (inv.work_order_id === selectedSpk?.id ||
+        (selectedSpk?.spk_number && inv.work_order_id === selectedSpk.spk_number))
+  );
+
+  const isAlreadyFinished = Boolean(
+    selectedSpk?.status === 'completed' ||
+    selectedSpk?.status === 'paid' ||
+    existingPaidInvoice
+  );
+
   // Calculations
   const subtotal = items.reduce((sum, item) => sum + parseNumericPrice(item.subtotal), 0);
   const taxAmount = (subtotal - discountAmount) * (taxPercent / 100);
@@ -253,6 +268,10 @@ function CashierContent() {
       showToast('Pilih SPK kendaraan terlebih dahulu.', 'error');
       return;
     }
+    if (isAlreadyFinished) {
+      showToast('Mobil ini telah selesai & lunas. Transaksi nota terkunci dan tidak dapat diubah.', 'error');
+      return;
+    }
     if (existingEstimation && !isEstimationApproved) {
       showToast('Estimasi belum disetujui pelanggan. Sesuai ketentuan, estimasi yang belum disetujui tidak dapat dijadikan nota.', 'error');
       return;
@@ -268,6 +287,11 @@ function CashierContent() {
   const handleProcessPayment = async (status: PaymentStatus) => {
     if (!selectedSpk) {
       showToast('Pilih SPK terlebih dahulu.', 'error');
+      return;
+    }
+
+    if (isAlreadyFinished) {
+      showToast('Transaksi ditolak: Mobil ini sudah selesai & lunas. Nota telah diarsipkan.', 'error');
       return;
     }
 
@@ -384,14 +408,26 @@ function CashierContent() {
         >
           <option value="">-- Pilih SPK / Kendaraan --</option>
           {[...workOrders]
-            .filter((wo) => wo.status !== 'cancelled')
+            .filter((wo) => {
+              // Sembunyikan yang dibatalkan, sudah selesai (completed), atau sudah lunas (paid)
+              if (wo.status === 'cancelled' || wo.status === 'completed' || wo.status === 'paid') {
+                return false;
+              }
+              // Cek juga apakah sudah ada invoice lunas
+              const hasPaid = invoices.some(
+                (inv) =>
+                  inv.type === 'invoice' &&
+                  inv.payment_status === 'paid' &&
+                  (inv.work_order_id === wo.id || (wo.spk_number && inv.work_order_id === wo.spk_number))
+              );
+              return !hasPaid;
+            })
             .sort((a, b) => {
-              const priority = (s: string) => (s === 'completed_service' ? 0 : s === 'servicing' ? 1 : s === 'paid' ? 2 : 3);
+              const priority = (s: string) => (s === 'completed_service' ? 0 : s === 'servicing' ? 1 : 2);
               return priority(a.status) - priority(b.status);
             })
             .map((wo) => {
               const isReadyToPay = wo.status === 'completed_service';
-              const isPaid = wo.status === 'paid';
               const woEsts = invoices.filter(
                 (inv) =>
                   inv.type === 'estimation' &&
@@ -408,17 +444,41 @@ function CashierContent() {
               const isUnapproved =
                 woEsts.length > 0 &&
                 !hasApprovedEst &&
-                !['approved', 'servicing', 'waiting_parts', 'completed_service', 'paid', 'completed'].includes(wo.status);
+                !['approved', 'servicing', 'waiting_parts', 'completed_service'].includes(wo.status);
 
               return (
                 <option key={wo.id} value={wo.id}>
-                  {isUnapproved ? '⚠️ [BELUM DISETUJUI PELANGGAN] ' : isReadyToPay ? '⭐ [SELESAI SERVIS - SIAP BAYAR] ' : isPaid ? '✓ [SUDAH BAYAR] ' : ''}
+                  {isUnapproved ? '⚠️ [BELUM DISETUJUI PELANGGAN] ' : isReadyToPay ? '⭐ [SELESAI SERVIS - SIAP BAYAR] ' : ''}
                   {wo.spk_number} • {wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''} •{' '}
                   {wo.vehicle?.customer_name} ({wo.vehicle?.car_brand} {wo.vehicle?.car_model}) - Status: {wo.status}
                 </option>
               );
             })}
         </select>
+
+        {/* Locked Banner: Mobil Sudah Selesai / Lunas */}
+        {selectedSpk && isAlreadyFinished && (
+          <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-emerald-950 shadow-sm mt-3 animate-in fade-in duration-200">
+            <div className="flex items-start space-x-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-wide text-emerald-900">
+                  Mobil Sudah Selesai &amp; Lunas (Nota Terkunci)
+                </h4>
+                <p className="text-xs text-emerald-800 mt-0.5 leading-relaxed">
+                  Pekerjaan dan pembayaran untuk kendaraan <strong>{selectedSpk.vehicle?.license_plate ? formatPlate(selectedSpk.vehicle.license_plate) : ''} ({selectedSpk.vehicle?.customer_name})</strong> telah berstatus Selesai/Lunas. Transaksi nota kasir telah ditutup dan tidak dapat dibuka atau diubah kembali.
+                </p>
+              </div>
+            </div>
+            <Link
+              href={`/riwayat?search=${encodeURIComponent(selectedSpk.vehicle?.license_plate || selectedSpk.spk_number)}`}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs rounded-xl shadow-xs transition flex-shrink-0"
+            >
+              <span>Buka Nota di Arsip</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        )}
 
         {/* Warning Banner: Estimasi Belum Disetujui */}
         {selectedSpk && !isEstimationApproved && (
@@ -633,7 +693,13 @@ function CashierContent() {
 
           {/* Cashier Action Buttons */}
           <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
-            {!isEstimationApproved && selectedSpk && (
+            {isAlreadyFinished && selectedSpk && (
+              <span className="inline-flex items-center space-x-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-3.5 py-2 rounded-xl">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>Mobil Selesai &amp; Lunas — Nota Terkunci</span>
+              </span>
+            )}
+            {!isEstimationApproved && selectedSpk && !isAlreadyFinished && (
               <span className="inline-flex items-center space-x-1.5 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-3.5 py-2 rounded-xl">
                 <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
                 <span>Estimasi belum disetujui — Penagihan terkunci</span>
@@ -642,11 +708,11 @@ function CashierContent() {
             <button
               type="button"
               onClick={openSignAndReviewModal}
-              disabled={!selectedSpk || items.length === 0 || !isEstimationApproved}
+              disabled={!selectedSpk || items.length === 0 || !isEstimationApproved || isAlreadyFinished}
               className="inline-flex items-center space-x-2 bg-maroon-800 hover:bg-maroon-900 text-white font-black text-xs px-5 py-2.5 rounded-xl shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <PenTool className="w-4 h-4 text-amber-300" />
-              <span>Pratinjau Nota & Tanda Tangan (Customer & Admin)</span>
+              <span>Pratinjau Nota &amp; Tanda Tangan (Customer &amp; Admin)</span>
             </button>
           </div>
         </div>

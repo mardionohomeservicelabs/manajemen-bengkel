@@ -623,6 +623,20 @@ export default function CheckupPage() {
 
             {/* 3 Inspection Sections */}
             <div className="space-y-4">
+              {(() => {
+                const isCarFinished =
+                  selectedVehicleGroup.latestSpk?.status === 'completed' ||
+                  selectedVehicleGroup.latestSpk?.status === 'paid';
+                return isCarFinished ? (
+                  <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 text-xs text-amber-900 flex items-center space-x-2.5">
+                    <Lock className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <span>
+                      Mobil ini telah berstatus <strong>Selesai / Lunas</strong>. Pengisian checklist baru telah dikunci permanen (hanya dapat melihat lembar hasil checkup).
+                    </span>
+                  </div>
+                ) : null;
+              })()}
+
               <h3 className="text-xs font-black uppercase text-slate-500 tracking-wider">
                 Formulir Checklist Terisi &amp; Input Baru ({selectedVehicleGroup.allRecords.length} Form Terdaftar)
               </h3>
@@ -646,13 +660,21 @@ export default function CheckupPage() {
                     </div>
                   </div>
 
-                  <Link
-                    href={`/checkup/new?type=qc_general${selectedVehicleGroup.latestSpk ? `&spkId=${selectedVehicleGroup.latestSpk.id}` : ''}`}
-                    className="inline-flex items-center space-x-1 text-[11px] bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-xs transition"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>+ Isi QC Tune Up</span>
-                  </Link>
+                  {selectedVehicleGroup.latestSpk?.status === 'completed' ||
+                  selectedVehicleGroup.latestSpk?.status === 'paid' ? (
+                    <span className="inline-flex items-center space-x-1 text-[10px] font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded-lg border border-slate-200">
+                      <Lock className="w-3 h-3 text-slate-400" />
+                      <span>Selesai (Terkunci)</span>
+                    </span>
+                  ) : (
+                    <Link
+                      href={`/checkup/new?type=qc_general${selectedVehicleGroup.latestSpk ? `&spkId=${selectedVehicleGroup.latestSpk.id}` : ''}`}
+                      className="inline-flex items-center space-x-1 text-[11px] bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-xs transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Isi QC Tune Up</span>
+                    </Link>
+                  )}
                 </div>
 
                 {selectedVehicleGroup.qcGeneralList.length > 0 && (
@@ -713,13 +735,21 @@ export default function CheckupPage() {
                     </div>
                   </div>
 
-                  <Link
-                    href={`/checkup/new?type=ac_specialist${selectedVehicleGroup.latestSpk ? `&spkId=${selectedVehicleGroup.latestSpk.id}` : ''}`}
-                    className="inline-flex items-center space-x-1 text-[11px] bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-xs transition"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>+ Isi QC AC</span>
-                  </Link>
+                  {selectedVehicleGroup.latestSpk?.status === 'completed' ||
+                  selectedVehicleGroup.latestSpk?.status === 'paid' ? (
+                    <span className="inline-flex items-center space-x-1 text-[10px] font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded-lg border border-slate-200">
+                      <Lock className="w-3 h-3 text-slate-400" />
+                      <span>Selesai (Terkunci)</span>
+                    </span>
+                  ) : (
+                    <Link
+                      href={`/checkup/new?type=ac_specialist${selectedVehicleGroup.latestSpk ? `&spkId=${selectedVehicleGroup.latestSpk.id}` : ''}`}
+                      className="inline-flex items-center space-x-1 text-[11px] bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-xs transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Isi QC AC</span>
+                    </Link>
+                  )}
                 </div>
 
                 {selectedVehicleGroup.acList.length > 0 && (
@@ -746,14 +776,19 @@ export default function CheckupPage() {
                           >
                             Lihat Lembar AC
                           </button>
-                          <button
-                            type="button"
-                            onClick={(e) => handleDeleteCheckup(rec.id, e)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition"
-                            title="Hapus"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {!(
+                            selectedVehicleGroup.latestSpk?.status === 'completed' ||
+                            selectedVehicleGroup.latestSpk?.status === 'paid'
+                          ) && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteCheckup(rec.id, e)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition"
+                              title="Hapus"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -780,13 +815,21 @@ export default function CheckupPage() {
                     </div>
                   </div>
 
-                  <Link
-                    href={`/checkup/new?type=understeel${selectedVehicleGroup.latestSpk ? `&spkId=${selectedVehicleGroup.latestSpk.id}` : ''}`}
-                    className="inline-flex items-center space-x-1 text-[11px] bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-xs transition"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>+ Isi Understeel</span>
-                  </Link>
+                  {selectedVehicleGroup.latestSpk?.status === 'completed' ||
+                  selectedVehicleGroup.latestSpk?.status === 'paid' ? (
+                    <span className="inline-flex items-center space-x-1 text-[10px] font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded-lg border border-slate-200">
+                      <Lock className="w-3 h-3 text-slate-400" />
+                      <span>Selesai (Terkunci)</span>
+                    </span>
+                  ) : (
+                    <Link
+                      href={`/checkup/new?type=understeel${selectedVehicleGroup.latestSpk ? `&spkId=${selectedVehicleGroup.latestSpk.id}` : ''}`}
+                      className="inline-flex items-center space-x-1 text-[11px] bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-xs transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Isi Understeel</span>
+                    </Link>
+                  )}
                 </div>
 
                 {selectedVehicleGroup.understeelList.length > 0 && (
@@ -809,18 +852,23 @@ export default function CheckupPage() {
                           <button
                             type="button"
                             onClick={() => setSelectedPrintRecord(rec)}
-                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold transition"
+                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-bold transition"
                           >
                             Lihat Lembar Understeel
                           </button>
-                          <button
-                            type="button"
-                            onClick={(e) => handleDeleteCheckup(rec.id, e)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition"
-                            title="Hapus"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {!(
+                            selectedVehicleGroup.latestSpk?.status === 'completed' ||
+                            selectedVehicleGroup.latestSpk?.status === 'paid'
+                          ) && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteCheckup(rec.id, e)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition"
+                              title="Hapus"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
