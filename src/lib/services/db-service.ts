@@ -1961,8 +1961,10 @@ export class DBService {
           .upsert(payload, { onConflict: 'invoice_number' })
           .select('*');
 
-        // Jika terjadi schema cache error karena kolom tidak ada di tabel invoices, hapus kolom offending dan retry
-        if (error && error.message?.includes('Could not find the') && error.message?.includes('column of \'invoices\'')) {
+        // Jika terjadi schema cache error karena kolom tidak ada di tabel invoices, hapus kolom offending dan retry secara rekursif/loop
+        let schemaAttempts = 0;
+        while (error && error.message?.includes('Could not find the') && error.message?.includes('column of \'invoices\'') && schemaAttempts < 5) {
+          schemaAttempts++;
           const match = error.message.match(/Could not find the '([^']+)' column/);
           if (match && match[1] && payload[match[1]] !== undefined) {
             delete payload[match[1]];
@@ -1972,6 +1974,8 @@ export class DBService {
               .select('*');
             data = retrySchemaRes.data;
             error = retrySchemaRes.error;
+          } else {
+            break;
           }
         }
 
