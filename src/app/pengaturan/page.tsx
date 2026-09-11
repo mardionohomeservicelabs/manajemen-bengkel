@@ -57,12 +57,12 @@ export default function SettingsPage() {
   const handleResetData = () => {
     if (
       window.confirm(
-        'Apakah Anda yakin ingin mereset seluruh database demo ke data awal bengkel? Data penambahan baru akan kembali ke default.'
+        'Apakah Anda yakin ingin mengosongkan seluruh data transaksi (SPK, estimasi, nota, antrean servis, dan draf) agar bersih seperti aplikasi baru?'
       )
     ) {
       DBService.resetToDefault();
       refreshData();
-      showToast('Database demo berhasil direset ke kondisi awal!', 'success');
+      showToast('Seluruh data berhasil dikosongkan. Aplikasi bersih seperti baru!', 'success');
     }
   };
 
@@ -259,7 +259,7 @@ export default function SettingsPage() {
             className="inline-flex items-center space-x-1.5 text-xs text-red-600 hover:text-red-800 font-medium px-3 py-2 rounded-lg hover:bg-red-50 transition"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset Data Demo ke Awal</span>
+            <span>Kosongkan Seluruh Data (Mulai Baru)</span>
           </button>
 
           <button

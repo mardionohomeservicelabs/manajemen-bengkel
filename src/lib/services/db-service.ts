@@ -22,7 +22,7 @@ import {
 import { supabase, isSupabaseConfigured } from '../supabase/client';
 import { generateSpkNumber, generateInvoiceNumber, getBranchCode } from '../utils';
 
-export const SYSTEM_DATA_EPOCH = '2026-09-08T14:15:00.000Z';
+export const SYSTEM_DATA_EPOCH = '2026-09-11T22:35:00.000Z';
 
 const BASE_STORAGE_KEYS = {
   VEHICLES: 'acwms_vehicles',
@@ -3283,32 +3283,51 @@ export class DBService {
 
   static resetToDefault(branch?: BranchId): void {
     if (typeof window === 'undefined') return;
-    const activeBranch = branch || this.getActiveBranch();
-    const keyVehicles = getBranchKey(BASE_STORAGE_KEYS.VEHICLES, activeBranch);
-    const keyInventory = getBranchKey(BASE_STORAGE_KEYS.INVENTORY, activeBranch);
-    const keyWorkOrders = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, activeBranch);
-    const keyInvoices = getBranchKey(BASE_STORAGE_KEYS.INVOICES, activeBranch);
-    const keyCrm = getBranchKey(BASE_STORAGE_KEYS.CRM_LOGS, activeBranch);
-    const keySettings = getBranchKey(BASE_STORAGE_KEYS.SETTINGS, activeBranch);
-    const keyMovements = getBranchKey(BASE_STORAGE_KEYS.MOVEMENTS, activeBranch);
-    const keyAudit = getBranchKey(BASE_STORAGE_KEYS.AUDIT, activeBranch);
-    const keyCheckups = getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, activeBranch);
+    const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
 
-    const defaultBranchSettings =
-      activeBranch === 'MHS 1'
-        ? initialSettingsMHS1
-        : activeBranch === 'MHS 2'
-        ? initialSettingsMHS2
-        : initialSettingsMHS3;
+    allBranches.forEach((b) => {
+      const defaultBranchSettings =
+        b === 'MHS 1'
+          ? initialSettingsMHS1
+          : b === 'MHS 2'
+          ? initialSettingsMHS2
+          : initialSettingsMHS3;
 
-    setLocal(keyVehicles, []);
-    setLocal(keyInventory, []);
-    setLocal(keyWorkOrders, []);
-    setLocal(keyInvoices, []);
-    setLocal(keyCrm, []);
-    setLocal(keySettings, defaultBranchSettings);
-    setLocal(keyMovements, []);
-    setLocal(keyAudit, []);
-    setLocal(keyCheckups, []);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.VEHICLES, b), []);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.INVENTORY, b), []);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), []);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.INVOICES, b), []);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.CRM_LOGS, b), []);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.SETTINGS, b), defaultBranchSettings);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.MOVEMENTS, b), []);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.AUDIT, b), []);
+      setLocal(getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, b), []);
+    });
+
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (
+        k &&
+        (k.startsWith('mhs_est_') ||
+          k.startsWith('mhs_last_active_') ||
+          k.startsWith('mhs_active_tab_') ||
+          k.startsWith('mhs_open_tabs_') ||
+          k.startsWith('acwms_work_orders') ||
+          k.startsWith('acwms_invoices') ||
+          k.startsWith('acwms_checkups') ||
+          k.startsWith('acwms_vehicles') ||
+          k.startsWith('acwms_inventory') ||
+          k.startsWith('acwms_stock_movements') ||
+          k.startsWith('acwms_crm_logs') ||
+          k.startsWith('acwms_audit_logs') ||
+          k.startsWith('acwms_offline_queue'))
+      ) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+    setLocal(BASE_STORAGE_KEYS.OFFLINE_QUEUE, []);
+    localStorage.setItem('acwms_last_reset_epoch', SYSTEM_DATA_EPOCH);
   }
 }
