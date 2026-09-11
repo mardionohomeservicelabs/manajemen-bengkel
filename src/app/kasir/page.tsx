@@ -28,6 +28,7 @@ import {
   Printer,
   Share2,
   Plus,
+  PlusCircle,
   Trash2,
   Lock,
   Sparkles,
@@ -74,8 +75,14 @@ function CashierContent() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [adminNotes, setAdminNotes] = useState<string>('');
 
-  // Item Picker
+  // Item Picker & Manual Item Input
   const [pickerSearch, setPickerSearch] = useState<string>('');
+  const [activeAddTab, setActiveAddTab] = useState<'manual' | 'inventory'>('manual');
+  const [customItemName, setCustomItemName] = useState<string>('');
+  const [customItemType, setCustomItemType] = useState<'part' | 'service'>('part');
+  const [customItemQty, setCustomItemQty] = useState<number>(1);
+  const [customItemPrice, setCustomItemPrice] = useState<number | ''>('');
+  const [customItemUnit, setCustomItemUnit] = useState<string>('PCS');
 
   // Dual Signatures (Customer & Admin)
   const [signatureCustomer, setSignatureCustomer] = useState<string>('');
@@ -257,6 +264,45 @@ function CashierContent() {
     const numPrice = parseNumericPrice(updated[index].price);
     updated[index].subtotal = qty * numPrice;
     setItems(updated);
+  };
+
+  const handleUpdatePrice = (index: number, newPrice: number) => {
+    const price = Math.max(0, newPrice);
+    const updated = [...items];
+    updated[index].price = price;
+    const qty = updated[index].qty || 1;
+    updated[index].subtotal = qty * price;
+    setItems(updated);
+  };
+
+  const handleAddCustomItem = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!customItemName.trim()) {
+      showToast('Masukkan nama barang atau jasa terlebih dahulu.', 'error');
+      return;
+    }
+    const priceNum = typeof customItemPrice === 'number' ? customItemPrice : Number(customItemPrice) || 0;
+    const qtyNum = Math.max(1, Number(customItemQty) || 1);
+
+    const newItem: InvoiceItem = {
+      item_id: `custom-${Date.now()}`,
+      code: customItemType === 'service' ? 'JASA-ADD' : 'PART-ADD',
+      name: customItemName.trim().toUpperCase(),
+      is_service: customItemType === 'service',
+      is_custom: true,
+      qty: qtyNum,
+      unit: customItemUnit,
+      price: priceNum,
+      subtotal: qtyNum * priceNum,
+    };
+
+    setItems((prev) => [...prev, newItem]);
+    showToast(`"${newItem.name}" berhasil ditambahkan ke nota.`, 'success');
+
+    // Reset form
+    setCustomItemName('');
+    setCustomItemQty(1);
+    setCustomItemPrice('');
   };
 
   const handleRemoveItem = (index: number) => {
@@ -507,44 +553,211 @@ function CashierContent() {
 
       {/* Main Billing Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left 4 Cols: Quick Add Item */}
-        <div className="lg:col-span-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-card space-y-3">
-          <h3 className="font-black text-xs uppercase tracking-wider text-slate-900 pb-2 border-b border-slate-100">
-            Tambah Item Manual / Part
-          </h3>
-          <input
-            type="text"
-            placeholder="Cari part / jasa tambahan..."
-            value={pickerSearch}
-            onChange={(e) => setPickerSearch(e.target.value)}
-            className="w-full text-xs p-2 rounded-xl border border-slate-200 outline-none focus:ring-1 focus:ring-maroon-600 font-medium"
-          />
-
-          <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
-            {inventory
-              .filter(
-                (i) =>
-                  i.name.toLowerCase().includes(pickerSearch.toLowerCase()) ||
-                  i.item_code.toLowerCase().includes(pickerSearch.toLowerCase())
-              )
-              .map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => handleAddItem(item)}
-                  className="flex items-center justify-between p-2 rounded-lg border border-slate-100 hover:border-maroon-200 hover:bg-maroon-50/30 transition cursor-pointer text-xs"
-                >
-                  <div className="overflow-hidden mr-2">
-                    <div className="font-bold text-slate-800 truncate">{item.name}</div>
-                    <div className="text-[10px] text-slate-400 font-mono">
-                      {item.is_service ? 'Jasa' : `Stok: ${item.stock_qty}`}
-                    </div>
-                  </div>
-                  <span className="font-bold font-mono text-slate-900 flex-shrink-0">
-                    {formatCurrency(item.sell_price)}
-                  </span>
-                </div>
-              ))}
+        {/* Left 4 Cols: Tambah Item Tambahan (Manual & Inventory) */}
+        <div className="lg:col-span-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-card space-y-4">
+          <div className="pb-2 border-b border-slate-100">
+            <h3 className="font-black text-xs uppercase tracking-wider text-slate-900 flex items-center space-x-1.5">
+              <PlusCircle className="w-4 h-4 text-maroon-700" />
+              <span>Input Item Tambahan</span>
+            </h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Input barang / jasa jika servis melebihi atau di luar estimasi awal.
+            </p>
           </div>
+
+          {/* Mode Switcher: Manual vs Gudang */}
+          <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setActiveAddTab('manual')}
+              className={`flex-1 py-1.5 rounded-lg transition text-center ${
+                activeAddTab === 'manual'
+                  ? 'bg-white text-maroon-900 font-bold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              ✍️ Input Manual
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveAddTab('inventory')}
+              className={`flex-1 py-1.5 rounded-lg transition text-center ${
+                activeAddTab === 'inventory'
+                  ? 'bg-white text-maroon-900 font-bold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              📦 Dari Gudang ({inventory.length})
+            </button>
+          </div>
+
+          {activeAddTab === 'manual' ? (
+            <form onSubmit={handleAddCustomItem} className="space-y-3 pt-1">
+              {/* Jenis: Part vs Jasa */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Kategori Item:
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomItemType('part');
+                      if (customItemUnit === 'JASA') setCustomItemUnit('PCS');
+                    }}
+                    className={`p-2 rounded-xl text-xs font-bold border flex items-center justify-center space-x-1.5 transition ${
+                      customItemType === 'part'
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>🔧 Barang / Part</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomItemType('service');
+                      setCustomItemUnit('JASA');
+                    }}
+                    className={`p-2 rounded-xl text-xs font-bold border flex items-center justify-center space-x-1.5 transition ${
+                      customItemType === 'service'
+                        ? 'bg-blue-50 text-blue-800 border-blue-300 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>🛠️ Jasa Servis</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Nama Item */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Nama {customItemType === 'service' ? 'Jasa Servis' : 'Barang / Sparepart'}:
+                </label>
+                <input
+                  type="text"
+                  placeholder={
+                    customItemType === 'service'
+                      ? 'Contoh: Jasa Bubut Piringan Rem...'
+                      : 'Contoh: Busi Iridium, Oli Tambahan...'
+                  }
+                  value={customItemName}
+                  onChange={(e) => setCustomItemName(e.target.value)}
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-maroon-600 font-medium"
+                />
+              </div>
+
+              {/* Qty & Satuan */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    Jumlah (Qty):
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={customItemQty}
+                    onChange={(e) => setCustomItemQty(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full text-xs p-2 rounded-xl border border-slate-200 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    Satuan:
+                  </label>
+                  <select
+                    value={customItemUnit}
+                    onChange={(e) => setCustomItemUnit(e.target.value)}
+                    className="w-full text-xs p-2 rounded-xl border border-slate-200 bg-white font-medium outline-none"
+                  >
+                    <option value="PCS">PCS</option>
+                    <option value="SET">SET</option>
+                    <option value="JASA">JASA</option>
+                    <option value="LTR">LITER (LTR)</option>
+                    <option value="BOTOL">BOTOL</option>
+                    <option value="PAKET">PAKET</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Harga Satuan */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Harga Satuan (Rp):
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                    Rp
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    placeholder="0"
+                    value={customItemPrice}
+                    onChange={(e) =>
+                      setCustomItemPrice(e.target.value === '' ? '' : Number(e.target.value))
+                    }
+                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 font-mono font-bold outline-none focus:ring-2 focus:ring-maroon-600"
+                  />
+                </div>
+              </div>
+
+              {/* Subtotal Preview */}
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs">
+                <span className="text-slate-500 font-medium">Subtotal Item:</span>
+                <span className="font-mono font-bold text-maroon-900">
+                  {formatCurrency((Number(customItemQty) || 1) * (Number(customItemPrice) || 0))}
+                </span>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                className="w-full bg-maroon-700 hover:bg-maroon-800 active:scale-98 text-white font-bold p-2.5 rounded-xl text-xs transition shadow-xs flex items-center justify-center space-x-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Tambahkan ke Rincian Nota</span>
+              </button>
+            </form>
+          ) : (
+            <div className="space-y-3 pt-1">
+              <input
+                type="text"
+                placeholder="Cari part / jasa gudang..."
+                value={pickerSearch}
+                onChange={(e) => setPickerSearch(e.target.value)}
+                className="w-full text-xs p-2 rounded-xl border border-slate-200 outline-none focus:ring-1 focus:ring-maroon-600 font-medium"
+              />
+
+              <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
+                {inventory
+                  .filter(
+                    (i) =>
+                      i.name.toLowerCase().includes(pickerSearch.toLowerCase()) ||
+                      i.item_code.toLowerCase().includes(pickerSearch.toLowerCase())
+                  )
+                  .map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => handleAddItem(item)}
+                      className="flex items-center justify-between p-2 rounded-lg border border-slate-100 hover:border-maroon-200 hover:bg-maroon-50/30 transition cursor-pointer text-xs"
+                    >
+                      <div className="overflow-hidden mr-2">
+                        <div className="font-bold text-slate-800 truncate">{item.name}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">
+                          {item.is_service ? 'Jasa' : `Stok: ${item.stock_qty}`}
+                        </div>
+                      </div>
+                      <span className="font-bold font-mono text-slate-900 flex-shrink-0">
+                        {formatCurrency(item.sell_price)}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right 8 Cols: Invoice Items & Payment Method */}
@@ -571,19 +784,36 @@ function CashierContent() {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold text-[11px]">
-                    <th className="p-2.5">Item</th>
+                    <th className="p-2.5">Item Jasa / Part</th>
                     <th className="p-2.5 w-16 text-center">Qty</th>
-                    <th className="p-2.5 w-24 text-right">Harga</th>
+                    <th className="p-2.5 w-32 text-right">Harga Satuan</th>
                     <th className="p-2.5 w-28 text-right">Subtotal</th>
                     <th className="p-2.5 w-8"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {items.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/60">
+                    <tr key={idx} className="hover:bg-slate-50/60 transition">
                       <td className="p-2.5">
-                        <div className="font-bold text-slate-900 uppercase">{(item.name || '').toUpperCase()}</div>
-                        <div className="text-[10px] text-slate-400 font-mono uppercase">{item.code}</div>
+                        <div className="flex items-center space-x-1.5">
+                          <span className="font-bold text-slate-900 uppercase">{(item.name || '').toUpperCase()}</span>
+                          {item.is_custom && (
+                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">
+                              TAMBAHAN
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono flex items-center space-x-1 uppercase mt-0.5">
+                          <span
+                            className={`px-1 rounded text-[9px] font-bold ${
+                              item.is_service ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700'
+                            }`}
+                          >
+                            {item.is_service ? 'JASA' : 'PART'}
+                          </span>
+                          {item.code && <span>• {item.code}</span>}
+                          {item.unit && <span>• {item.unit}</span>}
+                        </div>
                       </td>
                       <td className="p-2.5 text-center">
                         <input
@@ -591,11 +821,22 @@ function CashierContent() {
                           min="1"
                           value={item.qty}
                           onChange={(e) => handleUpdateQty(idx, Number(e.target.value))}
-                          className="w-12 text-center p-1 rounded border border-slate-200 font-mono font-bold"
+                          className="w-12 text-center p-1 rounded border border-slate-200 font-mono font-bold focus:ring-1 focus:ring-maroon-600 outline-none"
                         />
                       </td>
-                      <td className="p-2.5 text-right font-mono text-slate-700 font-medium">
-                        {formatCurrency(item.price)}
+                      <td className="p-2.5 text-right font-mono">
+                        <div className="flex items-center justify-end space-x-1">
+                          <span className="text-slate-400 text-[10px]">Rp</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1000"
+                            value={item.price}
+                            onChange={(e) => handleUpdatePrice(idx, Number(e.target.value))}
+                            className="w-24 text-right p-1 rounded border border-slate-200 font-mono font-bold text-slate-800 focus:ring-1 focus:ring-maroon-600 outline-none"
+                            title="Ubah harga satuan jika perlu penyesuaian"
+                          />
+                        </div>
                       </td>
                       <td className="p-2.5 text-right font-mono font-black text-slate-900">
                         {formatCurrency(item.subtotal)}
@@ -604,6 +845,7 @@ function CashierContent() {
                         <button
                           onClick={() => handleRemoveItem(idx)}
                           className="text-slate-400 hover:text-red-600 p-1 transition"
+                          title="Hapus item dari nota"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -623,26 +865,29 @@ function CashierContent() {
                 Metode Pembayaran:
               </label>
 
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {[
-                  { id: 'cash', label: '💵 Tunai (Cash)' },
-                  { id: 'qris', label: '📱 QRIS Instant' },
-                  { id: 'transfer_bca', label: '🏦 Transfer BCA' },
-                  { id: 'transfer_mandiri', label: '🏦 Transfer Mandiri' },
-                  { id: 'debit_card', label: '💳 Kartu Debit' },
-                  { id: 'credit_card', label: '💳 Kartu Kredit' },
+                  { id: 'cash', label: '💵 Tunai (Cash)', desc: 'Pembayaran tunai di kasir' },
+                  { id: 'transfer_bca', label: '🏦 Transfer BCA', desc: 'BCA 2711235398 Ardiyanto Wijaya' },
                 ].map((pm) => (
                   <button
                     key={pm.id}
                     type="button"
                     onClick={() => setPaymentMethod(pm.id as PaymentMethod)}
-                    className={`p-2 rounded-lg text-[11px] font-bold border text-left transition ${
+                    className={`p-2.5 rounded-xl border text-left transition ${
                       paymentMethod === pm.id
                         ? 'bg-maroon-700 text-white border-maroon-800 shadow-xs'
                         : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                     }`}
                   >
-                    {pm.label}
+                    <div className="font-bold text-xs">{pm.label}</div>
+                    <div
+                      className={`text-[10px] mt-0.5 line-clamp-1 ${
+                        paymentMethod === pm.id ? 'text-maroon-100' : 'text-slate-400'
+                      }`}
+                    >
+                      {pm.desc}
+                    </div>
                   </button>
                 ))}
               </div>
@@ -651,7 +896,7 @@ function CashierContent() {
                 <label className="block text-[11px] font-medium text-slate-600 mb-1">Catatan Tambahan Nota:</label>
                 <input
                   type="text"
-                  placeholder="Contoh: Lunas via QRIS / Pembayaran bertahap..."
+                  placeholder="Contoh: Lunas via Transfer BCA / Pembayaran tunai..."
                   value={adminNotes}
                   onChange={(e) => setAdminNotes(e.target.value)}
                   className="w-full text-xs p-2 rounded-lg border border-slate-200 bg-white font-medium"
@@ -784,7 +1029,12 @@ function CashierContent() {
                 </tbody>
               </table>
               <div className="p-3 bg-slate-50 flex justify-between items-center font-black text-sm text-maroon-900 border-t border-slate-200">
-                <span>TOTAL YANG HARUS DIBAYAR:</span>
+                <div>
+                  <div className="text-[11px] font-semibold text-slate-500">
+                    Metode Bayar: {paymentMethod === 'transfer_bca' ? '🏦 Transfer Bank BCA' : '💵 Tunai (Cash)'}
+                  </div>
+                  <span>TOTAL YANG HARUS DIBAYAR:</span>
+                </div>
                 <span className="font-mono text-base">{formatCurrency(totalAmount)}</span>
               </div>
             </div>
