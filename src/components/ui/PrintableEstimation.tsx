@@ -130,6 +130,49 @@ export function PrintableEstimation({
     return `${formatCurrency(min)} – ${formatCurrency(max)}`;
   }
 
+  // Helper render harga kompak: bila harga panjang (terutama rentang/range), otomatis mengarah ke bawah (stacked)
+  function renderCompactPrice(priceStr: string | number, customColor?: string) {
+    if (priceStr === undefined || priceStr === null || priceStr === '') {
+      return <span className={`font-mono ${customColor || ''}`}>Rp 0</span>;
+    }
+    const str = String(priceStr).trim();
+    if (str === '0' || str === 'Rp 0' || str === '-') {
+      return <span className={`font-mono ${customColor || ''}`}>{str}</span>;
+    }
+
+    if (str.includes('–') || (str.includes(' - ') && str.includes('Rp'))) {
+      const parts = str.includes('–') ? str.split('–') : str.split(' - ');
+      if (parts.length >= 2) {
+        const p1 = parts[0].trim();
+        const p2 = parts[1].trim();
+        return (
+          <div className={`flex flex-col items-end leading-tight text-right ${customColor || ''}`}>
+            <span className="font-mono whitespace-nowrap text-[10px]">{p1}</span>
+            <span className="font-mono text-[9px] opacity-80 whitespace-nowrap">– {p2}</span>
+          </div>
+        );
+      }
+    }
+
+    return (
+      <span className={`font-mono text-right break-words leading-tight ${customColor || ''}`}>
+        {str}
+      </span>
+    );
+  }
+
+  // Helper render subtotal/grand total kompak: bila angka rentang, otomatis mengarah ke bawah agar muat di kertas
+  function renderTotalCellCompact(min: number, max: number, customColor?: string) {
+    if (min === 0 && max === 0) return <span className={`font-mono ${customColor || ''}`}>Rp 0</span>;
+    if (min === max) return <span className={`font-mono ${customColor || ''}`}>{formatCurrency(min)}</span>;
+    return (
+      <div className={`flex flex-col items-end leading-tight text-right ${customColor || ''}`}>
+        <span className="font-mono whitespace-nowrap text-[10px]">{formatCurrency(min)}</span>
+        <span className="font-mono text-[9px] opacity-80 whitespace-nowrap">– {formatCurrency(max)}</span>
+      </div>
+    );
+  }
+
   // Helper format harga satuan & total baris item: jika tertulis 'CEK'/'cek', tetap muncul 'CEK' dan bukan 0
   function formatEstimationRowItem(
     priceRaw: any,
@@ -357,19 +400,20 @@ export function PrintableEstimation({
           {/* Items Table — Exact format from user reference screenshot */}
           <div className="border-2 border-slate-900 rounded-xl overflow-hidden text-xs my-2 estimation-table-wrapper">
             <table className="w-full text-left border-collapse text-[10.5px] estimation-items-table">
-              <thead>
-                <tr className="bg-slate-100 border-b-2 border-slate-900 font-black text-slate-900 uppercase">
-                  <th className="p-2 w-8 text-center border-r border-slate-300">No</th>
-                  <th className="p-2 border-r border-slate-300">Saran/Perbaikan/Ganti Sparepart</th>
-                  <th className="p-2 w-12 text-center border-r border-slate-300">QTY</th>
-                  <th className="p-2 w-16 text-center border-r border-slate-300">Satuan</th>
-                  <th className="p-2 w-28 text-right border-r border-slate-300">Hrg Sat</th>
-                  <th className="p-2 w-28 text-right border-r border-slate-300">Total Opsi 1</th>
+              <thead className="estimation-items-thead" style={{ display: 'table-row-group' }}>
+                <tr className="bg-slate-100 border-b-2 border-slate-900 font-black text-slate-900 uppercase text-[10px]">
+                  <th className="p-1.5 w-7 text-center border-r border-slate-300">No</th>
+                  <th className="p-1.5 border-r border-slate-300">Saran/Perbaikan/Ganti Sparepart</th>
+                  <th className="p-1.5 w-9 text-center border-r border-slate-300">QTY</th>
+                  <th className="p-1.5 w-11 text-center border-r border-slate-300">Satuan</th>
+                  <th className="p-1.5 w-[92px] text-right border-r border-slate-300">Hrg Satuan</th>
+                  <th className={`p-1.5 ${hasOpsi2 ? 'w-[98px]' : 'w-[110px]'} text-right border-r border-slate-300`}>
+                    {hasOpsi2 ? 'Total Opsi 1' : 'Total Harga'}
+                  </th>
                   {hasOpsi2 && (
-                    <>
-                      <th className="p-2 w-28 text-right border-r border-slate-300 bg-blue-50/40 text-blue-950">Hrg Opsi 2</th>
-                      <th className="p-2 w-28 text-right bg-blue-50/40 text-blue-950">Total Opsi 2</th>
-                    </>
+                    <th className="p-1.5 w-[98px] text-right bg-blue-50/40 text-blue-950">
+                      Total Opsi 2
+                    </th>
                   )}
                 </tr>
               </thead>
@@ -378,7 +422,7 @@ export function PrintableEstimation({
                 {isDoubleTable && (
                   <tr className="bg-slate-200/90 border-b border-slate-300">
                     <td
-                      colSpan={hasOpsi2 ? 8 : 6}
+                      colSpan={hasOpsi2 ? 7 : 6}
                       className="py-1 px-4 text-center font-extrabold text-slate-800 uppercase tracking-wider text-[11px]"
                     >
                       {table1Title}
@@ -418,21 +462,16 @@ export function PrintableEstimation({
                       <td className="p-1.5 text-center text-[10px] font-black uppercase text-slate-700 border-r border-slate-300 align-middle">
                         {item.unit || 'PCS'}
                       </td>
-                      <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold">
-                        {p1Info.priceDisplay}
+                      <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold text-slate-800">
+                        {renderCompactPrice(p1Info.priceDisplay)}
                       </td>
                       <td className="p-1.5 text-right font-mono font-black text-slate-900 border-r border-slate-300 align-middle">
-                        {p1Info.totalDisplay}
+                        {renderCompactPrice(p1Info.totalDisplay)}
                       </td>
                       {hasOpsi2 && (
-                        <>
-                          <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold bg-blue-50/20 text-blue-900">
-                            {p2Info.priceDisplay}
-                          </td>
-                          <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
-                            {p2Info.totalDisplay}
-                          </td>
-                        </>
+                        <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
+                          {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
+                        </td>
                       )}
                     </tr>
                   );
@@ -446,23 +485,20 @@ export function PrintableEstimation({
                       <td colSpan={5} className="p-1.5 text-center uppercase tracking-wider font-extrabold text-slate-700 text-[10.5px]">
                         TOTAL {table1Title ? `(${table1Title.toUpperCase()})` : 'TABEL 1'}
                       </td>
-                      <td className="p-1.5 text-right font-mono font-extrabold text-slate-950 border-r border-slate-300 whitespace-nowrap">
-                        {formatTotalCell(t1Totals.tot1Min, t1Totals.tot1Max)}
+                      <td className="p-1.5 text-right font-mono font-extrabold text-slate-950 border-r border-slate-300">
+                        {renderTotalCellCompact(t1Totals.tot1Min, t1Totals.tot1Max)}
                       </td>
                       {hasOpsi2 && (
-                        <>
-                          <td className="p-1.5 bg-blue-50/30 border-r border-slate-300"></td>
-                          <td className="p-1.5 text-right font-mono font-extrabold text-blue-950 bg-blue-50/30 whitespace-nowrap">
-                            {formatTotalCell(t1Totals.tot2Min, t1Totals.tot2Max)}
-                          </td>
-                        </>
+                        <td className="p-1.5 text-right font-mono font-extrabold text-blue-950 bg-blue-50/30">
+                          {renderTotalCellCompact(t1Totals.tot2Min, t1Totals.tot2Max, 'text-blue-950')}
+                        </td>
                       )}
                     </tr>
 
                     {/* Slice Divider */}
                     <tr className="bg-slate-200/90 border-y border-slate-300">
                       <td
-                        colSpan={hasOpsi2 ? 8 : 6}
+                        colSpan={hasOpsi2 ? 7 : 6}
                         className="py-1 px-4 text-center font-extrabold text-slate-800 uppercase tracking-wider text-[11px]"
                       >
                         {table2Title}
@@ -502,21 +538,16 @@ export function PrintableEstimation({
                           <td className="p-1.5 text-center text-[10px] font-black uppercase text-slate-700 border-r border-slate-300 align-middle">
                             {item.unit || 'PCS'}
                           </td>
-                          <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold">
-                            {p1Info.priceDisplay}
+                          <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold text-slate-800">
+                            {renderCompactPrice(p1Info.priceDisplay)}
                           </td>
                           <td className="p-1.5 text-right font-mono font-black text-slate-900 border-r border-slate-300 align-middle">
-                            {p1Info.totalDisplay}
+                            {renderCompactPrice(p1Info.totalDisplay)}
                           </td>
                           {hasOpsi2 && (
-                            <>
-                              <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold bg-blue-50/20 text-blue-900">
-                                {p2Info.priceDisplay}
-                              </td>
-                              <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
-                                {p2Info.totalDisplay}
-                              </td>
-                            </>
+                            <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
+                              {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
+                            </td>
                           )}
                         </tr>
                       );
@@ -527,40 +558,34 @@ export function PrintableEstimation({
                       <td colSpan={5} className="p-1.5 text-center uppercase tracking-wider font-extrabold text-slate-700 text-[10.5px]">
                         TOTAL {table2Title ? `(${table2Title.toUpperCase()})` : 'TABEL 2'}
                       </td>
-                      <td className="p-1.5 text-right font-mono font-extrabold text-slate-950 border-r border-slate-300 whitespace-nowrap">
-                        {formatTotalCell(t2Totals.tot1Min, t2Totals.tot1Max)}
+                      <td className="p-1.5 text-right font-mono font-extrabold text-slate-950 border-r border-slate-300">
+                        {renderTotalCellCompact(t2Totals.tot1Min, t2Totals.tot1Max)}
                       </td>
                       {hasOpsi2 && (
-                        <>
-                          <td className="p-1.5 bg-blue-50/30 border-r border-slate-300"></td>
-                          <td className="p-1.5 text-right font-mono font-extrabold text-blue-950 bg-blue-50/30 whitespace-nowrap">
-                            {formatTotalCell(t2Totals.tot2Min, t2Totals.tot2Max)}
-                          </td>
-                        </>
+                        <td className="p-1.5 text-right font-mono font-extrabold text-blue-950 bg-blue-50/30">
+                          {renderTotalCellCompact(t2Totals.tot2Min, t2Totals.tot2Max, 'text-blue-950')}
+                        </td>
                       )}
                     </tr>
                   </>
                 )}
               </tbody>
-              {/* Grand Total Row: JUMLAH KESELURUHAN (Clean styling matching previous version) */}
-              <tfoot>
-                <tr className="bg-slate-100 font-black border-t-2 border-slate-900 text-xs">
+              {/* Grand Total Row: JUMLAH KESELURUHAN (Rendered as separate tbody to ensure it only appears once at the very end of items, never at page 1 bottom) */}
+              <tbody className="border-t-2 border-slate-900 estimation-grand-total-tbody">
+                <tr className="bg-slate-100 font-black text-xs estimation-grand-total-row avoid-break">
                   <td colSpan={5} className="p-2 text-center uppercase tracking-wider text-slate-900 font-black">
                     JUMLAH KESELURUHAN
                   </td>
-                  <td className="p-2 text-right font-mono font-black text-slate-950 border-r border-slate-300 text-sm whitespace-nowrap">
-                    {formatTotalCell(grandTot1Min, grandTot1Max)}
+                  <td className="p-2 text-right font-mono font-black text-slate-950 border-r border-slate-300 text-xs">
+                    {renderTotalCellCompact(grandTot1Min, grandTot1Max)}
                   </td>
                   {hasOpsi2 && (
-                    <>
-                      <td className="p-2 bg-blue-50/40 border-r border-slate-300"></td>
-                      <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/40 text-sm whitespace-nowrap">
-                        {formatTotalCell(grandTot2Min, grandTot2Max)}
-                      </td>
-                    </>
+                    <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/40 text-xs">
+                      {renderTotalCellCompact(grandTot2Min, grandTot2Max, 'text-blue-950')}
+                    </td>
                   )}
                 </tr>
-              </tfoot>
+              </tbody>
             </table>
           </div>
 

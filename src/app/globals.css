@@ -348,13 +348,15 @@ body {
   .printable-estimation-sheet .estimation-items-table {
     width: 100% !important;
     border-collapse: collapse !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
     table-layout: fixed !important;
   }
 
-  .printable-estimation-sheet .estimation-items-table thead {
-    display: table-header-group !important;
+  .printable-estimation-sheet .estimation-items-table thead,
+  .printable-estimation-sheet thead,
+  .estimation-items-thead {
+    display: table-row-group !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
@@ -369,8 +371,24 @@ body {
 
   .printable-estimation-sheet .estimation-items-table tbody {
     display: table-row-group !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  .printable-estimation-sheet .estimation-items-table tfoot,
+  .printable-estimation-sheet tfoot,
+  .estimation-grand-total-tbody {
+    display: table-row-group !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+  }
+
+  .printable-estimation-sheet .estimation-grand-total-row {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    background-color: #f1f5f9 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   .printable-estimation-sheet .estimation-items-table tr {

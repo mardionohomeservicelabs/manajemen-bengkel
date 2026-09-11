@@ -72,9 +72,23 @@ export function printCleanDocument(element: HTMLElement | null, documentTitle: s
       display: block !important;
       height: auto !important;
     }
-    .avoid-break, .break-avoid, .page-break-avoid, tr, table {
+    .avoid-break, .break-avoid, .page-break-avoid, tr {
       page-break-inside: avoid !important;
       break-inside: avoid !important;
+    }
+    table, .estimation-items-table {
+      page-break-inside: auto !important;
+      break-inside: auto !important;
+    }
+    .printable-estimation-sheet thead,
+    .printable-estimation-sheet .estimation-items-table thead,
+    .estimation-items-thead {
+      display: table-row-group !important;
+    }
+    .printable-estimation-sheet tfoot,
+    .printable-estimation-sheet .estimation-items-table tfoot,
+    .estimation-grand-total-tbody {
+      display: table-row-group !important;
     }
     .no-print {
       display: none !important;
@@ -90,6 +104,16 @@ export function printCleanDocument(element: HTMLElement | null, documentTitle: s
         background: #ffffff !important;
         width: 100% !important;
         height: auto !important;
+      }
+      .printable-estimation-sheet thead,
+      .printable-estimation-sheet .estimation-items-table thead,
+      .estimation-items-thead {
+        display: table-row-group !important;
+      }
+      .printable-estimation-sheet tfoot,
+      .printable-estimation-sheet .estimation-items-table tfoot,
+      .estimation-grand-total-tbody {
+        display: table-row-group !important;
       }
       .no-print {
         display: none !important;

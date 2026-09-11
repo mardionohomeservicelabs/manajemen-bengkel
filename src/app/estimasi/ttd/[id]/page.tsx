@@ -31,6 +31,49 @@ const formatRangeDisplay = (min: number, max: number): string => {
   return `${formatCurrency(min)} – ${formatCurrency(max)}`;
 };
 
+// Helper render harga kompak: bila harga panjang (terutama rentang/range), otomatis mengarah ke bawah (stacked)
+const renderCompactPrice = (priceStr: string | number, customColor?: string) => {
+  if (priceStr === undefined || priceStr === null || priceStr === '') {
+    return <span className={`font-mono ${customColor || ''}`}>Rp 0</span>;
+  }
+  const str = String(priceStr).trim();
+  if (str === '0' || str === 'Rp 0' || str === '-') {
+    return <span className={`font-mono ${customColor || ''}`}>{str}</span>;
+  }
+
+  if (str.includes('–') || (str.includes(' - ') && str.includes('Rp'))) {
+    const parts = str.includes('–') ? str.split('–') : str.split(' - ');
+    if (parts.length >= 2) {
+      const p1 = parts[0].trim();
+      const p2 = parts[1].trim();
+      return (
+        <div className={`flex flex-col items-end leading-tight text-right ${customColor || ''}`}>
+          <span className="font-mono whitespace-nowrap text-[10.5px]">{p1}</span>
+          <span className="font-mono text-[9px] opacity-80 whitespace-nowrap">– {p2}</span>
+        </div>
+      );
+    }
+  }
+
+  return (
+    <span className={`font-mono text-right break-words leading-tight ${customColor || ''}`}>
+      {str}
+    </span>
+  );
+};
+
+// Helper render subtotal/grand total kompak: bila angka rentang, otomatis mengarah ke bawah agar muat di layar/kertas
+const renderTotalCellCompact = (min: number, max: number, customColor?: string) => {
+  if (min === 0 && max === 0) return <span className={`font-mono ${customColor || ''}`}>Rp 0</span>;
+  if (min === max) return <span className={`font-mono ${customColor || ''}`}>{formatCurrency(min)}</span>;
+  return (
+    <div className={`flex flex-col items-end leading-tight text-right ${customColor || ''}`}>
+      <span className="font-mono whitespace-nowrap text-[10.5px]">{formatCurrency(min)}</span>
+      <span className="font-mono text-[9px] opacity-80 whitespace-nowrap">– {formatCurrency(max)}</span>
+    </div>
+  );
+};
+
 // Helper format baris persetujuan estimasi: jika ada tulisan 'CEK'/'cek', muncul 'CEK' bukan 0
 const formatTtdItemRow = (
   priceRaw: any,
@@ -527,14 +570,13 @@ export default function CustomerSignatureApprovalPage() {
                   <th className="p-2 w-7 text-center border-r border-slate-600">No</th>
                   <th className="p-2 border-r border-slate-600">Saran / Sparepart / Jasa</th>
                   <th className="p-2 w-9 text-center border-r border-slate-600">Qty</th>
-                  <th className="p-2 w-12 text-center border-r border-slate-600">Satuan</th>
-                  <th className="p-2 w-20 text-right border-r border-slate-600">Harga 1</th>
-                  <th className="p-2 w-24 text-right border-r border-slate-600">Total 1</th>
+                  <th className="p-2 w-11 text-center border-r border-slate-600">Satuan</th>
+                  <th className="p-2 w-[90px] text-right border-r border-slate-600">Harga Sat</th>
+                  <th className={`p-2 ${hasOpsi2 ? 'w-[96px]' : 'w-[105px]'} text-right border-r border-slate-600`}>
+                    {hasOpsi2 ? 'Total 1' : 'Total'}
+                  </th>
                   {hasOpsi2 && (
-                    <>
-                      <th className="p-2 w-20 text-right border-r border-slate-600 bg-blue-950">Harga 2</th>
-                      <th className="p-2 w-24 text-right bg-blue-900">Total 2</th>
-                    </>
+                    <th className="p-2 w-[96px] text-right bg-blue-900">Total 2</th>
                   )}
                 </tr>
               </thead>
@@ -543,7 +585,7 @@ export default function CustomerSignatureApprovalPage() {
                 {hasSecondTable && (
                   <tr className="bg-slate-100/90 border-b-2 border-slate-300">
                     <td
-                      colSpan={hasOpsi2 ? 8 : 6}
+                      colSpan={hasOpsi2 ? 7 : 6}
                       className="py-2 px-4 text-center font-extrabold text-slate-800 uppercase tracking-wider text-[11px]"
                     >
                       {table1Title}
@@ -566,13 +608,16 @@ export default function CustomerSignatureApprovalPage() {
                       </td>
                       <td className="p-2 text-center font-mono font-bold text-slate-700 border-r border-slate-100">{qty}</td>
                       <td className="p-2 text-center text-[10px] font-black uppercase text-slate-600 border-r border-slate-100">{item.unit || 'PCS'}</td>
-                      <td className="p-2 text-right font-mono text-slate-700 border-r border-slate-100">{p1Info.priceDisplay}</td>
-                      <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-100">{p1Info.totalDisplay}</td>
+                      <td className="p-2 text-right font-mono text-slate-700 border-r border-slate-100">
+                        {renderCompactPrice(p1Info.priceDisplay)}
+                      </td>
+                      <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-100">
+                        {renderCompactPrice(p1Info.totalDisplay)}
+                      </td>
                       {hasOpsi2 && (
-                        <>
-                          <td className="p-2 text-right font-mono text-blue-800 border-r border-slate-100 bg-blue-50/20">{p2Info.priceDisplay}</td>
-                          <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">{p2Info.totalDisplay}</td>
-                        </>
+                        <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">
+                          {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
+                        </td>
                       )}
                     </tr>
                   );
@@ -586,23 +631,20 @@ export default function CustomerSignatureApprovalPage() {
                       <td colSpan={5} className="p-2 text-center uppercase tracking-wider font-extrabold text-slate-700 text-[10.5px]">
                         TOTAL {table1Title ? `(${table1Title.toUpperCase()})` : 'TABEL 1'}
                       </td>
-                      <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-200 whitespace-nowrap">
-                        {formatRangeDisplay(t1Totals.s1Min, t1Totals.s1Max)}
+                      <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-200">
+                        {renderTotalCellCompact(t1Totals.s1Min, t1Totals.s1Max)}
                       </td>
                       {hasOpsi2 && (
-                        <>
-                          <td className="p-2 bg-blue-50/20 border-r border-slate-200"></td>
-                          <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30 whitespace-nowrap">
-                            {formatRangeDisplay(t1Totals.s2Min, t1Totals.s2Max)}
-                          </td>
-                        </>
+                        <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">
+                          {renderTotalCellCompact(t1Totals.s2Min, t1Totals.s2Max, 'text-blue-950')}
+                        </td>
                       )}
                     </tr>
 
                     {/* Slice Divider */}
                     <tr className="bg-slate-100/90 border-y-2 border-slate-300">
                       <td
-                        colSpan={hasOpsi2 ? 8 : 6}
+                        colSpan={hasOpsi2 ? 7 : 6}
                         className="py-2 px-4 text-center font-extrabold text-slate-800 uppercase tracking-wider text-[11px]"
                       >
                         {table2Title}
@@ -625,13 +667,16 @@ export default function CustomerSignatureApprovalPage() {
                           </td>
                           <td className="p-2 text-center font-mono font-bold text-slate-700 border-r border-slate-100">{qty}</td>
                           <td className="p-2 text-center text-[10px] font-black uppercase text-slate-600 border-r border-slate-100">{item.unit || 'PCS'}</td>
-                          <td className="p-2 text-right font-mono text-slate-700 border-r border-slate-100">{p1Info.priceDisplay}</td>
-                          <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-100">{p1Info.totalDisplay}</td>
+                          <td className="p-2 text-right font-mono text-slate-700 border-r border-slate-100">
+                            {renderCompactPrice(p1Info.priceDisplay)}
+                          </td>
+                          <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-100">
+                            {renderCompactPrice(p1Info.totalDisplay)}
+                          </td>
                           {hasOpsi2 && (
-                            <>
-                              <td className="p-2 text-right font-mono text-blue-800 border-r border-slate-100 bg-blue-50/20">{p2Info.priceDisplay}</td>
-                              <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">{p2Info.totalDisplay}</td>
-                            </>
+                            <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">
+                              {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
+                            </td>
                           )}
                         </tr>
                       );
@@ -642,16 +687,13 @@ export default function CustomerSignatureApprovalPage() {
                       <td colSpan={5} className="p-2 text-center uppercase tracking-wider font-extrabold text-slate-700 text-[10.5px]">
                         TOTAL {table2Title ? `(${table2Title.toUpperCase()})` : 'TABEL 2'}
                       </td>
-                      <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-200 whitespace-nowrap">
-                        {formatRangeDisplay(t2Totals.s1Min, t2Totals.s1Max)}
+                      <td className="p-2 text-right font-mono font-black text-slate-900 border-r border-slate-200">
+                        {renderTotalCellCompact(t2Totals.s1Min, t2Totals.s1Max)}
                       </td>
                       {hasOpsi2 && (
-                        <>
-                          <td className="p-2 bg-blue-50/20 border-r border-slate-200"></td>
-                          <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30 whitespace-nowrap">
-                            {formatRangeDisplay(t2Totals.s2Min, t2Totals.s2Max)}
-                          </td>
-                        </>
+                        <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">
+                          {renderTotalCellCompact(t2Totals.s2Min, t2Totals.s2Max, 'text-blue-950')}
+                        </td>
                       )}
                     </tr>
                   </>
@@ -663,15 +705,12 @@ export default function CustomerSignatureApprovalPage() {
                     JUMLAH KESELURUHAN
                   </td>
                   <td className="p-2 text-right font-mono text-slate-950 border-r border-slate-200">
-                    {formatRangeDisplay(totalFinalOpsi1Min, totalFinalOpsi1Max)}
+                    {renderTotalCellCompact(totalFinalOpsi1Min, totalFinalOpsi1Max)}
                   </td>
                   {hasOpsi2 && (
-                    <>
-                      <td className="p-2 border-r border-slate-200 bg-blue-50/20"></td>
-                      <td className="p-2 text-right font-mono text-blue-950 bg-blue-50/30">
-                        {formatRangeDisplay(totalFinalOpsi2Min, totalFinalOpsi2Max)}
-                      </td>
-                    </>
+                    <td className="p-2 text-right font-mono text-blue-950 bg-blue-50/40">
+                      {renderTotalCellCompact(totalFinalOpsi2Min, totalFinalOpsi2Max, 'text-blue-950')}
+                    </td>
                   )}
                 </tr>
               </tfoot>
