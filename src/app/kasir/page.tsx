@@ -868,7 +868,7 @@ function CashierContent() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {[
                   { id: 'cash', label: '💵 Tunai (Cash)', desc: 'Tunai di kasir' },
-                  { id: 'transfer_bca', label: '🏦 Transfer BCA', desc: 'BCA 2711235398 Ardiyanto Wijaya' },
+                  { id: 'transfer_bca', label: '🏦 Transfer BCA', desc: 'BCA 2711235398 ARDIYANTO WIJAYA' },
                   { id: 'transfer_bri', label: '🏦 Transfer BRI', desc: 'BRI 0086-0113-1974-508 ARDIYANTO WIJAYA' },
                 ].map((pm) => (
                   <button

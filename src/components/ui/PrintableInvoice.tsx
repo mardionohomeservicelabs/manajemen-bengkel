@@ -299,10 +299,10 @@ export function PrintableInvoice({
                     {invoice.payment_method === 'transfer_bri' ? (
                       <p className="whitespace-pre-line font-mono font-bold text-slate-900">Bank BRI: 0086-0113-1974-508 a.n ARDIYANTO WIJAYA</p>
                     ) : invoice.payment_method === 'transfer_bca' ? (
-                      <p className="whitespace-pre-line font-mono font-bold text-slate-900">Bank BCA: 2711235398 a.n Ardiyanto Wijaya</p>
+                      <p className="whitespace-pre-line font-mono font-bold text-slate-900">Bank BCA: 2711235398 a.n ARDIYANTO WIJAYA</p>
                     ) : (
                       <p className="whitespace-pre-line font-mono font-bold text-slate-900">
-                        {settings.bank_account_info || 'Bank BCA: 2711235398 a.n Ardiyanto Wijaya\nBank BRI: 0086-0113-1974-508 a.n ARDIYANTO WIJAYA'}
+                        {settings.bank_account_info || 'Bank BCA: 2711235398 a.n ARDIYANTO WIJAYA\nBank BRI: 0086-0113-1974-508 a.n ARDIYANTO WIJAYA'}
                       </p>
                     )}
                   </div>

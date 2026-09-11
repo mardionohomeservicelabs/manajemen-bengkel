@@ -14,7 +14,7 @@ import {
 export const initialProfiles: Profile[] = [
   {
     id: 'prof-owner-1',
-    full_name: 'Ardiyanto Wijaya (Owner)',
+    full_name: 'ARDIYANTO WIJAYA (Owner)',
     role: 'owner',
     phone: '081211112222',
   },
@@ -41,7 +41,7 @@ export const initialSettingsMHS1: WorkshopSettings = {
   address: 'Jl. Perum Beringin Indah No.D - 19, Bringin Kulon, Bringinbendo, Taman, Sidoarjo',
   city: 'Sidoarjo',
   logo_url: '/header-banner.png',
-    bank_account_info: 'Bank BCA: 2711235398 a.n Ardiyanto Wijaya\nBank BRI: 0086-0113-1974-508 a.n ARDIYANTO WIJAYA',
+  bank_account_info: 'Bank BCA: 2711235398 a.n ARDIYANTO WIJAYA\nBank BRI: 0086-0113-1974-508 a.n ARDIYANTO WIJAYA',
   terms_conditions: '1. Garansi servis mesin & AC berlaku 1 bulan atau 1.000 KM mana yang tercapai lebih dulu.\n2. Sparepart elektrikal tidak bergaransi kecuali cacat pabrik saat pemasangan.\n3. Kendaraan yang tidak diambil dalam tempo 7 hari setelah selesai dikenakan biaya inap.',
   wa_template_reminder: 'Halo Bpk/Ibu [Customer], mobil kesayangan Anda [Mobil] ([Plat]) sudah mendekati jadwal servis berkala pada [Tanggal]. Kunjungi Mardiono Home Service 1 untuk menjaga performa mobil Anda tetap prima. Balas pesan ini untuk reservasi antrean!',
 };
@@ -55,7 +55,7 @@ export const initialSettingsMHS2: WorkshopSettings = {
   address: 'Jl. Raya Trosobo No. 88, Krian, Sidoarjo',
   city: 'Sidoarjo',
   logo_url: '/header-banner.png',
-  bank_account_info: 'Bank BCA: 2711235398 a.n Ardiyanto Wijaya\nBank BRI: 0086-0113-1974-508 a.n ARDIYANTO WIJAYA',
+  bank_account_info: 'Bank BCA: 2711235398 a.n ARDIYANTO WIJAYA\nBank BRI: 0086-0113-1974-508 a.n ARDIYANTO WIJAYA',
   terms_conditions: '1. Garansi servis mesin & AC berlaku 1 bulan atau 1.000 KM mana yang tercapai lebih dulu.\n2. Sparepart elektrikal tidak bergaransi kecuali cacat pabrik saat pemasangan.\n3. Kendaraan yang tidak diambil dalam tempo 7 hari setelah selesai dikenakan biaya inap.',
   wa_template_reminder: 'Halo Bpk/Ibu [Customer], mobil Anda [Mobil] ([Plat]) sudah mendekati jadwal servis berkala di Mardiono Home Service 2 (Trosobo). Balas pesan ini untuk reservasi antrean!',
 };
@@ -69,7 +69,7 @@ export const initialSettingsMHS3: WorkshopSettings = {
   address: 'Jl. Mastrip No. 12, Karangpilang, Surabaya',
   city: 'Surabaya',
   logo_url: '/header-banner.png',
-  bank_account_info: 'Bank BCA: 2711235398 a.n Ardiyanto Wijaya\nBank BRI: 0086-0113-1974-508 a.n ARDIYANTO WIJAYA',
+  bank_account_info: 'Bank BCA: 2711235398 a.n ARDIYANTO WIJAYA\nBank BRI: 0086-0113-1974-508 a.n ARDIYANTO WIJAYA',
   terms_conditions: '1. Garansi servis mesin & AC berlaku 1 bulan atau 1.000 KM mana yang tercapai lebih dulu.\n2. Sparepart elektrikal tidak bergaransi kecuali cacat pabrik saat pemasangan.\n3. Kendaraan yang tidak diambil dalam tempo 7 hari setelah selesai dikenakan biaya inap.',
   wa_template_reminder: 'Halo Bpk/Ibu [Customer], mobil Anda [Mobil] ([Plat]) sudah mendekati jadwal servis berkala di Mardiono Home Service 3. Balas pesan ini untuk reservasi antrean!',
 };
@@ -435,9 +435,9 @@ export const initialInvoices: Invoice[] = [
     down_payment: 0,
     balance_due: 0,
     payment_status: 'paid',
-    payment_method: 'qris',
+    payment_method: 'transfer_bca',
     paid_at: '2026-08-19T16:45:00',
-    admin_notes: 'Pembayaran QRIS lunas. Garansi servis 1 bulan.',
+    admin_notes: 'Pembayaran Transfer BCA lunas. Garansi servis 1 bulan.',
     created_at: '2026-08-19T16:40:00',
   },
   {

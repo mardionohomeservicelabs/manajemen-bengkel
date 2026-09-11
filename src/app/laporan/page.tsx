@@ -28,7 +28,7 @@ export default function ReportsPage() {
   const { currentRole, invoices, allInvoices } = useApp();
 
   const [selectedBranch, setSelectedBranch] = useState<'ALL' | BranchId>('ALL');
-  const [paymentCategoryFilter, setPaymentCategoryFilter] = useState<'ALL' | 'cash' | 'transfer' | 'qris' | 'debit'>('ALL');
+  const [paymentCategoryFilter, setPaymentCategoryFilter] = useState<'ALL' | 'cash' | 'transfer_bca' | 'transfer_bri'>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // If not owner or estimator, show restricted view
@@ -67,29 +67,25 @@ export default function ReportsPage() {
   const profitMarginPercent = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(1) : '0';
   const averageTicket = paidInvoices.length > 0 ? totalRevenue / paidInvoices.length : 0;
 
-  // 3. Klasifikasi Kategori Pembayaran yang Masuk Omzet
-  const getPaymentCategory = (method?: string): 'cash' | 'transfer' | 'qris' | 'debit' => {
+  // 3. Klasifikasi Kategori Pembayaran yang Masuk Omzet (Tunai, Transfer BCA, Transfer BRI)
+  const getPaymentCategory = (method?: string): 'cash' | 'transfer_bca' | 'transfer_bri' => {
     const m = (method || 'cash').toLowerCase();
-    if (m.includes('qris')) return 'qris';
-    if (m.includes('transfer') || m.includes('bca') || m.includes('mandiri') || m.includes('bri') || m.includes('bank')) return 'transfer';
-    if (m.includes('debit') || m.includes('edc') || m.includes('card') || m.includes('kredit')) return 'debit';
+    if (m.includes('bri')) return 'transfer_bri';
+    if (m.includes('bca') || m.includes('transfer') || m.includes('mandiri') || m.includes('bank')) return 'transfer_bca';
     return 'cash';
   };
 
   const cashInvoices = paidInvoices.filter((i) => getPaymentCategory(i.payment_method) === 'cash');
-  const transferInvoices = paidInvoices.filter((i) => getPaymentCategory(i.payment_method) === 'transfer');
-  const qrisInvoices = paidInvoices.filter((i) => getPaymentCategory(i.payment_method) === 'qris');
-  const debitInvoices = paidInvoices.filter((i) => getPaymentCategory(i.payment_method) === 'debit');
+  const bcaInvoices = paidInvoices.filter((i) => getPaymentCategory(i.payment_method) === 'transfer_bca');
+  const briInvoices = paidInvoices.filter((i) => getPaymentCategory(i.payment_method) === 'transfer_bri');
 
   const cashTotal = cashInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
-  const transferTotal = transferInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
-  const qrisTotal = qrisInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
-  const debitTotal = debitInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+  const bcaTotal = bcaInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+  const briTotal = briInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
 
   const cashPercent = totalRevenue > 0 ? ((cashTotal / totalRevenue) * 100).toFixed(1) : '0';
-  const transferPercent = totalRevenue > 0 ? ((transferTotal / totalRevenue) * 100).toFixed(1) : '0';
-  const qrisPercent = totalRevenue > 0 ? ((qrisTotal / totalRevenue) * 100).toFixed(1) : '0';
-  const debitPercent = totalRevenue > 0 ? ((debitTotal / totalRevenue) * 100).toFixed(1) : '0';
+  const bcaPercent = totalRevenue > 0 ? ((bcaTotal / totalRevenue) * 100).toFixed(1) : '0';
+  const briPercent = totalRevenue > 0 ? ((briTotal / totalRevenue) * 100).toFixed(1) : '0';
 
   // 4. Data Transaksi Terfilter untuk Tabel
   const filteredTransactions = paidInvoices
@@ -133,7 +129,12 @@ export default function ReportsPage() {
     const rows = filteredTransactions.map((inv) => {
       const branchName = inv.work_order?.received_at_branch || 'MHS 1';
       const cat = getPaymentCategory(inv.payment_method);
-      const catLabel = cat === 'cash' ? 'Tunai (Cash)' : cat === 'transfer' ? 'Transfer Bank' : cat === 'qris' ? 'QRIS' : 'Kartu Debit/EDC';
+      const catLabel =
+        cat === 'cash'
+          ? 'Tunai (Cash)'
+          : cat === 'transfer_bca'
+          ? 'Transfer Bank BCA'
+          : 'Transfer Bank BRI';
       return [
         inv.invoice_number,
         inv.paid_at || inv.created_at,
@@ -335,8 +336,8 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* 4 Cards Kategori Pembayaran */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 3 Cards Kategori Pembayaran */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* 1. Tunai / Cash */}
           <div
             onClick={() => setPaymentCategoryFilter(paymentCategoryFilter === 'cash' ? 'ALL' : 'cash')}
@@ -363,11 +364,11 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          {/* 2. Transfer Bank */}
+          {/* 2. Transfer Bank BCA */}
           <div
-            onClick={() => setPaymentCategoryFilter(paymentCategoryFilter === 'transfer' ? 'ALL' : 'transfer')}
+            onClick={() => setPaymentCategoryFilter(paymentCategoryFilter === 'transfer_bca' ? 'ALL' : 'transfer_bca')}
             className={`p-4 rounded-2xl border cursor-pointer transition ${
-              paymentCategoryFilter === 'transfer'
+              paymentCategoryFilter === 'transfer_bca'
                 ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-500/20 shadow-md'
                 : 'bg-indigo-50/40 border-indigo-200/80 hover:bg-indigo-50/70 shadow-xs'
             }`}
@@ -375,69 +376,43 @@ export default function ReportsPage() {
             <div className="flex items-center justify-between">
               <span className="text-xs font-black uppercase tracking-wider text-indigo-900 flex items-center space-x-1.5">
                 <Building2 className="w-4 h-4 text-indigo-700" />
-                <span>Transfer Bank</span>
+                <span>Transfer Bank BCA</span>
               </span>
               <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-200 text-indigo-900">
-                {transferPercent}%
+                {bcaPercent}%
               </span>
             </div>
             <div className="text-xl font-black text-indigo-950 font-mono mt-2">
-              {formatCurrency(transferTotal)}
+              {formatCurrency(bcaTotal)}
             </div>
             <div className="text-[11px] text-indigo-800 font-medium mt-1">
-              {transferInvoices.length} transaksi (BCA / Mandiri / BRI)
+              {bcaInvoices.length} transaksi (BCA 2711235398 a/n ARDIYANTO WIJAYA)
             </div>
           </div>
 
-          {/* 3. QRIS */}
+          {/* 3. Transfer Bank BRI */}
           <div
-            onClick={() => setPaymentCategoryFilter(paymentCategoryFilter === 'qris' ? 'ALL' : 'qris')}
+            onClick={() => setPaymentCategoryFilter(paymentCategoryFilter === 'transfer_bri' ? 'ALL' : 'transfer_bri')}
             className={`p-4 rounded-2xl border cursor-pointer transition ${
-              paymentCategoryFilter === 'qris'
+              paymentCategoryFilter === 'transfer_bri'
                 ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-500/20 shadow-md'
                 : 'bg-amber-50/40 border-amber-200/80 hover:bg-amber-50/70 shadow-xs'
             }`}
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-black uppercase tracking-wider text-amber-900 flex items-center space-x-1.5">
-                <QrCode className="w-4 h-4 text-amber-700" />
-                <span>QRIS Instant</span>
+                <Building2 className="w-4 h-4 text-amber-700" />
+                <span>Transfer Bank BRI</span>
               </span>
               <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
-                {qrisPercent}%
+                {briPercent}%
               </span>
             </div>
             <div className="text-xl font-black text-amber-950 font-mono mt-2">
-              {formatCurrency(qrisTotal)}
+              {formatCurrency(briTotal)}
             </div>
             <div className="text-[11px] text-amber-800 font-medium mt-1">
-              {qrisInvoices.length} transaksi QRIS digital
-            </div>
-          </div>
-
-          {/* 4. Kartu Debit / EDC */}
-          <div
-            onClick={() => setPaymentCategoryFilter(paymentCategoryFilter === 'debit' ? 'ALL' : 'debit')}
-            className={`p-4 rounded-2xl border cursor-pointer transition ${
-              paymentCategoryFilter === 'debit'
-                ? 'bg-purple-50 border-purple-500 ring-2 ring-purple-500/20 shadow-md'
-                : 'bg-purple-50/40 border-purple-200/80 hover:bg-purple-50/70 shadow-xs'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-black uppercase tracking-wider text-purple-900 flex items-center space-x-1.5">
-                <CreditCard className="w-4 h-4 text-purple-700" />
-                <span>Kartu Debit / EDC</span>
-              </span>
-              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-200 text-purple-900">
-                {debitPercent}%
-              </span>
-            </div>
-            <div className="text-xl font-black text-purple-950 font-mono mt-2">
-              {formatCurrency(debitTotal)}
-            </div>
-            <div className="text-[11px] text-purple-800 font-medium mt-1">
-              {debitInvoices.length} transaksi mesin EDC / Kartu
+              {briInvoices.length} transaksi (BRI 0086-0113-1974-508 a/n ARDIYANTO WIJAYA)
             </div>
           </div>
         </div>
@@ -455,19 +430,14 @@ export default function ReportsPage() {
               title={`Tunai: ${formatCurrency(cashTotal)} (${cashPercent}%)`}
             />
             <div
-              style={{ width: `${transferPercent}%` }}
+              style={{ width: `${bcaPercent}%` }}
               className="h-full bg-indigo-500 hover:opacity-90 transition"
-              title={`Transfer: ${formatCurrency(transferTotal)} (${transferPercent}%)`}
+              title={`Transfer BCA: ${formatCurrency(bcaTotal)} (${bcaPercent}%)`}
             />
             <div
-              style={{ width: `${qrisPercent}%` }}
+              style={{ width: `${briPercent}%` }}
               className="h-full bg-amber-500 hover:opacity-90 transition"
-              title={`QRIS: ${formatCurrency(qrisTotal)} (${qrisPercent}%)`}
-            />
-            <div
-              style={{ width: `${debitPercent}%` }}
-              className="h-full bg-purple-500 hover:opacity-90 transition"
-              title={`Debit: ${formatCurrency(debitTotal)} (${debitPercent}%)`}
+              title={`Transfer BRI: ${formatCurrency(briTotal)} (${briPercent}%)`}
             />
           </div>
           <div className="flex flex-wrap items-center gap-4 text-[11px] pt-1 text-slate-600 font-medium">
@@ -477,15 +447,11 @@ export default function ReportsPage() {
             </div>
             <div className="flex items-center space-x-1.5">
               <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
-              <span>Transfer: <strong>{transferPercent}%</strong> ({formatCurrency(transferTotal)})</span>
+              <span>Transfer BCA: <strong>{bcaPercent}%</strong> ({formatCurrency(bcaTotal)})</span>
             </div>
             <div className="flex items-center space-x-1.5">
               <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-              <span>QRIS: <strong>{qrisPercent}%</strong> ({formatCurrency(qrisTotal)})</span>
-            </div>
-            <div className="flex items-center space-x-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-purple-500" />
-              <span>Debit / EDC: <strong>{debitPercent}%</strong> ({formatCurrency(debitTotal)})</span>
+              <span>Transfer BRI: <strong>{briPercent}%</strong> ({formatCurrency(briTotal)})</span>
             </div>
           </div>
         </div>
@@ -528,34 +494,24 @@ export default function ReportsPage() {
                 Tunai
               </button>
               <button
-                onClick={() => setPaymentCategoryFilter('transfer')}
+                onClick={() => setPaymentCategoryFilter('transfer_bca')}
                 className={`px-3 py-1 rounded-lg transition ${
-                  paymentCategoryFilter === 'transfer'
+                  paymentCategoryFilter === 'transfer_bca'
                     ? 'bg-white text-indigo-800 shadow-xs font-black'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Transfer
+                Transfer BCA
               </button>
               <button
-                onClick={() => setPaymentCategoryFilter('qris')}
+                onClick={() => setPaymentCategoryFilter('transfer_bri')}
                 className={`px-3 py-1 rounded-lg transition ${
-                  paymentCategoryFilter === 'qris'
+                  paymentCategoryFilter === 'transfer_bri'
                     ? 'bg-white text-amber-800 shadow-xs font-black'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                QRIS
-              </button>
-              <button
-                onClick={() => setPaymentCategoryFilter('debit')}
-                className={`px-3 py-1 rounded-lg transition ${
-                  paymentCategoryFilter === 'debit'
-                    ? 'bg-white text-purple-800 shadow-xs font-black'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Debit
+                Transfer BRI
               </button>
             </div>
 
@@ -668,22 +624,16 @@ export default function ReportsPage() {
                               <span>TUNAI (CASH)</span>
                             </span>
                           )}
-                          {cat === 'transfer' && (
+                          {cat === 'transfer_bca' && (
                             <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10.5px] font-black bg-indigo-100 text-indigo-900 border border-indigo-300">
                               <Building2 className="w-3 h-3 text-indigo-700" />
-                              <span>TRANSFER BANK</span>
+                              <span>TRANSFER BCA</span>
                             </span>
                           )}
-                          {cat === 'qris' && (
+                          {cat === 'transfer_bri' && (
                             <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10.5px] font-black bg-amber-100 text-amber-900 border border-amber-300">
-                              <QrCode className="w-3 h-3 text-amber-700" />
-                              <span>QRIS</span>
-                            </span>
-                          )}
-                          {cat === 'debit' && (
-                            <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10.5px] font-black bg-purple-100 text-purple-900 border border-purple-300">
-                              <CreditCard className="w-3 h-3 text-purple-700" />
-                              <span>KARTU DEBIT</span>
+                              <Building2 className="w-3 h-3 text-amber-700" />
+                              <span>TRANSFER BRI</span>
                             </span>
                           )}
                         </td>
@@ -704,7 +654,7 @@ export default function ReportsPage() {
                         {/* Aksi */}
                         <td className="p-3.5 text-right whitespace-nowrap">
                           <Link
-                            href={`/kasir?spkId=${inv.work_order_id || ''}`}
+                            href={`/riwayat?search=${vehicle?.license_plate || inv.invoice_number || ''}`}
                             className="inline-flex items-center space-x-1 text-[11px] font-bold text-slate-700 hover:text-maroon-700 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg transition"
                           >
                             <span>Lihat Nota</span>
