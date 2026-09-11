@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { DBService } from '@/lib/services/db-service';
 import { Invoice, WorkshopSettings } from '@/lib/types/database';
-import { formatCurrency, formatPlate, formatDateTime, formatNumberOrText } from '@/lib/utils';
+import { formatCurrency, formatPlate, formatDateTime, formatNumberOrText, formatComplaintsAndDiagnosis } from '@/lib/utils';
 import { SignatureCanvas } from '@/components/ui/SignatureCanvas';
 import { CheckCircle2, AlertTriangle, XCircle, ShieldCheck } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -433,6 +433,39 @@ export default function CustomerSignatureApprovalPage() {
               <div className="text-slate-500 text-[11px]">KM: {vehicle?.current_mileage?.toLocaleString('id-ID') || '-'}</div>
             </div>
           </div>
+
+          {/* Keluhan / Diagnosa Awal */}
+          {(() => {
+            const formattedComplaints = formatComplaintsAndDiagnosis(
+              estimation.work_order?.complaints,
+              estimation.work_order?.notes,
+              (estimation as any).complaints
+            );
+            if (!formattedComplaints.displayText) return null;
+            return (
+              <div className="mt-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                <span className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">
+                  Keluhan / Diagnosa Awal:
+                </span>
+                {formattedComplaints.hasBoth ? (
+                  <div className="space-y-1 text-xs">
+                    <div className="flex items-start gap-1">
+                      <span className="font-bold text-slate-500 shrink-0 text-[10px] uppercase">Keluhan:</span>
+                      <span className="font-bold text-slate-900 leading-snug">{formattedComplaints.complaintPart}</span>
+                    </div>
+                    <div className="flex items-start gap-1">
+                      <span className="font-bold text-blue-700 shrink-0 text-[10px] uppercase">Diagnosa Awal:</span>
+                      <span className="font-bold text-slate-900 leading-snug">{formattedComplaints.diagnosisPart}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="font-bold text-slate-900 mt-0.5 leading-snug">
+                    {formattedComplaints.displayText}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Status Mobil + Estimator */}
           <div className="mt-2 flex flex-wrap gap-2 text-[10px]">

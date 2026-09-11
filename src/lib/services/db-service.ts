@@ -231,9 +231,34 @@ function smartMergeInvoices(cloudItems: Invoice[], localItems: Invoice[]): Invoi
       const localTime = new Date(local.updated_at || local.paid_at || local.created_at || 0).getTime();
 
       if (cloudTime >= localTime) {
-        mergedMap.set(key, cloud);
+        mergedMap.set(key, {
+          ...local,
+          ...cloud,
+          // Pertahankan field kaya estimasi dari local jika di cloud kosong
+          estimated_duration: cloud.estimated_duration || local.estimated_duration,
+          estimator_name: cloud.estimator_name || local.estimator_name,
+          estimator_signature: cloud.estimator_signature || local.estimator_signature,
+          customer_signature: cloud.customer_signature || local.customer_signature,
+          customer_signed_name: cloud.customer_signed_name || local.customer_signed_name,
+          customer_response: cloud.customer_response || local.customer_response,
+          customer_response_note: cloud.customer_response_note || local.customer_response_note,
+          has_second_table: cloud.has_second_table ?? local.has_second_table,
+          table1_title: cloud.table1_title || local.table1_title,
+          table2_title: cloud.table2_title || local.table2_title,
+          items_table2: cloud.items_table2 || local.items_table2,
+          vehicle: cloud.vehicle || local.vehicle,
+          work_order: cloud.work_order || local.work_order,
+          complaints: (cloud as any).complaints || (local as any).complaints || local.work_order?.complaints,
+        });
       } else {
-        mergedMap.set(key, { ...local, id: cloud.id });
+        mergedMap.set(key, {
+          ...cloud,
+          ...local,
+          id: cloud.id,
+          estimated_duration: local.estimated_duration || cloud.estimated_duration,
+          work_order: local.work_order || cloud.work_order,
+          vehicle: local.vehicle || cloud.vehicle,
+        });
       }
     }
   });
@@ -1745,8 +1770,20 @@ export class DBService {
           (w.spk_number && inv.invoice_number && inv.invoice_number.includes(w.spk_number))
       ) || inv.work_order;
 
+      let estimatedDuration = inv.estimated_duration;
+      if (!estimatedDuration && workOrder?.checklist_data) {
+        const cl = workOrder.checklist_data as any;
+        const tabKey = (inv as any).tab_id || inv.estimation_tab;
+        const estFromCl = (tabKey && cl[`estimation_${tabKey}`]) || cl.estimation;
+        if (estFromCl?.estimated_duration) {
+          estimatedDuration = estFromCl.estimated_duration;
+        }
+      }
+
       return {
         ...inv,
+        estimated_duration: estimatedDuration || undefined,
+        complaints: workOrder?.complaints || (inv as any).complaints || undefined,
         vehicle,
         work_order: workOrder,
       };
@@ -1913,8 +1950,6 @@ export class DBService {
           payment_method: localSaved.payment_method || null,
           paid_at: localSaved.payment_status === 'paid' ? (localSaved.paid_at || nowIso) : null,
           admin_notes: localSaved.admin_notes || null,
-          signature_customer_url: localSaved.signature_customer_url || localSaved.customer_signature || null,
-          signature_admin_url: localSaved.signature_admin_url || (localSaved as any).estimator_signature || null,
           updated_at: nowIso,
         };
 
@@ -1925,6 +1960,20 @@ export class DBService {
           .from('invoices')
           .upsert(payload, { onConflict: 'invoice_number' })
           .select('*');
+
+        // Jika terjadi schema cache error karena kolom tidak ada di tabel invoices, hapus kolom offending dan retry
+        if (error && error.message?.includes('Could not find the') && error.message?.includes('column of \'invoices\'')) {
+          const match = error.message.match(/Could not find the '([^']+)' column/);
+          if (match && match[1] && payload[match[1]] !== undefined) {
+            delete payload[match[1]];
+            const retrySchemaRes = await client
+              .from('invoices')
+              .upsert(payload, { onConflict: 'invoice_number' })
+              .select('*');
+            data = retrySchemaRes.data;
+            error = retrySchemaRes.error;
+          }
+        }
 
         // Jika terjadi duplicate key error pada invoice_number, retry dengan nomor unik baru
         if (error && (error.code === '23505' || error.message?.toLowerCase().includes('duplicate key') || error.message?.toLowerCase().includes('unique'))) {
@@ -2180,6 +2229,7 @@ export class DBService {
             customer_approved_option: nestedEst?.customer_approved_option || undefined,
             vehicle: row.vehicle || undefined,
             work_order: row.work_order || undefined,
+            complaints: row.work_order?.complaints || nestedEst?.complaints || undefined,
           };
           return { estimation: inv, branch };
         }
@@ -2249,6 +2299,7 @@ export class DBService {
               work_order_id: wo.id,
               vehicle: wo.vehicle || undefined,
               work_order: wo,
+              complaints: wo.complaints || estData.complaints || undefined,
             };
             return { estimation: inv, branch };
           }
@@ -2256,6 +2307,15 @@ export class DBService {
       } catch (err) {
         console.warn('Supabase findEstimationByIdOrTokenAsync exception:', err);
       }
+    }
+
+    // 3. Fallback: cari di penyimpanan lokal
+    const allInvs = this.getAllInvoices();
+    const localInv = allInvs.find(
+      (i) => i.id === idOrToken || i.invoice_number === idOrToken || (i as any).ttd_token === idOrToken
+    );
+    if (localInv) {
+      return { estimation: localInv, branch: 'MHS 1' };
     }
 
     return null;
@@ -2946,12 +3006,12 @@ export class DBService {
               if (k === 'estimation' && checklist[k]) {
                 const est = checklist[k];
                 if (est.invoice_number) {
-                  extraInvoicesFromWO.push({ ...est, work_order_id: row.id, vehicle });
+                  extraInvoicesFromWO.push({ ...est, work_order_id: row.id, vehicle, work_order: wo });
                 }
               } else if (k.startsWith('estimation_') && k !== 'estimation' && checklist[k]) {
                 const est = checklist[k];
                 if (est && est.invoice_number) {
-                  extraInvoicesFromWO.push({ ...est, work_order_id: row.id, vehicle });
+                  extraInvoicesFromWO.push({ ...est, work_order_id: row.id, vehicle, work_order: wo });
                 }
               }
             });
@@ -3159,8 +3219,30 @@ export class DBService {
         // Tambahkan estimasi yang ditemukan di dalam checklist_data work_orders
         extraInvoicesFromWO.forEach((ext) => {
           const key = ext.invoice_number || ext.id;
-          if (key && !cloudInvoicesMap.has(key)) {
-            cloudInvoicesMap.set(key, ext);
+          if (key) {
+            if (!cloudInvoicesMap.has(key)) {
+              cloudInvoicesMap.set(key, ext);
+            } else {
+              const existing = cloudInvoicesMap.get(key)!;
+              cloudInvoicesMap.set(key, {
+                ...ext,
+                ...existing,
+                estimated_duration: existing.estimated_duration || ext.estimated_duration,
+                estimator_name: existing.estimator_name || ext.estimator_name,
+                estimator_signature: existing.estimator_signature || ext.estimator_signature,
+                customer_signature: existing.customer_signature || ext.customer_signature,
+                customer_signed_name: existing.customer_signed_name || ext.customer_signed_name,
+                customer_response: existing.customer_response || ext.customer_response,
+                customer_response_note: existing.customer_response_note || ext.customer_response_note,
+                has_second_table: existing.has_second_table ?? ext.has_second_table,
+                table1_title: existing.table1_title || ext.table1_title,
+                table2_title: existing.table2_title || ext.table2_title,
+                items_table2: existing.items_table2 || ext.items_table2,
+                vehicle: existing.vehicle || ext.vehicle,
+                work_order: existing.work_order || ext.work_order,
+                complaints: (existing as any).complaints || (ext as any).complaints || ext.work_order?.complaints,
+              });
+            }
           }
         });
 

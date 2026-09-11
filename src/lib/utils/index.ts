@@ -195,3 +195,70 @@ export function parseKM(val: string | number | undefined | null): number {
   return isNaN(num) ? 0 : num;
 }
 
+/**
+ * Memeriksa apakah teks notes/keluhan merupakan teks boilerplate bawaan umum sistem
+ */
+export function isSPKGenericBoilerplate(text?: string | null): boolean {
+  if (!text) return true;
+  const clean = text.trim().toLowerCase();
+  const boilerplates = [
+    'pemeriksaan menyeluruh, tune-up, servis berkala, dan uji fungsi sistem kendaraan.',
+    'ganti oli mesin, filter, tune-up berkala, dan uji fungsi sistem.',
+    'lembar qc/ac/understeel checkup resmi',
+    'perawatan berkala / servis rutin',
+    'perawatan berkala',
+  ];
+  return boilerplates.some((b) => clean === b || clean.includes(b));
+}
+
+/**
+ * Memformat teks Keluhan dan Diagnosa Awal dari SPK untuk kolom Estimasi
+ */
+export function formatComplaintsAndDiagnosis(
+  complaint?: string | null,
+  notes?: string | null,
+  customText?: string | null
+): {
+  displayText: string;
+  hasBoth: boolean;
+  complaintPart: string;
+  diagnosisPart: string;
+} {
+  const custom = customText?.trim();
+  const comp = complaint?.trim() || '';
+  const diag = notes?.trim() || '';
+
+  if (custom && custom !== comp) {
+    return {
+      displayText: custom,
+      hasBoth: false,
+      complaintPart: custom,
+      diagnosisPart: '',
+    };
+  }
+
+  const isDiagBoilerplate = isSPKGenericBoilerplate(diag);
+  const isCompBoilerplate = isSPKGenericBoilerplate(comp);
+
+  const validComp = comp && (!isCompBoilerplate || !diag) ? comp : (!isDiagBoilerplate ? '' : comp);
+  const validDiag = diag && !isDiagBoilerplate ? diag : '';
+
+  if (validComp && validDiag && validComp.toLowerCase() !== validDiag.toLowerCase()) {
+    return {
+      displayText: `Keluhan: ${validComp} | Diagnosa Awal: ${validDiag}`,
+      hasBoth: true,
+      complaintPart: validComp,
+      diagnosisPart: validDiag,
+    };
+  }
+
+  const singleText = validComp || validDiag || comp || diag || 'Perawatan berkala / Servis rutin';
+  return {
+    displayText: singleText,
+    hasBoth: false,
+    complaintPart: singleText,
+    diagnosisPart: '',
+  };
+}
+
+

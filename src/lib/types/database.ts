@@ -403,6 +403,7 @@ export interface Invoice {
   // Joined fields
   vehicle?: VehicleCustomer;
   work_order?: WorkOrder;
+  complaints?: string;
 }
 
 export interface StockMovement {

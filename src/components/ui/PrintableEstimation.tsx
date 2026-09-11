@@ -4,21 +4,17 @@ import React, { useState, useRef } from 'react';
 import { Invoice, InvoiceItem, WorkshopSettings } from '@/lib/types/database';
 import {
   formatCurrency,
-  formatDate,
-  formatDateTime,
   formatPlate,
   createWhatsAppLink,
-  parseNumericPrice,
   parseRangePrice,
-  formatNumberOrText,
   formatKM,
+  formatComplaintsAndDiagnosis,
 } from '@/lib/utils';
 import { printCleanDocument } from '@/lib/utils/print-helper';
 import {
   Printer,
   Share2,
   X,
-  FileCheck,
   Calculator,
 } from 'lucide-react';
 import {
@@ -26,6 +22,7 @@ import {
   OfficialDocumentFooter,
 } from './OfficialDocumentLayout';
 import { DocumentImageModal } from './DocumentImageModal';
+import { DBService } from '@/lib/services/db-service';
 
 interface PrintableEstimationProps {
   estimation: Invoice;
@@ -39,6 +36,13 @@ export function PrintableEstimation({
   onClose,
 }: PrintableEstimationProps) {
   const vehicle = estimation.vehicle;
+  // Ambil data SPK terkini: utamakan data live dari cache/database work orders agar perubahan SPK langsung tercermin
+  const workOrder =
+    (estimation.work_order_id
+      ? DBService.getAllWorkOrders().find(
+          (w) => w.id === estimation.work_order_id || w.spk_number === estimation.work_order_id
+        )
+      : undefined) || estimation.work_order;
   const documentRef = useRef<HTMLDivElement>(null);
 
   // State untuk nama Estimator (ambil dari data estimasi, bisa dioverride)
@@ -205,7 +209,13 @@ export function PrintableEstimation({
     ? createWhatsAppLink(vehicle.phone_number, getWhatsAppMessage())
     : '#';
 
-  const complaintsText = estimation.work_order?.complaints || 'Ketika kena lubang kerasa banget, suara bising sebelah kanan';
+  // Format keluhan dan diagnosa awal secara komprehensif dari SPK yang diterbitkan (atau custom text jika diset)
+  const formattedComplaints = formatComplaintsAndDiagnosis(
+    workOrder?.complaints,
+    workOrder?.notes,
+    (estimation as any).complaints
+  );
+  const complaintsText = formattedComplaints.displayText;
 
   return (
     <div className="w-full max-w-5xl mx-auto space-y-3">
@@ -291,33 +301,6 @@ export function PrintableEstimation({
               </div>
             </div>
 
-            {/* Meta Info (4-Column: Waktu, Ref SPK, Estimator, Durasi) */}
-            <div className="grid grid-cols-4 gap-2 text-xs bg-slate-50 p-2 rounded-xl border border-slate-300">
-              <div>
-                <span className="text-slate-500 text-[10px] block">Waktu Terbit:</span>
-                <strong className="text-slate-900">{formatDateTime(estimation.created_at)}</strong>
-              </div>
-              {estimation.work_order ? (
-                <div className="text-center">
-                  <span className="text-slate-500 text-[10px] block">Ref SPK:</span>
-                  <strong className="font-mono text-[#001F7A] font-bold">{estimation.work_order.spk_number}</strong>
-                </div>
-              ) : (
-                <div className="text-center">
-                  <span className="text-slate-500 text-[10px] block">Jenis Estimasi:</span>
-                  <strong className="text-slate-900">{estimation.estimation_type || 'Estimasi'}</strong>
-                </div>
-              )}
-              <div className="text-center">
-                <span className="text-slate-500 text-[10px] block">Estimator / SA:</span>
-                <strong className="text-slate-900 font-black text-[#8B0000]">{signerEstimator || '-'}</strong>
-              </div>
-              <div className="text-right">
-                <span className="text-slate-500 text-[10px] block">Est. Lama Pekerjaan:</span>
-                <strong className="text-slate-900 font-black">{(estimation as any).estimated_duration || '-'}</strong>
-              </div>
-            </div>
-
             {/* Customer & Vehicle Info Box (Symmetrical 2-Column) */}
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="border border-slate-800 rounded-xl p-2.5 bg-white space-y-1">
@@ -346,12 +329,29 @@ export function PrintableEstimation({
             </div>
 
             {/* Section: Keluhan Awal & Status Mobil / Pembayaran Bar (Exact to Reference Screenshot) */}
-            {complaintsText && (
-              <div className="border border-slate-800 rounded-xl p-2 bg-white text-xs text-slate-900 font-medium">
-                <span className="font-bold text-slate-500 block text-[10px] uppercase">Keluhan / Diagnosa Awal:</span>
-                <span>{complaintsText}</span>
+            {complaintsText ? (
+              <div className="border border-slate-800 rounded-xl p-2.5 bg-white text-xs text-slate-900 font-medium">
+                <span className="font-bold text-slate-500 block text-[10px] uppercase tracking-wider mb-0.5">
+                  Keluhan / Diagnosa Awal:
+                </span>
+                {formattedComplaints.hasBoth ? (
+                  <div className="space-y-1 text-[11px] leading-snug">
+                    <div className="flex items-start gap-1">
+                      <span className="font-bold text-slate-500 shrink-0 text-[10px] uppercase">Keluhan:</span>
+                      <span className="font-bold text-slate-900 break-words">{formattedComplaints.complaintPart}</span>
+                    </div>
+                    <div className="flex items-start gap-1">
+                      <span className="font-bold text-blue-700 shrink-0 text-[10px] uppercase">Diagnosa / Uraian SPK:</span>
+                      <span className="font-bold text-slate-900 break-words">{formattedComplaints.diagnosisPart}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <span className="font-bold text-slate-900 text-[11.5px] leading-snug break-words">
+                    {complaintsText}
+                  </span>
+                )}
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Items Table — Exact format from user reference screenshot */}

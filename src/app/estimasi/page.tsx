@@ -35,11 +35,14 @@ import {
   ShieldCheck,
   ChevronUp,
   ArrowUpDown,
+  Pencil,
+  RotateCcw,
 } from 'lucide-react';
 import { PrintableEstimation } from '@/components/ui/PrintableEstimation';
 import { EditLicensePlateModal } from '@/components/ui/EditLicensePlateModal';
+import { EditSPKModal } from '@/components/ui/EditSPKModal';
 import { SignatureCanvas } from '@/components/ui/SignatureCanvas';
-import { formatNumberOrText } from '@/lib/utils';
+import { formatNumberOrText, formatComplaintsAndDiagnosis } from '@/lib/utils';
 
 // Satuan item options (Sesuai permintaan: SET, PCS, JASA)
 const UNIT_OPTIONS = ['SET', 'PCS', 'JASA'] as const;
@@ -312,6 +315,8 @@ function EstimationBuilderContent() {
   const [isSaving, setIsSaving] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [showEditPlateModal, setShowEditPlateModal] = useState<boolean>(false);
+  const [showEditSpkModal, setShowEditSpkModal] = useState<boolean>(false);
+  const [estimationComplaints, setEstimationComplaints] = useState<string>('');
 
   // Live real-time clock
   const [currentClock, setCurrentClock] = useState<string>('');
@@ -373,6 +378,29 @@ function EstimationBuilderContent() {
       }
     }
 
+    // Jika existingEst ditemukan namun estimated_duration kosong, cari dari checklist_data WO
+    if (existingEst && !existingEst.estimated_duration && woObj?.checklist_data) {
+      const cl = woObj.checklist_data as any;
+      const keyEst = cl[`estimation_${tabId}`] || (tabId === 'tab_1' ? cl.estimation : undefined);
+      if (keyEst?.estimated_duration) {
+        existingEst = {
+          ...existingEst,
+          estimated_duration: keyEst.estimated_duration,
+        };
+      }
+    }
+
+    // Pastikan relasi work_order dan complaints selalu terhubung ke existingEst
+    const spkComplaintsFormatted = formatComplaintsAndDiagnosis(woObj?.complaints, woObj?.notes).displayText;
+
+    if (existingEst && woObj) {
+      existingEst = {
+        ...existingEst,
+        work_order: woObj,
+        complaints: existingEst.complaints || spkComplaintsFormatted,
+      };
+    }
+
     // 2. Cek localStorage draft (hanya untuk ID atau nomor SPK yang sama persis)
     let draftData: any = null;
     if (typeof window !== 'undefined') {
@@ -411,6 +439,16 @@ function EstimationBuilderContent() {
         };
       }
     }
+
+    if (sourceData && woObj) {
+      sourceData = {
+        ...sourceData,
+        work_order: woObj,
+        complaints: sourceData.complaints || spkComplaintsFormatted,
+        estimated_duration: sourceData.estimated_duration || existingEst?.estimated_duration || '',
+      };
+    }
+
     return { sourceData, existingEst };
   }, [workOrders]);
 
@@ -476,6 +514,8 @@ function EstimationBuilderContent() {
       setDiscountAmount(sourceData.discount_amount || 0);
       setTaxPercent(sourceData.tax_percent || 11);
       setAdminNotes(sourceData.admin_notes || '');
+      const spkDefaultFormatted = formatComplaintsAndDiagnosis(found.complaints, found.notes).displayText;
+      setEstimationComplaints(sourceData.complaints || spkDefaultFormatted);
 
       if (existingEst || sourceData.invoice_number || sourceData.updated_at) {
         const saveDate = sourceData.updated_at || existingEst?.created_at || sourceData.created_at;
@@ -564,6 +604,7 @@ function EstimationBuilderContent() {
       setCustomerResponse('');
       setCustomerResponseNote('');
       setAdminNotes('');
+      setEstimationComplaints(formatComplaintsAndDiagnosis(found.complaints, found.notes).displayText);
       setVehicleStatus('Di Tinggal');
       setShowDiscount(false);
       setShowOpsi2(false);
@@ -663,7 +704,8 @@ function EstimationBuilderContent() {
             }
             loadEstimationForSpk(found);
           } else {
-            // SPK sama tapi workOrders/invoices terupdate (misal perubahan dari perangkat lain / customer TTD)
+            // SPK sama tapi workOrders/invoices terupdate (misal perubahan dari perangkat lain / customer TTD / edit SPK)
+            setSelectedSpk(found);
             const updatedTabs = discoverTabsForSpk(found, invoices);
             if (updatedTabs.length > 0 && JSON.stringify(updatedTabs) !== JSON.stringify(tabList)) {
               setTabList(updatedTabs);
@@ -806,6 +848,8 @@ function EstimationBuilderContent() {
       setDiscountAmount(sourceData.discount_amount || 0);
       setTaxPercent(sourceData.tax_percent || 11);
       setAdminNotes(sourceData.admin_notes || '');
+      const spkDefaultTab = formatComplaintsAndDiagnosis(selectedSpk?.complaints, selectedSpk?.notes).displayText;
+      setEstimationComplaints(sourceData.complaints || spkDefaultTab);
 
       const has2nd = Boolean(
         sourceData.has_second_table ||
@@ -890,7 +934,9 @@ function EstimationBuilderContent() {
       setItemsTable2([...EMPTY_ESTIMATION_ROW]);
       setEstimatedDuration('');
       setCustomerResponse(''); setCustomerResponseNote('');
-      setAdminNotes(''); setVehicleStatus('Di Tinggal');
+      setAdminNotes('');
+      setEstimationComplaints(formatComplaintsAndDiagnosis(selectedSpk?.complaints, selectedSpk?.notes).displayText);
+      setVehicleStatus('Di Tinggal');
       setShowDiscount(false); setShowOpsi2(false); setShowTax(false); setShowRangePrice(false); setDiscountAmount(0);
     }
   }, [selectedSpkId, selectedSpk, isLocked, activeTabId, items, estimationType, estimationDate, estimationTime,
@@ -920,6 +966,7 @@ function EstimationBuilderContent() {
       table2_title: table2Title,
       items_table2: itemsTable2,
       discount_amount: discountAmount, tax_percent: taxPercent, admin_notes: adminNotes,
+      complaints: estimationComplaints,
       updated_at: new Date().toISOString(),
     };
 
@@ -956,7 +1003,7 @@ function EstimationBuilderContent() {
     estimationDate, estimationTime, vehicleStatus, paymentPlan,
     estimatorName, estimatorSignature, customerSignature, customerSignedName,
     estimatedDuration, customerResponse, customerResponseNote,
-    showDiscount, showOpsi2, showTax, showRangePrice, hasSecondTable, table1Title, table2Title, itemsTable2, discountAmount, taxPercent, adminNotes, tabList,
+    showDiscount, showOpsi2, showTax, showRangePrice, hasSecondTable, table1Title, table2Title, itemsTable2, discountAmount, taxPercent, adminNotes, estimationComplaints, tabList,
   ]);
 
   // Calculations (handles string/text prices like CEK cleanly)
@@ -1438,6 +1485,7 @@ function EstimationBuilderContent() {
         estimator_signature: estimatorSignature,
         signature_admin_url: estimatorSignature,
         estimated_duration: estimatedDuration,
+        complaints: estimationComplaints.trim() || formatComplaintsAndDiagnosis(selectedSpk.complaints, selectedSpk.notes).displayText,
         customer_response: customerResponse as any,
         customer_response_note: customerResponseNote,
         has_discount: showDiscount,
@@ -1852,6 +1900,62 @@ function EstimationBuilderContent() {
                 <span>Ubah Plat Nomor</span>
               </button>
             )}
+          </div>
+        )}
+
+        {/* Banner Rincian SPK Sah (Keluhan Customer & Uraian Pekerjaan / Diagnosa Awal) */}
+        {selectedSpk && (
+          <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-4 text-xs text-amber-950 shadow-2xs space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200/60 pb-2">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center flex-shrink-0 font-bold text-xs shadow-xs">
+                  📋
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-black uppercase tracking-wider text-[11px] text-amber-950">
+                      Rincian SPK Sah — Intake Bengkel ({selectedSpk.spk_number})
+                    </span>
+                    <span className="text-[9.5px] bg-amber-200/90 text-amber-900 px-2 py-0.5 rounded-full font-bold">
+                      Data Sah Intake
+                    </span>
+                  </div>
+                  <span className="text-[10.5px] text-amber-800 font-medium">
+                    {selectedSpk.vehicle?.car_brand} {selectedSpk.vehicle?.car_model} ({selectedSpk.vehicle?.license_plate ? formatPlate(selectedSpk.vehicle.license_plate) : '-'}) • Mekanik: {selectedSpk.mechanic_name || '-'}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowEditSpkModal(true)}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-white hover:bg-amber-100/60 text-amber-950 border border-amber-300 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+                title="Edit rincian data SPK, keluhan, teknisi, dll."
+              >
+                <Pencil className="w-3.5 h-3.5 text-amber-700" />
+                <span>Edit Isi SPK</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-0.5">
+              <div className="bg-white/90 p-3 rounded-xl border border-amber-100 space-y-1">
+                <span className="text-[10px] font-black text-rose-800 uppercase tracking-wider block">
+                  1. Keluhan Customer (SPK):
+                </span>
+                <p className="font-semibold text-slate-900 text-xs leading-relaxed break-words whitespace-pre-wrap">
+                  {selectedSpk.complaints || 'Perawatan berkala / Servis rutin'}
+                </p>
+              </div>
+
+              <div className="bg-white/90 p-3 rounded-xl border border-amber-100 space-y-1">
+                <span className="text-[10px] font-black text-blue-800 uppercase tracking-wider block">
+                  2. Uraian Pekerjaan / Diagnosa Awal (SPK):
+                </span>
+                <p className="font-semibold text-slate-900 text-xs leading-relaxed break-words whitespace-pre-wrap">
+                  {selectedSpk.notes || 'Pemeriksaan menyeluruh, tune-up berkala, dan uji fungsi sistem kendaraan.'}
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
@@ -3174,6 +3278,41 @@ function EstimationBuilderContent() {
 
         {/* 5. NOTES & ACTION CONTROLS */}
         <div className="space-y-4 pt-2">
+          {/* Keluhan / Diagnosa Awal untuk Lembar Estimasi & TTD Customer */}
+          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="block text-xs font-bold text-slate-800">
+                Keluhan / Diagnosa Awal (Tampil pada Surat Estimasi &amp; TTD Customer):
+              </label>
+              {selectedSpk && !isLocked && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const spkDefault = formatComplaintsAndDiagnosis(selectedSpk.complaints, selectedSpk.notes).displayText;
+                    setEstimationComplaints(spkDefault);
+                    showToast('Keluhan / Diagnosa Awal berhasil di-reset sesuai isi SPK.', 'info');
+                  }}
+                  className="inline-flex items-center space-x-1 text-[11px] font-bold text-blue-700 hover:text-blue-800 hover:underline cursor-pointer"
+                  title="Tarik ulang teks keluhan dan diagnosa awal asli dari SPK"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset Sesuai SPK</span>
+                </button>
+              )}
+            </div>
+            <textarea
+              rows={2}
+              disabled={isLocked}
+              value={estimationComplaints}
+              onChange={(e) => setEstimationComplaints(e.target.value)}
+              placeholder="Keluhan customer dan diagnosa awal perbaikan..."
+              className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-white resize-none outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
+            />
+            <p className="text-[10.5px] text-slate-500">
+              💡 Otomatis menyinkronkan keluhan &amp; diagnosa dari SPK intake. Anda dapat menambahkan catatan diagnosa teknis khusus untuk tab estimasi ini bila diperlukan.
+            </p>
+          </div>
+
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">Catatan Tambahan (Opsional):</label>
             <textarea
@@ -3266,6 +3405,9 @@ function EstimationBuilderContent() {
                     created_at: currentEstimationRecord?.created_at || new Date().toISOString(),
                     updated_at: new Date().toISOString(),
                     vehicle: selectedSpk?.vehicle,
+                    work_order: selectedSpk || undefined,
+                    estimated_duration: estimatedDuration || currentEstimationRecord?.estimated_duration || '',
+                    complaints: estimationComplaints.trim() || formatComplaintsAndDiagnosis(selectedSpk?.complaints, selectedSpk?.notes).displayText,
                   } as Invoice;
                   setSavedEstimation(livePreview);
                 }}
@@ -3298,6 +3440,7 @@ function EstimationBuilderContent() {
                       setShowTax(false);
                       setShowRangePrice(false);
                       setAdminNotes('');
+                      setEstimationComplaints(formatComplaintsAndDiagnosis(selectedSpk?.complaints, selectedSpk?.notes).displayText);
                       setEstimatedDuration('');
                       setCustomerResponse('');
                       setCustomerResponseNote('');
@@ -3599,6 +3742,20 @@ function EstimationBuilderContent() {
             if (selectedSpk.vehicle) {
               selectedSpk.vehicle.license_plate = newPlate;
             }
+          }}
+        />
+      )}
+
+      {/* 10. MODAL EDIT ISI SPK RESMI */}
+      {showEditSpkModal && selectedSpk && (
+        <EditSPKModal
+          workOrder={selectedSpk}
+          onClose={() => setShowEditSpkModal(false)}
+          onSuccess={(updatedWo) => {
+            setSelectedSpk(updatedWo);
+            const freshDefault = formatComplaintsAndDiagnosis(updatedWo.complaints, updatedWo.notes).displayText;
+            setEstimationComplaints(freshDefault);
+            refreshData();
           }}
         />
       )}
