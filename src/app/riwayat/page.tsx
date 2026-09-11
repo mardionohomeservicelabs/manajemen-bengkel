@@ -15,19 +15,16 @@ import {
   Receipt,
   Search,
   Filter,
-  Eye,
-  Printer,
   Calendar,
   Car,
   Unlock,
   Calculator,
   CheckCircle2,
   Clock,
-  AlertCircle,
   FileText,
-  ChevronRight,
   Phone,
-  Layers,
+  User,
+  FolderOpen,
   X,
 } from 'lucide-react';
 import { PrintableSPK } from '@/components/ui/PrintableSPK';
@@ -60,7 +57,6 @@ function HistoryArchiveContent() {
 
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [docFilter, setDocFilter] = useState<'all' | 'has_estimation' | 'has_invoice'>('all');
 
   // Preview modals
   const [selectedWorkOrder, setSelectedWorkOrder] = useState<WorkOrder | null>(null);
@@ -119,7 +115,7 @@ function HistoryArchiveContent() {
     return null;
   };
 
-  // Build unified Vehicle Archive Entries
+  // Build unified Vehicle Archive Entries (murni per data mobil)
   const archiveEntries = useMemo(() => {
     const entries: VehicleArchiveEntry[] = [];
     const matchedInvoiceIds = new Set<string>();
@@ -153,7 +149,7 @@ function HistoryArchiveContent() {
       });
     });
 
-    // 2. Check for unmatched invoices (to prevent any orphan invoice from disappearing)
+    // 2. Check for unmatched invoices
     invoices.forEach((inv) => {
       if (!matchedInvoiceIds.has(inv.id)) {
         const isEstimation = inv.type === 'estimation';
@@ -201,8 +197,7 @@ function HistoryArchiveContent() {
         (entry.carBrand || '').toLowerCase().includes(q) ||
         (entry.carModel || '').toLowerCase().includes(q) ||
         cleanPlate.includes(cleanQ) ||
-        (entry.estimation?.invoice_number || '').toLowerCase().includes(q) ||
-        (entry.invoice?.invoice_number || '').toLowerCase().includes(q);
+        (entry.complaints || '').toLowerCase().includes(q);
 
       // Status matching
       let matchesStatus = true;
@@ -218,32 +213,23 @@ function HistoryArchiveContent() {
         matchesStatus = entry.status === 'cancelled';
       }
 
-      // Document filter
-      let matchesDoc = true;
-      if (docFilter === 'has_estimation') {
-        matchesDoc = Boolean(entry.estimation);
-      } else if (docFilter === 'has_invoice') {
-        matchesDoc = Boolean(entry.invoice);
-      }
-
-      return matchesSearch && matchesStatus && matchesDoc;
+      return matchesSearch && matchesStatus;
     });
-  }, [archiveEntries, searchQuery, statusFilter, docFilter]);
+  }, [archiveEntries, searchQuery, statusFilter]);
 
-  // Statistics Summary
+  // Statistics Summary (khusus data mobil)
   const stats = useMemo(() => {
     const total = archiveEntries.length;
     const completed = archiveEntries.filter((e) => e.status === 'completed' || e.isPaid).length;
-    const withEst = archiveEntries.filter((e) => Boolean(e.estimation)).length;
-    const withInv = archiveEntries.filter((e) => Boolean(e.invoice)).length;
-    return { total, completed, withEst, withInv };
+    const active = archiveEntries.filter((e) => e.status === 'servicing' || e.status === 'estimating' || e.status === 'queue').length;
+    return { total, completed, active };
   }, [archiveEntries]);
 
   // Helper for status badge
   const renderStatusBadge = (entry: VehicleArchiveEntry) => {
     if (entry.status === 'completed' || entry.isPaid) {
       return (
-        <span className="inline-flex items-center space-x-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+        <span className="inline-flex items-center space-x-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
           <CheckCircle2 className="w-3 h-3 text-emerald-600" />
           <span>Selesai & Lunas</span>
         </span>
@@ -251,7 +237,7 @@ function HistoryArchiveContent() {
     }
     if (entry.status === 'servicing') {
       return (
-        <span className="inline-flex items-center space-x-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
+        <span className="inline-flex items-center space-x-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 border border-blue-200 shadow-2xs">
           <Clock className="w-3 h-3 text-blue-600 animate-spin" />
           <span>Sedang Dikerjakan</span>
         </span>
@@ -259,7 +245,7 @@ function HistoryArchiveContent() {
     }
     if (entry.status === 'estimating') {
       return (
-        <span className="inline-flex items-center space-x-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+        <span className="inline-flex items-center space-x-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs">
           <Calculator className="w-3 h-3 text-amber-600" />
           <span>Estimasi</span>
         </span>
@@ -267,14 +253,14 @@ function HistoryArchiveContent() {
     }
     if (entry.status === 'cancelled') {
       return (
-        <span className="inline-flex items-center space-x-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-800 border border-rose-200">
+        <span className="inline-flex items-center space-x-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-800 border border-rose-200 shadow-2xs">
           <X className="w-3 h-3 text-rose-600" />
           <span>Dibatalkan</span>
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center space-x-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+      <span className="inline-flex items-center space-x-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs">
         <Clock className="w-3 h-3 text-slate-500" />
         <span>Antrean Masuk</span>
       </span>
@@ -289,324 +275,267 @@ function HistoryArchiveContent() {
           <div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center space-x-2">
               <History className="w-6 h-6 text-maroon-700" />
-              <span>Arsip & Riwayat Kendaraan</span>
+              <span>Arsip Data Mobil</span>
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Database riwayat mobil masuk bengkel. Pilih data mobil untuk langsung membuka & mencetak <strong>SPK</strong>, <strong>Estimasi</strong>, atau <strong>Nota</strong>.
+              Daftar riwayat data mobil yang masuk bengkel. Di tiap data mobil tersedia pilihan untuk membuka dokumen <strong>SPK</strong>, <strong>Estimasi</strong>, dan <strong>Nota</strong>.
             </p>
           </div>
         </div>
 
-        {/* Quick Stats Banner */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
+        {/* Quick Stats Banner (Khusus Data Mobil) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center space-x-3">
             <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold">
               <Car className="w-4 h-4" />
             </div>
             <div>
               <div className="text-[11px] font-medium text-slate-500">Total Riwayat Mobil</div>
-              <div className="text-lg font-black text-slate-900">{stats.total}</div>
+              <div className="text-lg font-black text-slate-900">{stats.total} Mobil</div>
             </div>
           </div>
 
-          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center space-x-3">
             <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
               <CheckCircle2 className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-[11px] font-medium text-slate-500">Selesai / Lunas</div>
-              <div className="text-lg font-black text-emerald-700">{stats.completed}</div>
+              <div className="text-[11px] font-medium text-slate-500">Mobil Selesai & Lunas</div>
+              <div className="text-lg font-black text-emerald-700">{stats.completed} Mobil</div>
             </div>
           </div>
 
-          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
-              <Calculator className="w-4 h-4" />
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center space-x-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+              <Clock className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-[11px] font-medium text-slate-500">Memiliki Estimasi</div>
-              <div className="text-lg font-black text-amber-700">{stats.withEst}</div>
-            </div>
-          </div>
-
-          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
-              <Receipt className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-[11px] font-medium text-slate-500">Memiliki Nota</div>
-              <div className="text-lg font-black text-purple-700">{stats.withInv}</div>
+              <div className="text-[11px] font-medium text-slate-500">Mobil Masih Aktif</div>
+              <div className="text-lg font-black text-blue-700">{stats.active} Mobil</div>
             </div>
           </div>
         </div>
 
-        {/* Filter & Search Bar */}
-        <div className="mt-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-card space-y-3">
-          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-            {/* Search Input */}
-            <div className="relative w-full sm:w-96">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Cari Plat Nomor, Pelanggan, No. SPK / Estimasi / Nota..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-9 py-2.5 rounded-xl text-xs sm:text-sm border border-slate-200 outline-none focus:ring-2 focus:ring-maroon-600 focus:border-maroon-600 transition"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-
-            {/* Dropdown Filters */}
-            <div className="flex items-center space-x-2 w-full sm:w-auto">
-              <Filter className="w-4 h-4 text-slate-400" />
-              <span className="text-xs text-slate-500 font-medium whitespace-nowrap">Status:</span>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="text-xs px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 outline-none focus:ring-1 focus:ring-maroon-600 font-medium"
+        {/* Search & Status Filter Bar */}
+        <div className="mt-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-card flex flex-col sm:flex-row gap-3 items-center justify-between">
+          {/* Search Input */}
+          <div className="relative w-full sm:w-96">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Cari Plat Nomor, Nama Pemilik, Tipe Mobil..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-9 py-2.5 rounded-xl text-xs sm:text-sm border border-slate-200 outline-none focus:ring-2 focus:ring-maroon-600 focus:border-maroon-600 transition"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
-                <option value="all">Semua Status Pengerjaan</option>
-                <option value="completed">Selesai & Lunas</option>
-                <option value="servicing">Sedang Dikerjakan</option>
-                <option value="estimating">Dalam Estimasi</option>
-                <option value="queue">Antrean Masuk</option>
-                <option value="cancelled">Dibatalkan</option>
-              </select>
-            </div>
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
-          {/* Quick Filter Badges */}
-          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 text-xs">
-            <span className="text-[11px] text-slate-400 font-medium mr-1">Filter Dokumen:</span>
-            <button
-              type="button"
-              onClick={() => setDocFilter('all')}
-              className={`px-3 py-1 rounded-lg transition font-medium ${
-                docFilter === 'all'
-                  ? 'bg-maroon-700 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+          {/* Status Dropdown */}
+          <div className="flex items-center space-x-2 w-full sm:w-auto">
+            <Filter className="w-4 h-4 text-slate-400" />
+            <span className="text-xs text-slate-500 font-medium whitespace-nowrap">Filter Status:</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="text-xs px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 outline-none focus:ring-1 focus:ring-maroon-600 font-medium"
             >
-              Semua ({archiveEntries.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setDocFilter('has_estimation')}
-              className={`px-3 py-1 rounded-lg transition font-medium flex items-center space-x-1 ${
-                docFilter === 'has_estimation'
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
-              }`}
-            >
-              <Calculator className="w-3 h-3" />
-              <span>Ada Estimasi ({stats.withEst})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setDocFilter('has_invoice')}
-              className={`px-3 py-1 rounded-lg transition font-medium flex items-center space-x-1 ${
-                docFilter === 'has_invoice'
-                  ? 'bg-purple-600 text-white shadow-xs'
-                  : 'bg-purple-50 text-purple-800 hover:bg-purple-100'
-              }`}
-            >
-              <Receipt className="w-3 h-3" />
-              <span>Ada Nota ({stats.withInv})</span>
-            </button>
+              <option value="all">Semua Status Mobil</option>
+              <option value="completed">Selesai & Lunas</option>
+              <option value="servicing">Sedang Dikerjakan</option>
+              <option value="estimating">Dalam Estimasi</option>
+              <option value="queue">Antrean Masuk</option>
+              <option value="cancelled">Dibatalkan</option>
+            </select>
           </div>
         </div>
       </div>
 
-      {/* VEHICLE LIST / TABLE */}
-      <div className="no-print">
+      {/* VEHICLE LIST (DAFTAR DATA MOBIL) */}
+      <div className="no-print space-y-4">
         {filteredEntries.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-card">
             <Car className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <h3 className="text-base font-bold text-slate-800">Tidak ada riwayat kendaraan ditemukan</h3>
             <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-              {searchQuery || statusFilter !== 'all' || docFilter !== 'all'
-                ? 'Coba sesuaikan kata kunci pencarian atau filter status untuk menemukan riwayat kendaraan.'
+              {searchQuery || statusFilter !== 'all'
+                ? 'Coba sesuaikan kata kunci pencarian atau filter status untuk menemukan data mobil.'
                 : 'Belum ada data riwayat kendaraan yang tercatat di sistem.'}
             </p>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
-                    <th className="p-4">Plat & Kendaraan</th>
-                    <th className="p-4">Pelanggan</th>
-                    <th className="p-4">Tanggal Masuk</th>
-                    <th className="p-4 text-center">Status</th>
-                    <th className="p-4 text-center">Pilihan Buka Dokumen</th>
-                    {currentRole === 'owner' && <th className="p-4 text-right">Kelola</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredEntries.map((entry) => {
-                    const hasSpk = Boolean(entry.workOrder);
-                    const hasEst = Boolean(entry.estimation);
-                    const hasInv = Boolean(entry.invoice);
+          <div className="space-y-3.5">
+            {filteredEntries.map((entry) => {
+              const hasSpk = Boolean(entry.workOrder);
+              const hasEst = Boolean(entry.estimation);
+              const hasInv = Boolean(entry.invoice);
 
-                    return (
-                      <tr key={entry.id} className="hover:bg-slate-50/70 transition">
-                        {/* 1. Plat & Kendaraan */}
-                        <td className="p-4 align-top">
-                          <div className="flex items-start space-x-2.5">
-                            <div className="mt-0.5">
-                              <span className="inline-block bg-slate-900 text-white font-mono font-black text-xs px-2.5 py-1 rounded-md border border-slate-700 shadow-xs tracking-wider">
-                                {entry.licensePlate ? formatPlate(entry.licensePlate) : '-'}
-                              </span>
-                            </div>
-                            <div>
-                              <div className="font-bold text-slate-900 text-xs sm:text-sm">
-                                {entry.carBrand || entry.carModel
-                                  ? `${entry.carBrand} ${entry.carModel}`
-                                  : 'Kendaraan'}
-                              </div>
-                              <div className="text-[11px] text-slate-400 font-mono flex items-center space-x-1 mt-0.5">
-                                <ClipboardList className="w-3 h-3 text-slate-400" />
-                                <span>{entry.spkNumber}</span>
-                              </div>
-                            </div>
+              return (
+                <div
+                  key={entry.id}
+                  className="bg-white rounded-2xl border border-slate-200/80 shadow-card hover:shadow-md transition duration-200 overflow-hidden"
+                >
+                  {/* Bagian Atas: Data Pokok Mobil */}
+                  <div className="p-4 sm:p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
+                      {/* Identitas Kendaraan */}
+                      <div className="flex items-center space-x-3">
+                        <div className="bg-slate-950 text-white font-mono font-black text-xs sm:text-sm px-3 py-1.5 rounded-lg border-2 border-slate-800 shadow-2xs tracking-wider shrink-0">
+                          {entry.licensePlate ? formatPlate(entry.licensePlate) : '-'}
+                        </div>
+                        <div>
+                          <h3 className="font-black text-slate-900 text-sm sm:text-base tracking-tight">
+                            {entry.carBrand || entry.carModel
+                              ? `${entry.carBrand} ${entry.carModel}`
+                              : 'Kendaraan'}
+                          </h3>
+                          <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                            No. SPK: <span className="font-semibold text-slate-600">{entry.spkNumber}</span>
                           </div>
-                        </td>
+                        </div>
+                      </div>
 
-                        {/* 2. Pelanggan */}
-                        <td className="p-4 align-top">
-                          <div className="font-bold text-slate-800 text-xs">
-                            {entry.customerName || '-'}
-                          </div>
+                      {/* Status & Total Tagihan */}
+                      <div className="flex items-center space-x-2 self-start sm:self-center flex-wrap gap-y-1">
+                        {renderStatusBadge(entry)}
+                        {entry.totalInvoice !== undefined && entry.totalInvoice > 0 && (
+                          <span className="text-xs font-mono font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                            {formatCurrency(entry.totalInvoice)}
+                          </span>
+                        )}
+                        {currentRole === 'owner' && entry.workOrder && entry.workOrder.status === 'completed' && (
+                          <button
+                            type="button"
+                            onClick={() => unlockWorkOrderAsync(entry.workOrder!.id, 'servicing')}
+                            className="inline-flex items-center space-x-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded-lg text-xs transition border border-emerald-300 shadow-2xs"
+                            title="Buka Kunci SPK (Pindah kembali ke Sedang Dikerjakan)"
+                          >
+                            <Unlock className="w-3.5 h-3.5 text-emerald-700" />
+                            <span>Buka Kunci</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Informasi Pemilik, Waktu, & Keluhan */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 text-xs">
+                      {/* Pelanggan */}
+                      <div className="flex items-start space-x-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center shrink-0 mt-0.5">
+                          <User className="w-3.5 h-3.5" />
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Pemilik Kendaraan</span>
+                          <div className="font-bold text-slate-800 text-xs sm:text-sm mt-0.5">{entry.customerName || '-'}</div>
                           {entry.phoneNumber && (
-                            <div className="text-[11px] text-slate-500 font-mono flex items-center space-x-1 mt-0.5">
+                            <div className="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center space-x-1">
                               <Phone className="w-3 h-3 text-slate-400" />
                               <span>{entry.phoneNumber}</span>
                             </div>
                           )}
-                          {entry.complaints && (
-                            <div className="text-[11px] text-slate-500 line-clamp-1 max-w-xs mt-1 italic">
-                              &ldquo;{entry.complaints}&rdquo;
-                            </div>
-                          )}
-                        </td>
+                        </div>
+                      </div>
 
-                        {/* 3. Tanggal Masuk */}
-                        <td className="p-4 align-top">
-                          <div className="text-slate-700 font-medium text-[11px] flex items-center space-x-1">
-                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{formatDateTime(entry.entryDate)}</span>
+                      {/* Waktu Masuk */}
+                      <div className="flex items-start space-x-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center shrink-0 mt-0.5">
+                          <Calendar className="w-3.5 h-3.5" />
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Waktu Masuk</span>
+                          <div className="font-semibold text-slate-700 text-xs sm:text-sm mt-0.5">{formatDateTime(entry.entryDate)}</div>
+                        </div>
+                      </div>
+
+                      {/* Keluhan */}
+                      <div className="flex items-start space-x-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center shrink-0 mt-0.5">
+                          <FileText className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Keluhan / Diagnosa</span>
+                          <div className="text-slate-600 italic line-clamp-2 mt-0.5 text-xs">
+                            {entry.complaints ? `"${entry.complaints}"` : 'Tidak ada catatan keluhan.'}
                           </div>
-                        </td>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
-                        {/* 4. Status */}
-                        <td className="p-4 align-top text-center">
-                          {renderStatusBadge(entry)}
-                          {entry.totalInvoice !== undefined && entry.totalInvoice > 0 && (
-                            <div className="text-[11px] font-mono font-bold text-slate-700 mt-1">
-                              {formatCurrency(entry.totalInvoice)}
-                            </div>
-                          )}
-                        </td>
+                  {/* SECTION DOKUMEN: Bagian Khusus untuk Buka SPK, Estimasi, Nota */}
+                  <div className="bg-slate-50/90 px-4 sm:px-5 py-3 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center space-x-2 text-xs font-bold text-slate-700">
+                      <FolderOpen className="w-4 h-4 text-maroon-700" />
+                      <span>Dokumen & Berkas:</span>
+                    </div>
 
-                        {/* 5. Aksi Buka Dokumen (SPK, Estimasi, Nota) */}
-                        <td className="p-4 align-top">
-                          <div className="flex flex-wrap items-center justify-center gap-1.5">
-                            {/* Tombol Buka SPK */}
-                            {hasSpk ? (
-                              <button
-                                type="button"
-                                onClick={() => setSelectedWorkOrder(entry.workOrder)}
-                                className="inline-flex items-center space-x-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold px-2.5 py-1.5 rounded-xl text-xs transition border border-blue-200 shadow-xs active:scale-95"
-                                title="Buka & Cetak Surat Perintah Kerja (SPK)"
-                              >
-                                <ClipboardList className="w-3.5 h-3.5 text-blue-600" />
-                                <span>Buka SPK</span>
-                              </button>
-                            ) : (
-                              <span
-                                className="inline-flex items-center space-x-1 bg-slate-50 text-slate-300 px-2.5 py-1.5 rounded-xl text-xs border border-slate-100 cursor-not-allowed"
-                                title="SPK tidak tersedia"
-                              >
-                                <ClipboardList className="w-3.5 h-3.5 text-slate-300" />
-                                <span>SPK (-)</span>
-                              </span>
-                            )}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5 w-full sm:w-auto">
+                      {/* 1. Buka SPK */}
+                      {hasSpk ? (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedWorkOrder(entry.workOrder)}
+                          className="flex items-center justify-center space-x-2 bg-white hover:bg-blue-50 text-blue-900 border border-blue-200 hover:border-blue-400 px-3.5 py-2 rounded-xl text-xs font-bold shadow-2xs transition active:scale-95 group"
+                          title={`Buka Surat Perintah Kerja (${entry.spkNumber})`}
+                        >
+                          <ClipboardList className="w-3.5 h-3.5 text-blue-600 group-hover:scale-110 transition" />
+                          <span>Buka SPK</span>
+                        </button>
+                      ) : (
+                        <div className="flex items-center justify-center space-x-1.5 bg-slate-100 text-slate-400 border border-slate-200 px-3 py-2 rounded-xl text-xs font-medium cursor-not-allowed">
+                          <ClipboardList className="w-3.5 h-3.5 text-slate-300" />
+                          <span>SPK Tidak Ada</span>
+                        </div>
+                      )}
 
-                            {/* Tombol Buka Estimasi */}
-                            {hasEst ? (
-                              <button
-                                type="button"
-                                onClick={() => setSelectedEstimation(entry.estimation)}
-                                className="inline-flex items-center space-x-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold px-2.5 py-1.5 rounded-xl text-xs transition border border-amber-200 shadow-xs active:scale-95"
-                                title={`Buka & Cetak Surat Estimasi Biaya (${entry.estimation?.invoice_number || ''})`}
-                              >
-                                <Calculator className="w-3.5 h-3.5 text-amber-600" />
-                                <span>Buka Estimasi</span>
-                              </button>
-                            ) : (
-                              <span
-                                className="inline-flex items-center space-x-1 bg-slate-50 text-slate-300 px-2.5 py-1.5 rounded-xl text-xs border border-slate-100 cursor-not-allowed"
-                                title="Belum ada estimasi yang diterbitkan untuk mobil ini"
-                              >
-                                <Calculator className="w-3.5 h-3.5 text-slate-300" />
-                                <span>Estimasi (-)</span>
-                              </span>
-                            )}
+                      {/* 2. Buka Estimasi */}
+                      {hasEst ? (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedEstimation(entry.estimation)}
+                          className="flex items-center justify-center space-x-2 bg-white hover:bg-amber-50 text-amber-900 border border-amber-200 hover:border-amber-400 px-3.5 py-2 rounded-xl text-xs font-bold shadow-2xs transition active:scale-95 group"
+                          title={`Buka Surat Estimasi Biaya (${entry.estimation?.invoice_number || ''})`}
+                        >
+                          <Calculator className="w-3.5 h-3.5 text-amber-600 group-hover:scale-110 transition" />
+                          <span>Buka Estimasi</span>
+                        </button>
+                      ) : (
+                        <div className="flex items-center justify-center space-x-1.5 bg-slate-100 text-slate-400 border border-slate-200 px-3 py-2 rounded-xl text-xs font-medium cursor-not-allowed">
+                          <Calculator className="w-3.5 h-3.5 text-slate-300" />
+                          <span>Belum Ada Estimasi</span>
+                        </div>
+                      )}
 
-                            {/* Tombol Buka Nota */}
-                            {hasInv ? (
-                              <button
-                                type="button"
-                                onClick={() => setSelectedInvoice(entry.invoice)}
-                                className="inline-flex items-center space-x-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1.5 rounded-xl text-xs transition border border-emerald-200 shadow-xs active:scale-95"
-                                title={`Buka & Cetak Nota Pembayaran (${entry.invoice?.invoice_number || ''})`}
-                              >
-                                <Receipt className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Buka Nota</span>
-                              </button>
-                            ) : (
-                              <span
-                                className="inline-flex items-center space-x-1 bg-slate-50 text-slate-300 px-2.5 py-1.5 rounded-xl text-xs border border-slate-100 cursor-not-allowed"
-                                title="Belum ada nota pembayaran yang diterbitkan untuk mobil ini"
-                              >
-                                <Receipt className="w-3.5 h-3.5 text-slate-300" />
-                                <span>Nota (-)</span>
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* 6. Kelola (Khusus Owner jika Selesai) */}
-                        {currentRole === 'owner' && (
-                          <td className="p-4 align-top text-right whitespace-nowrap">
-                            {entry.workOrder && entry.workOrder.status === 'completed' && (
-                              <button
-                                type="button"
-                                onClick={() => unlockWorkOrderAsync(entry.workOrder!.id, 'servicing')}
-                                className="inline-flex items-center space-x-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2 py-1.5 rounded-lg text-[11px] transition border border-emerald-300 shadow-xs"
-                                title="Buka Kunci SPK (Pindah kembali ke Sedang Dikerjakan)"
-                              >
-                                <Unlock className="w-3 h-3 text-emerald-700" />
-                                <span>Buka Kunci</span>
-                              </button>
-                            )}
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                      {/* 3. Buka Nota */}
+                      {hasInv ? (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedInvoice(entry.invoice)}
+                          className="flex items-center justify-center space-x-2 bg-white hover:bg-emerald-50 text-emerald-900 border border-emerald-200 hover:border-emerald-400 px-3.5 py-2 rounded-xl text-xs font-bold shadow-2xs transition active:scale-95 group"
+                          title={`Buka Nota Pembayaran (${entry.invoice?.invoice_number || ''})`}
+                        >
+                          <Receipt className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition" />
+                          <span>Buka Nota</span>
+                        </button>
+                      ) : (
+                        <div className="flex items-center justify-center space-x-1.5 bg-slate-100 text-slate-400 border border-slate-200 px-3 py-2 rounded-xl text-xs font-medium cursor-not-allowed">
+                          <Receipt className="w-3.5 h-3.5 text-slate-300" />
+                          <span>Belum Ada Nota</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -657,9 +586,10 @@ function HistoryArchiveContent() {
 
 export default function HistoryArchivePage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-xs text-slate-500 font-medium">Memuat Arsip & Riwayat Kendaraan...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-xs text-slate-500 font-medium">Memuat Arsip Data Mobil...</div>}>
       <HistoryArchiveContent />
     </Suspense>
   );
 }
+
 
