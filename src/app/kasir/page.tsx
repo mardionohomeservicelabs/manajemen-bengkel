@@ -865,10 +865,11 @@ function CashierContent() {
                 Metode Pembayaran:
               </label>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {[
-                  { id: 'cash', label: '💵 Tunai (Cash)', desc: 'Pembayaran tunai di kasir' },
+                  { id: 'cash', label: '💵 Tunai (Cash)', desc: 'Tunai di kasir' },
                   { id: 'transfer_bca', label: '🏦 Transfer BCA', desc: 'BCA 2711235398 Ardiyanto Wijaya' },
+                  { id: 'transfer_bri', label: '🏦 Transfer BRI', desc: 'BRI 0086-0113-1974-508 ARDIYANTO WIJAYA' },
                 ].map((pm) => (
                   <button
                     key={pm.id}
@@ -896,7 +897,7 @@ function CashierContent() {
                 <label className="block text-[11px] font-medium text-slate-600 mb-1">Catatan Tambahan Nota:</label>
                 <input
                   type="text"
-                  placeholder="Contoh: Lunas via Transfer BCA / Pembayaran tunai..."
+                  placeholder="Contoh: Lunas via Transfer BCA / BRI / Pembayaran tunai..."
                   value={adminNotes}
                   onChange={(e) => setAdminNotes(e.target.value)}
                   className="w-full text-xs p-2 rounded-lg border border-slate-200 bg-white font-medium"
@@ -1031,7 +1032,12 @@ function CashierContent() {
               <div className="p-3 bg-slate-50 flex justify-between items-center font-black text-sm text-maroon-900 border-t border-slate-200">
                 <div>
                   <div className="text-[11px] font-semibold text-slate-500">
-                    Metode Bayar: {paymentMethod === 'transfer_bca' ? '🏦 Transfer Bank BCA' : '💵 Tunai (Cash)'}
+                    Metode Bayar:{' '}
+                    {paymentMethod === 'transfer_bri'
+                      ? '🏦 Transfer Bank BRI (0086-0113-1974-508)'
+                      : paymentMethod === 'transfer_bca'
+                      ? '🏦 Transfer Bank BCA (2711235398)'
+                      : '💵 Tunai (Cash)'}
                   </div>
                   <span>TOTAL YANG HARUS DIBAYAR:</span>
                 </div>
