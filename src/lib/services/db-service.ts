@@ -690,7 +690,21 @@ export class DBService {
         : activeBranch === 'MHS 2'
         ? initialSettingsMHS2
         : initialSettingsMHS3;
-    return getLocal<WorkshopSettings>(key, fallback);
+    const current = getLocal<WorkshopSettings>(key, fallback);
+
+    // Auto-migrate old mock bank accounts to new official account
+    if (
+      current &&
+      (current.bank_account_info?.includes('541-098-') ||
+       current.bank_account_info?.includes('124-00-') ||
+       !current.bank_account_info ||
+       current.bank_account_info.trim() === '')
+    ) {
+      current.bank_account_info = fallback.bank_account_info;
+      setLocal(key, current);
+    }
+
+    return current;
   }
 
   static updateSettings(settings: Partial<WorkshopSettings>, branch?: BranchId): WorkshopSettings {

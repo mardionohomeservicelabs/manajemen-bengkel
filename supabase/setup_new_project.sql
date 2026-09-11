@@ -193,7 +193,7 @@ CREATE TABLE IF NOT EXISTS public.workshop_settings (
     email TEXT DEFAULT 'mardionoohomeservice@gmail.com',
     address TEXT NOT NULL DEFAULT 'Jl. Perum Beringin Indah No.D - 19, Bringin Kulon, Bringinbendo, Taman, Sidoarjo',
     logo_url TEXT DEFAULT '/header-banner.png',
-    bank_account_info TEXT DEFAULT 'BCA: 541-098-7711 a.n Mardiono\nMandiri: 124-00-9876543-1 a.n Mardiono Home Service',
+    bank_account_info TEXT DEFAULT 'Bank BCA: 2711235398 a.n Ardiyanto Wijaya',
     terms_conditions TEXT DEFAULT 'Garansi servis & AC berlaku 1 bulan atau 1.000 KM mana yang tercapai lebih dulu. Nota ini adalah bukti sah pembayaran.',
     wa_template_reminder TEXT DEFAULT 'Halo Bpk/Ibu [Customer], mobil [Mobil] ([Plat]) sudah mendekati jadwal servis berkala pada [Tanggal]. Kunjungi Mardiono Home Service untuk menjaga performa mobil Anda tetap prima. Hubungi kami untuk reservasi!',
     updated_at TIMESTAMPTZ DEFAULT NOW()

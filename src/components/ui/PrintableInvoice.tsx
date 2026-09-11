@@ -296,7 +296,7 @@ export function PrintableInvoice({
                   {invoice.paid_at && <div>Waktu Bayar: <strong>{formatDateTime(invoice.paid_at)}</strong></div>}
                   <div className="pt-1 border-t border-slate-300 text-[10px] text-slate-600">
                     <p className="font-bold text-slate-800">Transfer Rekening Resmi Bengkel:</p>
-                    <p className="whitespace-pre-line font-mono font-bold text-slate-900">{settings.bank_account_info}</p>
+                    <p className="whitespace-pre-line font-mono font-bold text-slate-900">{settings.bank_account_info || 'Bank BCA: 2711235398 a.n Ardiyanto Wijaya'}</p>
                   </div>
                 </div>
 
