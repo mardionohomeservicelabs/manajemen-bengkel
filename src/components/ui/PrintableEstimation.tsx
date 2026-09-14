@@ -5,6 +5,7 @@ import { Invoice, InvoiceItem, WorkshopSettings } from '@/lib/types/database';
 import {
   formatCurrency,
   formatPlate,
+  formatDate,
   createWhatsAppLink,
   parseRangePrice,
   formatKM,
@@ -54,15 +55,27 @@ export function PrintableEstimation({
     printCleanDocument(documentRef.current, `Estimasi Biaya - ${estimation.invoice_number}`);
   };
 
+  // Format Jam Datang (HH:mm) dan Tanggal
+  const estTimestamp = workOrder?.entry_date || workOrder?.created_at || estimation.created_at;
+  const estDateObj = new Date(estTimestamp);
+  const jamDatang = !isNaN(estDateObj.getTime())
+    ? estDateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    : '09:00';
+  const tanggalDatang = formatDate(estimation.created_at || estTimestamp);
+
   const hasOpsi2 = Boolean(
     estimation.has_opsi2 ||
     (estimation.items &&
       estimation.items.some(
         (it: any) =>
-          it.price_opsi2 !== undefined &&
-          it.price_opsi2 !== '' &&
-          it.price_opsi2 !== 0 &&
-          it.price_opsi2 !== '0'
+          (it.total_opsi2 !== undefined &&
+            it.total_opsi2 !== '' &&
+            it.total_opsi2 !== 0 &&
+            it.total_opsi2 !== '0') ||
+          (it.price_opsi2 !== undefined &&
+            it.price_opsi2 !== '' &&
+            it.price_opsi2 !== 0 &&
+            it.price_opsi2 !== '0')
       ))
   );
 
@@ -97,19 +110,31 @@ export function PrintableEstimation({
       const qty = it.qty || 1;
       const isP1Empty = it.price_opsi1 === '' || it.price_opsi1 === 0 || it.price_opsi1 === '0';
       const p1Raw = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
-      const isP2Empty = it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0';
-      const p2Raw = isP2Empty ? 0 : (it.price_opsi2 !== undefined && it.price_opsi2 !== '' ? it.price_opsi2 : p1Raw);
+      
+      const hasTot2 = it.total_opsi2 !== undefined && it.total_opsi2 !== '' && it.total_opsi2 !== 0 && it.total_opsi2 !== '0';
+      const hasP2 = it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0';
+      const isP2Empty = !hasTot2 && !hasP2;
 
       const r1 = parseRangePrice(p1Raw);
-      const r2 = parseRangePrice(p2Raw);
 
       if (!isP1Empty && (typeof p1Raw !== 'string' || !/[a-zA-Z]/.test(p1Raw) || r1.min > 0)) {
         tot1Min += r1.min * qty;
         tot1Max += r1.max * qty;
       }
-      if (!isP2Empty && (typeof p2Raw !== 'string' || !/[a-zA-Z]/.test(p2Raw) || r2.min > 0)) {
-        tot2Min += r2.min * qty;
-        tot2Max += r2.max * qty;
+      if (!isP2Empty) {
+        if (hasTot2) {
+          const r2 = parseRangePrice(it.total_opsi2);
+          if (typeof it.total_opsi2 !== 'string' || !/[a-zA-Z]/.test(String(it.total_opsi2)) || r2.min > 0) {
+            tot2Min += r2.min;
+            tot2Max += r2.max;
+          }
+        } else {
+          const r2 = parseRangePrice(it.price_opsi2);
+          if (typeof it.price_opsi2 !== 'string' || !/[a-zA-Z]/.test(String(it.price_opsi2)) || r2.min > 0) {
+            tot2Min += r2.min * qty;
+            tot2Max += r2.max * qty;
+          }
+        }
       }
     });
 
@@ -180,9 +205,27 @@ export function PrintableEstimation({
     qty: number,
     isOpsi2: boolean = false
   ): { priceDisplay: string; totalDisplay: string } {
-    const isP2Empty = isOpsi2 && (priceRaw === '' || priceRaw === undefined || priceRaw === null);
-    if (isP2Empty) {
-      return { priceDisplay: '0', totalDisplay: '0' };
+    if (isOpsi2) {
+      const val2 = totalRaw !== undefined && totalRaw !== null && totalRaw !== ''
+        ? totalRaw
+        : (priceRaw !== undefined && priceRaw !== null && priceRaw !== '' ? priceRaw : '');
+
+      const isValEmpty = val2 === '' || val2 === 0 || val2 === '0';
+      if (isValEmpty) {
+        return { priceDisplay: '0', totalDisplay: '0' };
+      }
+
+      const isText = typeof val2 === 'string' && /[a-zA-Z]/.test(val2.trim());
+      if (isText) {
+        const textVal = val2.toString().trim().toUpperCase();
+        return { priceDisplay: textVal, totalDisplay: textVal };
+      }
+
+      const r = parseRangePrice(val2);
+      const totalDisplay = r.min === r.max
+        ? formatCurrency(r.min)
+        : `${formatCurrency(r.min)} – ${formatCurrency(r.max)}`;
+      return { priceDisplay: totalDisplay, totalDisplay };
     }
 
     const isPriceEmpty = priceRaw === '' || priceRaw === undefined || priceRaw === null;
@@ -235,7 +278,7 @@ export function PrintableEstimation({
     const approvalUrl = baseOrigin ? `${baseOrigin}/estimasi/ttd/${encodeURIComponent(token)}` : '';
 
     return (
-      `Halo Bpk/Ibu ${vehicle?.customer_name || 'Pelanggan'},\n` +
+      `Halo Bpk/Ibu ${vehicle?.customer_name || 'Pemilik Kendaraan'},\n` +
       `Berikut rincian Surat Estimasi Biaya Perbaikan dari ${settings.name}:\n\n` +
       `No. Estimasi: ${estimation.invoice_number}\n` +
       `Kendaraan: ${vehicle?.car_brand} ${vehicle?.car_model} (${vehicle?.license_plate})\n` +
@@ -252,13 +295,11 @@ export function PrintableEstimation({
     ? createWhatsAppLink(vehicle.phone_number, getWhatsAppMessage())
     : '#';
 
-  // Format keluhan dan diagnosa awal secara komprehensif dari SPK yang diterbitkan (atau custom text jika diset)
-  const formattedComplaints = formatComplaintsAndDiagnosis(
-    workOrder?.complaints,
-    workOrder?.notes,
-    (estimation as any).complaints
-  );
-  const complaintsText = formattedComplaints.displayText;
+  // Ambil keluhan yang tertulis di estimasi (tanpa uraian pekerjaan)
+  const rawEstComplaints = (estimation as any).complaints;
+  const complaintsText = (rawEstComplaints && String(rawEstComplaints).trim())
+    ? formatComplaintsAndDiagnosis(null, null, String(rawEstComplaints)).displayText
+    : (workOrder?.complaints?.trim() || 'Perawatan berkala / Servis rutin');
 
   return (
     <div className="w-full max-w-5xl mx-auto space-y-3">
@@ -344,55 +385,58 @@ export function PrintableEstimation({
               </div>
             </div>
 
-            {/* Customer & Vehicle Info Box (Symmetrical 2-Column) */}
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="border border-slate-800 rounded-xl p-2.5 bg-white space-y-1">
-                <h4 className="font-black text-[#8B0000] uppercase text-[10.5px] pb-0.5 border-b border-slate-200">
-                  Pelanggan / Pemilik:
-                </h4>
-                <div className="font-black text-slate-900 text-sm break-words leading-tight">{vehicle?.customer_name || 'Pelanggan'}</div>
-                <div className="text-slate-600 font-mono break-words">{vehicle?.phone_number || '-'}</div>
-                <div className="text-slate-700 leading-tight text-[11px] break-words">{vehicle?.address || '-'}</div>
+            {/* Symmetrical Grid: Data Pemilik Kendaraan & Kendaraan */}
+            <div className="grid grid-cols-2 gap-3 text-[11px] bg-slate-50/70 p-2.5 rounded-xl border border-slate-800 font-medium">
+              {/* Kolom Kiri */}
+              <div className="space-y-1 border-r border-slate-300 pr-2">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Pemilik Kendaraan</span>
+                  <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {vehicle?.customer_name || 'Pemilik Kendaraan'}</span>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Alamat</span>
+                  <span className="font-bold text-slate-950 leading-tight flex-1 min-w-0 break-words">: {vehicle?.address || '-'}</span>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Unit</span>
+                  <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {vehicle?.car_brand} {vehicle?.car_model} {vehicle?.car_year ? `(${vehicle.car_year})` : ''}</span>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Jam Datang</span>
+                  <span className="font-bold text-slate-950 flex-1 min-w-0">: {jamDatang}</span>
+                </div>
               </div>
 
-              <div className="border border-slate-800 rounded-xl p-2.5 bg-white space-y-1">
-                <h4 className="font-black text-[#001F7A] uppercase text-[10.5px] pb-0.5 border-b border-slate-200">
-                  Identitas Kendaraan:
-                </h4>
-                <div className="font-mono font-black text-[#8B0000] text-sm break-words">
-                  {vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'}
+              {/* Kolom Kanan */}
+              <div className="space-y-1 pl-1">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="w-16 shrink-0 font-bold text-slate-600 whitespace-nowrap">No Pol</span>
+                  <span className="font-mono font-black text-[#8B0000] text-sm flex-1 min-w-0">: {vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'}</span>
                 </div>
-                <div className="font-bold text-slate-900 break-words leading-tight">
-                  {vehicle?.car_brand} {vehicle?.car_model} ({vehicle?.car_year || '-'})
+                <div className="flex items-baseline gap-1.5">
+                  <span className="w-16 shrink-0 font-bold text-slate-600 whitespace-nowrap">No PKB</span>
+                  <span className="font-mono font-bold text-[#001F7A] flex-1 min-w-0 break-words">: {workOrder?.spk_number || estimation.invoice_number}</span>
                 </div>
-                <div className="text-slate-600 text-[11px] break-words">
-                  KM: <strong>{formatKM(vehicle?.current_mileage)}</strong>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="w-16 shrink-0 font-bold text-slate-600 whitespace-nowrap">Tanggal</span>
+                  <span className="font-bold text-slate-950 flex-1 min-w-0">: {tanggalDatang}</span>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="w-16 shrink-0 font-bold text-slate-600 whitespace-nowrap">KM</span>
+                  <span className="font-mono font-bold text-slate-950 flex-1 min-w-0">: {formatKM(vehicle?.current_mileage, false)}</span>
                 </div>
               </div>
             </div>
 
-            {/* Section: Keluhan Awal & Status Mobil / Pembayaran Bar (Exact to Reference Screenshot) */}
+            {/* Section: Keluhan / Diagnosa Awal (Hanya menampilkan keluhan saja, tanpa uraian pekerjaan) */}
             {complaintsText ? (
               <div className="border border-slate-800 rounded-xl p-2.5 bg-white text-xs text-slate-900 font-medium">
                 <span className="font-bold text-slate-500 block text-[10px] uppercase tracking-wider mb-0.5">
                   Keluhan / Diagnosa Awal:
                 </span>
-                {formattedComplaints.hasBoth ? (
-                  <div className="space-y-1 text-[11px] leading-snug">
-                    <div className="flex items-start gap-1">
-                      <span className="font-bold text-slate-500 shrink-0 text-[10px] uppercase">Keluhan:</span>
-                      <span className="font-bold text-slate-900 break-words">{formattedComplaints.complaintPart}</span>
-                    </div>
-                    <div className="flex items-start gap-1">
-                      <span className="font-bold text-blue-700 shrink-0 text-[10px] uppercase">Diagnosa / Uraian SPK:</span>
-                      <span className="font-bold text-slate-900 break-words">{formattedComplaints.diagnosisPart}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <span className="font-bold text-slate-900 text-[11.5px] leading-snug break-words">
-                    {complaintsText}
-                  </span>
-                )}
+                <span className="font-bold text-slate-900 text-[11.5px] leading-snug break-words">
+                  {complaintsText}
+                </span>
               </div>
             ) : null}
           </div>
@@ -442,9 +486,10 @@ export function PrintableEstimation({
                   const p1Info = formatEstimationRowItem(p1Raw, item.total_opsi1, qty, false);
 
                   const isP2Empty =
-                    item.price_opsi2 === '' || item.price_opsi2 === undefined || item.price_opsi2 === null;
-                  const p2Raw = isP2Empty ? '' : item.price_opsi2;
-                  const p2Info = formatEstimationRowItem(p2Raw, item.total_opsi2, qty, true);
+                    (item.total_opsi2 === '' || item.total_opsi2 === undefined || item.total_opsi2 === null || item.total_opsi2 === 0 || item.total_opsi2 === '0') &&
+                    (item.price_opsi2 === '' || item.price_opsi2 === undefined || item.price_opsi2 === null || item.price_opsi2 === 0 || item.price_opsi2 === '0');
+                  const p2Raw = isP2Empty ? '' : (item.total_opsi2 || item.price_opsi2);
+                  const p2Info = formatEstimationRowItem(item.price_opsi2, item.total_opsi2, qty, true);
 
                   return (
                     <tr key={`t1-${idx}`} className="hover:bg-slate-50 estimation-item-row">
@@ -518,9 +563,10 @@ export function PrintableEstimation({
                       const p1Info = formatEstimationRowItem(p1Raw, item.total_opsi1, qty, false);
 
                       const isP2Empty =
-                        item.price_opsi2 === '' || item.price_opsi2 === undefined || item.price_opsi2 === null;
-                      const p2Raw = isP2Empty ? '' : item.price_opsi2;
-                      const p2Info = formatEstimationRowItem(p2Raw, item.total_opsi2, qty, true);
+                        (item.total_opsi2 === '' || item.total_opsi2 === undefined || item.total_opsi2 === null || item.total_opsi2 === 0 || item.total_opsi2 === '0') &&
+                        (item.price_opsi2 === '' || item.price_opsi2 === undefined || item.price_opsi2 === null || item.price_opsi2 === 0 || item.price_opsi2 === '0');
+                      const p2Raw = isP2Empty ? '' : (item.total_opsi2 || item.price_opsi2);
+                      const p2Info = formatEstimationRowItem(item.price_opsi2, item.total_opsi2, qty, true);
 
                       return (
                         <tr key={`t2-${idx}`} className="hover:bg-slate-50 estimation-item-row">
@@ -595,7 +641,7 @@ export function PrintableEstimation({
               KETERANGAN:
             </h5>
             <p className="text-slate-700 leading-relaxed font-medium text-[10.5px]">
-              {estimation.admin_notes || 'Harga di atas merupakan estimasi perkiraan awal. Apabila ditemukan komponen lain yang perlu diganti selama proses pembongkaran, teknisi kami akan segera mengonfirmasi terlebih dahulu kepada customer.'}
+              {estimation.admin_notes || 'Harga di atas merupakan estimasi perkiraan awal. Apabila ditemukan komponen lain yang perlu diganti selama proses pembongkaran, teknisi kami akan segera mengonfirmasi terlebih dahulu kepada pemilik kendaraan.'}
             </p>
           </div>
 
@@ -605,7 +651,7 @@ export function PrintableEstimation({
               KETENTUAN ESTIMASI:
             </h5>
             <ol className="space-y-0.5 pl-1 font-medium list-none">
-              <li><strong>1.</strong> Customer tidak diperkenankan membawa sparepart sendiri pada pekerjaan Overhaul Mesin/Transmisi.</li>
+              <li><strong>1.</strong> Pemilik kendaraan tidak diperkenankan membawa sparepart sendiri pada pekerjaan Overhaul Mesin/Transmisi.</li>
               <li><strong>2.</strong> Segala risiko akibat part bawaan sendiri tidak menjadi tanggung jawab/garansi kami.</li>
               <li><strong>3.</strong> Apabila membawa part sendiri, batas maksimal pengadaan part adalah 2 hari. Selebihnya dikenakan biaya parkir <strong>Rp25.000/hari</strong>.</li>
               <li><strong>4.</strong> Harga estimasi yang muncul berlaku selama <strong>1 minggu</strong> dari tanggal estimasi dikeluarkan.</li>
@@ -639,13 +685,13 @@ export function PrintableEstimation({
               </div>
 
               <div className="border border-slate-300 rounded-lg p-2 pb-1.5 bg-slate-50 flex flex-col justify-between min-h-[110px]">
-                <p className="font-black text-[#8B0000] text-[10px] uppercase">Persetujuan Pelanggan</p>
+                <p className="font-black text-[#8B0000] text-[10px] uppercase">Persetujuan Pemilik Kendaraan</p>
                 <div className="h-11 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white my-0.5 overflow-hidden">
                   {estimation.customer_signature || estimation.signature_customer_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={estimation.customer_signature || estimation.signature_customer_url}
-                      alt="TTD Customer"
+                      alt="TTD Pemilik Kendaraan"
                       className="max-h-10 object-contain"
                     />
                   ) : (
@@ -653,7 +699,7 @@ export function PrintableEstimation({
                   )}
                 </div>
                 <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 break-words leading-tight">
-                  {estimation.customer_signed_name || vehicle?.customer_name || 'Pelanggan'}
+                  {estimation.customer_signed_name || vehicle?.customer_name || 'Pemilik Kendaraan'}
                 </p>
               </div>
             </div>

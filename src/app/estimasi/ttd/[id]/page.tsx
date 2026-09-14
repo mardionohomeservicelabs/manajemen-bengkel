@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { DBService } from '@/lib/services/db-service';
 import { Invoice, WorkshopSettings } from '@/lib/types/database';
-import { formatCurrency, formatPlate, formatDateTime, formatNumberOrText, formatComplaintsAndDiagnosis } from '@/lib/utils';
+import { formatCurrency, formatPlate, formatDate, formatDateTime, formatKM, formatNumberOrText, formatComplaintsAndDiagnosis } from '@/lib/utils';
 import { SignatureCanvas } from '@/components/ui/SignatureCanvas';
 import { CheckCircle2, AlertTriangle, XCircle, ShieldCheck } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -81,9 +81,25 @@ const formatTtdItemRow = (
   qty: number,
   isOpsi2: boolean = false
 ): { priceDisplay: string; totalDisplay: string } => {
-  const isP2Empty = isOpsi2 && (priceRaw === '' || priceRaw === undefined || priceRaw === null);
-  if (isP2Empty) {
-    return { priceDisplay: '-', totalDisplay: '-' };
+  if (isOpsi2) {
+    const val2 = totalRaw !== undefined && totalRaw !== null && totalRaw !== ''
+      ? totalRaw
+      : (priceRaw !== undefined && priceRaw !== null && priceRaw !== '' ? priceRaw : '');
+
+    const isValEmpty = val2 === '' || val2 === 0 || val2 === '0';
+    if (isValEmpty) {
+      return { priceDisplay: '-', totalDisplay: '-' };
+    }
+
+    const isText = typeof val2 === 'string' && /[a-zA-Z]/.test(val2.trim());
+    if (isText) {
+      const textVal = val2.toString().trim().toUpperCase();
+      return { priceDisplay: textVal, totalDisplay: textVal };
+    }
+
+    const { min, max } = parseRangePrice(val2);
+    const totalDisplay = min === max ? formatNumberOrText(min) : `${formatNumberOrText(min)} – ${formatNumberOrText(max)}`;
+    return { priceDisplay: totalDisplay, totalDisplay };
   }
 
   const isPriceEmpty = priceRaw === '' || priceRaw === undefined || priceRaw === null;
@@ -203,7 +219,7 @@ export default function CustomerSignatureApprovalPage() {
       const updated = await DBService.approveEstimationSignature(
         cleanId,
         signatureDataUrl,
-        signerName.trim() || estimation.vehicle?.customer_name || 'Customer',
+        signerName.trim() || estimation.vehicle?.customer_name || 'Pemilik Kendaraan',
         selectedOption
       );
 
@@ -307,19 +323,31 @@ export default function CustomerSignatureApprovalPage() {
       const qty = it.qty || 1;
       const isP1Empty = it.price_opsi1 === '' || it.price_opsi1 === 0 || it.price_opsi1 === '0';
       const p1Raw = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
-      const isP2Empty = it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0';
-      const p2Raw = isP2Empty ? 0 : (it.price_opsi2 !== undefined && it.price_opsi2 !== '' ? it.price_opsi2 : p1Raw);
+      
+      const hasTot2 = it.total_opsi2 !== undefined && it.total_opsi2 !== '' && it.total_opsi2 !== 0 && it.total_opsi2 !== '0';
+      const hasP2 = it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0';
+      const isP2Empty = !hasTot2 && !hasP2;
 
       const r1 = parseRangePrice(p1Raw);
-      const r2 = parseRangePrice(p2Raw);
 
       if (!isP1Empty) {
         s1Min += r1.min * qty;
         s1Max += r1.max * qty;
       }
       if (!isP2Empty) {
-        s2Min += r2.min * qty;
-        s2Max += r2.max * qty;
+        if (hasTot2) {
+          const r2 = parseRangePrice(it.total_opsi2);
+          if (typeof it.total_opsi2 !== 'string' || !/[a-zA-Z]/.test(String(it.total_opsi2)) || r2.min > 0) {
+            s2Min += r2.min;
+            s2Max += r2.max;
+          }
+        } else {
+          const r2 = parseRangePrice(it.price_opsi2);
+          if (typeof it.price_opsi2 !== 'string' || !/[a-zA-Z]/.test(String(it.price_opsi2)) || r2.min > 0) {
+            s2Min += r2.min * qty;
+            s2Max += r2.max * qty;
+          }
+        }
       }
     });
     return { s1Min, s1Max, s2Min, s2Max };
@@ -328,10 +356,15 @@ export default function CustomerSignatureApprovalPage() {
   const t1Totals = calcSectionTotals(table1Items);
   const t2Totals = calcSectionTotals(table2Items);
 
-  // Opsi 2 aktif jika explicitly true atau terdapat item yang memiliki price_opsi2
+  // Opsi 2 aktif jika explicitly true atau terdapat item yang memiliki price_opsi2 / total_opsi2
   const hasOpsi2 = Boolean(
     estimation.has_opsi2 === true ||
-    (estimation.has_opsi2 !== false && allItems.some(it => it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0'))
+    (estimation.has_opsi2 !== false &&
+      allItems.some(
+        (it) =>
+          (it.total_opsi2 !== undefined && it.total_opsi2 !== '' && it.total_opsi2 !== 0 && it.total_opsi2 !== '0') ||
+          (it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0')
+      ))
   );
 
   const discount = estimation.discount_amount || 0;
@@ -358,17 +391,19 @@ export default function CustomerSignatureApprovalPage() {
 
   // Kalkulasi Opsi 2
   const subtotalOpsi2Min = allItems.reduce((sum, it) => {
-    if (it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0') return sum;
-    const p = it.price_opsi2 !== undefined ? it.price_opsi2 : (it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : it.price || 0);
-    const { min } = parseRangePrice(p);
-    return sum + min * (it.qty || 1);
+    const val2 = it.total_opsi2 !== undefined && it.total_opsi2 !== '' ? it.total_opsi2 : it.price_opsi2;
+    if (val2 === undefined || val2 === null || val2 === '' || val2 === 0 || val2 === '0') return sum;
+    if (typeof val2 === 'string' && /[a-zA-Z]/.test(val2)) return sum;
+    const { min } = parseRangePrice(val2);
+    return sum + min;
   }, 0);
 
   const subtotalOpsi2Max = allItems.reduce((sum, it) => {
-    if (it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0') return sum;
-    const p = it.price_opsi2 !== undefined ? it.price_opsi2 : (it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : it.price || 0);
-    const { max } = parseRangePrice(p);
-    return sum + max * (it.qty || 1);
+    const val2 = it.total_opsi2 !== undefined && it.total_opsi2 !== '' ? it.total_opsi2 : it.price_opsi2;
+    if (val2 === undefined || val2 === null || val2 === '' || val2 === 0 || val2 === '0') return sum;
+    if (typeof val2 === 'string' && /[a-zA-Z]/.test(val2)) return sum;
+    const { max } = parseRangePrice(val2);
+    return sum + max;
   }, 0);
 
   const taxAmountOpsi2Min = taxPercent > 0 ? ((subtotalOpsi2Min - discount) * (taxPercent / 100)) : 0;
@@ -461,51 +496,71 @@ export default function CustomerSignatureApprovalPage() {
             </div>
           </div>
 
-          {/* Identitas Customer & Kendaraan */}
-          <div className="mt-3 pt-3 border-t border-slate-200 grid grid-cols-2 gap-3 text-xs">
-            <div>
-              <span className="text-[9px] font-bold text-slate-400 uppercase block">Pemilik / Pelanggan</span>
-              <div className="font-black text-slate-900">{vehicle?.customer_name || '-'}</div>
-              <div className="text-slate-500 font-mono text-[11px]">{vehicle?.phone_number || '-'}</div>
-              <div className="text-slate-500 text-[11px] leading-tight">{vehicle?.address || '-'}</div>
-            </div>
-            <div>
-              <span className="text-[9px] font-bold text-slate-400 uppercase block">Kendaraan</span>
-              <div className="font-black text-[#8B0000] font-mono">{vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'}</div>
-              <div className="font-bold text-slate-800 text-[11px]">{vehicle?.car_brand} {vehicle?.car_model} ({vehicle?.car_year || '-'})</div>
-              <div className="text-slate-500 text-[11px]">KM: {vehicle?.current_mileage?.toLocaleString('id-ID') || '-'}</div>
-            </div>
-          </div>
+          {/* Identitas Pemilik Kendaraan & Kendaraan */}
+          {(() => {
+            const estTimestamp = estimation.work_order?.entry_date || estimation.work_order?.created_at || estimation.created_at;
+            const estDateObj = new Date(estTimestamp);
+            const jamDatang = !isNaN(estDateObj.getTime())
+              ? estDateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+              : '09:00';
+
+            return (
+              <div className="mt-3 pt-3 border-t border-slate-200 grid grid-cols-2 gap-3 text-xs">
+                <div className="space-y-1.5 border-r border-slate-200 pr-2">
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase block">Pemilik Kendaraan</span>
+                    <div className="font-black text-slate-900 text-sm break-words leading-tight">{vehicle?.customer_name || 'Pemilik Kendaraan'}</div>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase block">Alamat</span>
+                    <div className="font-black text-slate-900 text-xs break-words leading-tight">{vehicle?.address || '-'}</div>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase block">Unit</span>
+                    <div className="font-bold text-slate-900 text-xs break-words leading-tight">{vehicle?.car_brand} {vehicle?.car_model} ({vehicle?.car_year || '-'})</div>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase block">Jam Datang</span>
+                    <div className="font-bold text-slate-900 text-xs">{jamDatang}</div>
+                  </div>
+                </div>
+                <div className="space-y-1.5 pl-1">
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase block">No Pol</span>
+                    <div className="font-black text-[#8B0000] font-mono text-sm">{vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'}</div>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase block">No PKB / Estimasi</span>
+                    <div className="font-bold text-[#001F7A] font-mono text-xs break-words">{estimation.work_order?.spk_number || estimation.invoice_number}</div>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase block">Tanggal</span>
+                    <div className="font-bold text-slate-900 text-xs">{formatDate(estimation.created_at)}</div>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase block">KM</span>
+                    <div className="font-mono font-bold text-slate-900 text-xs">{formatKM(vehicle?.current_mileage)}</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Keluhan / Diagnosa Awal */}
           {(() => {
-            const formattedComplaints = formatComplaintsAndDiagnosis(
-              estimation.work_order?.complaints,
-              estimation.work_order?.notes,
-              (estimation as any).complaints
-            );
-            if (!formattedComplaints.displayText) return null;
+            const rawEst = (estimation as any).complaints;
+            const complaintsText = (rawEst && String(rawEst).trim())
+              ? formatComplaintsAndDiagnosis(null, null, String(rawEst)).displayText
+              : (estimation.work_order?.complaints?.trim() || '');
+            if (!complaintsText) return null;
             return (
               <div className="mt-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
                 <span className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">
                   Keluhan / Diagnosa Awal:
                 </span>
-                {formattedComplaints.hasBoth ? (
-                  <div className="space-y-1 text-xs">
-                    <div className="flex items-start gap-1">
-                      <span className="font-bold text-slate-500 shrink-0 text-[10px] uppercase">Keluhan:</span>
-                      <span className="font-bold text-slate-900 leading-snug">{formattedComplaints.complaintPart}</span>
-                    </div>
-                    <div className="flex items-start gap-1">
-                      <span className="font-bold text-blue-700 shrink-0 text-[10px] uppercase">Diagnosa Awal:</span>
-                      <span className="font-bold text-slate-900 leading-snug">{formattedComplaints.diagnosisPart}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="font-bold text-slate-900 mt-0.5 leading-snug">
-                    {formattedComplaints.displayText}
-                  </p>
-                )}
+                <p className="font-bold text-slate-900 mt-0.5 leading-snug">
+                  {complaintsText}
+                </p>
               </div>
             );
           })()}
@@ -797,7 +852,7 @@ export default function CustomerSignatureApprovalPage() {
           <div className="border-t border-b border-slate-200 px-4 py-3 bg-slate-50">
             <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-700 mb-2">KETENTUAN ESTIMASI:</h3>
             <ol className="text-[10.5px] text-slate-600 space-y-1.5 leading-relaxed list-decimal list-inside">
-              <li>Customer tidak diperkenankan membawa sparepart sendiri ke Teknisi kami.</li>
+              <li>Pemilik kendaraan tidak diperkenankan membawa sparepart sendiri ke Teknisi kami.</li>
               <li>Jika membawa part sendiri, tidak ada garansi dalam bentuk apapun.</li>
               <li className="font-bold text-slate-800">Apabila sparepart sudah terpasang dan tidak berfungsi, barang tidak dapat diretur.</li>
               <li className="font-bold text-slate-800">Harga estimasi yang tercantum berlaku 1 minggu sejak tanggal estimasi diterbitkan.</li>
@@ -809,7 +864,7 @@ export default function CustomerSignatureApprovalPage() {
           <div className="p-4 space-y-4">
             <div>
               <label className="block text-[10.5px] font-black uppercase tracking-wider text-slate-700 mb-1.5">
-                Nama Lengkap Pelanggan: <span className="text-red-500">*</span>
+                Nama Lengkap Pemilik Kendaraan: <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"

@@ -5,6 +5,7 @@ import { ACCheckupData, WorkshopSettings, CheckConditionStatus } from '@/lib/typ
 import { formatDate, formatPlate, createWhatsAppLink, formatKM } from '@/lib/utils';
 import { printCleanDocument } from '@/lib/utils/print-helper';
 import { Printer, Share2, X, ThermometerSnowflake } from 'lucide-react';
+import { DBService } from '@/lib/services/db-service';
 import {
   OfficialDocumentHeader,
   OfficialDocumentFooter,
@@ -24,6 +25,13 @@ export function PrintableACCheckup({
 }: PrintableACCheckupProps) {
   const documentRef = useRef<HTMLDivElement>(null);
 
+  const vehicle = DBService.getVehicleByPlate(checkup.license_plate) || (checkup as any).vehicle;
+  const address = (checkup as any).address || vehicle?.address || 'Surabaya / Sidoarjo';
+  const entryDateObj = new Date(checkup.check_date);
+  const jamDatang = !isNaN(entryDateObj.getTime()) && checkup.check_date?.includes('T')
+    ? entryDateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    : ((checkup as any).jam_datang || (checkup as any).entry_time || '09:00');
+
   // State untuk nama teknisi yang bisa diketik manual
   const [signerTeknisi, setSignerTeknisi] = useState<string>(
     checkup.technician_name || ''
@@ -35,7 +43,7 @@ export function PrintableACCheckup({
 
   const getWhatsAppMessage = () => {
     return (
-      `Halo Bpk/Ibu ${checkup.customer_name || 'Pelanggan'},\n` +
+      `Halo Bpk/Ibu ${checkup.customer_name || vehicle?.customer_name || 'Pemilik Kendaraan'},\n` +
       `Berikut hasil Lembar Quality Control AC dari ${settings.name}:\n\n` +
       `No. Dokumen: ${checkup.document_number}\n` +
       `No. Pol: ${checkup.license_plate}\n` +
@@ -135,36 +143,44 @@ export function PrintableACCheckup({
             </h2>
           </div>
 
-          {/* Symmetrical Metadata Grid: Pelanggan & Kendaraan */}
+          {/* Symmetrical Metadata Grid: Pemilik Kendaraan & Kendaraan */}
           <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50/70 p-2.5 rounded-xl border border-slate-800 font-medium">
             {/* Kolom Kiri */}
             <div className="space-y-1 border-r border-slate-300 pr-3">
               <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">Pelanggan</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {checkup.customer_name || 'Pelanggan'}</span>
+                <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Pemilik Kendaraan</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {checkup.customer_name || vehicle?.customer_name || 'Pemilik Kendaraan'}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">Unit / Tipe</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {checkup.car_model || '-'}</span>
+                <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Alamat</span>
+                <span className="font-bold text-slate-950 leading-tight flex-1 min-w-0 break-words">: {address}</span>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Unit</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {checkup.car_model || vehicle?.car_model || '-'}</span>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Jam Datang</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0">: {jamDatang}</span>
               </div>
             </div>
 
             {/* Kolom Kanan */}
             <div className="space-y-1 pl-1">
               <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">No Pol</span>
+                <span className="w-16 shrink-0 font-bold text-slate-600 whitespace-nowrap">No Pol</span>
                 <span className="font-mono font-black text-[#8B0000] text-sm flex-1 min-w-0">: {formatPlate(checkup.license_plate)}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">No PKB</span>
+                <span className="w-16 shrink-0 font-bold text-slate-600 whitespace-nowrap">No PKB</span>
                 <span className="font-mono font-bold text-[#8B0000] flex-1 min-w-0 break-words">: {checkup.document_number}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">Tanggal</span>
+                <span className="w-16 shrink-0 font-bold text-slate-600 whitespace-nowrap">Tanggal</span>
                 <span className="font-bold text-slate-950 flex-1 min-w-0">: {formatDate(checkup.check_date)}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">KM</span>
+                <span className="w-16 shrink-0 font-bold text-slate-600 whitespace-nowrap">KM</span>
                 <span className="font-mono font-bold text-slate-950 flex-1 min-w-0">: {formatKM(checkup.mileage, false)}</span>
               </div>
             </div>

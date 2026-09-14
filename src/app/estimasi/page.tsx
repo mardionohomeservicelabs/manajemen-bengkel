@@ -193,7 +193,7 @@ const discoverTabsForSpk = (found: WorkOrder, allInvoices: Invoice[]): Estimatio
 
 // Estimasi baru selalu mulai kosong (1 baris kosong)
 const EMPTY_ESTIMATION_ROW: InvoiceItem[] = [
-  { name: '', is_service: false, qty: 1, unit: 'PCS', price_opsi1: 0, total_opsi1: 0, price_opsi2: 0, total_opsi2: 0, price: 0, subtotal: 0 },
+  { name: '', is_service: false, qty: 1, unit: 'PCS', price_opsi1: 0, total_opsi1: 0, price_opsi2: '', total_opsi2: '', price: 0, subtotal: 0 },
 ];
 
 // Tab estimasi berbentuk {id, name} agar bisa rename bebas
@@ -514,7 +514,7 @@ function EstimationBuilderContent() {
       setDiscountAmount(sourceData.discount_amount || 0);
       setTaxPercent(sourceData.tax_percent || 11);
       setAdminNotes(sourceData.admin_notes || '');
-      const spkDefaultFormatted = formatComplaintsAndDiagnosis(found.complaints, found.notes).displayText;
+      const spkDefaultFormatted = formatComplaintsAndDiagnosis(found.complaints).displayText;
       setEstimationComplaints(sourceData.complaints || spkDefaultFormatted);
 
       if (existingEst || sourceData.invoice_number || sourceData.updated_at) {
@@ -540,25 +540,25 @@ function EstimationBuilderContent() {
 
       const normalizeEstItem = (it: any) => {
         const p1 = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
-        const isP2ExplicitlyEmpty = it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0';
-        const p2 = isP2ExplicitlyEmpty ? '' : (it.price_opsi2 !== undefined ? it.price_opsi2 : p1);
         const qty = it.qty || 1;
         const isP1Text = typeof p1 === 'string' && /[a-zA-Z]/.test(p1);
-        const isP2Text = typeof p2 === 'string' && /[a-zA-Z]/.test(p2);
         const isP1Range = typeof p1 === 'string' && /[-\u2012\u2013\u2014\u2212~]/.test(p1);
-        const isP2Range = typeof p2 === 'string' && /[-\u2012\u2013\u2014\u2212~]/.test(p2);
         const r1 = isP1Range ? parseRangePrice(p1) : null;
-        const r2 = (isP2Range && !isP2ExplicitlyEmpty) ? parseRangePrice(p2) : null;
         const num1 = parseNumericPriceValue(p1).num;
-        const num2 = parseNumericPriceValue(p2).num;
         const tot1 = isP1Text ? p1 : (r1 ? (r1.min === r1.max ? r1.min * qty : `${r1.min * qty} - ${r1.max * qty}`) : qty * num1);
-        const tot2 = isP2ExplicitlyEmpty ? 0 : (isP2Text ? p2 : (r2 ? (r2.min === r2.max ? r2.min * qty : `${r2.min * qty} - ${r2.max * qty}`) : qty * num2));
+
+        // Opsi 2 mengarah langsung ke total harga (bisa diedit, dihapus/kosong, atau ditulis 'CEK')
+        const rawTot2 = it.total_opsi2 !== undefined && it.total_opsi2 !== null
+          ? it.total_opsi2
+          : (it.price_opsi2 !== undefined && it.price_opsi2 !== null ? it.price_opsi2 : '');
+        const tot2 = (rawTot2 === 0 || rawTot2 === '0' || rawTot2 === '') ? '' : rawTot2;
+
         return {
           ...it,
           unit: it.unit || (it.is_service ? 'JASA' : 'PCS'),
           price_opsi1: p1,
           total_opsi1: tot1,
-          price_opsi2: p2,
+          price_opsi2: tot2,
           total_opsi2: tot2,
           price: p1,
           subtotal: tot1,
@@ -604,7 +604,7 @@ function EstimationBuilderContent() {
       setCustomerResponse('');
       setCustomerResponseNote('');
       setAdminNotes('');
-      setEstimationComplaints(formatComplaintsAndDiagnosis(found.complaints, found.notes).displayText);
+      setEstimationComplaints(formatComplaintsAndDiagnosis(found.complaints).displayText);
       setVehicleStatus('Di Tinggal');
       setShowDiscount(false);
       setShowOpsi2(false);
@@ -848,7 +848,7 @@ function EstimationBuilderContent() {
       setDiscountAmount(sourceData.discount_amount || 0);
       setTaxPercent(sourceData.tax_percent || 11);
       setAdminNotes(sourceData.admin_notes || '');
-      const spkDefaultTab = formatComplaintsAndDiagnosis(selectedSpk?.complaints, selectedSpk?.notes).displayText;
+      const spkDefaultTab = formatComplaintsAndDiagnosis(selectedSpk?.complaints).displayText;
       setEstimationComplaints(sourceData.complaints || spkDefaultTab);
 
       const has2nd = Boolean(
@@ -935,7 +935,7 @@ function EstimationBuilderContent() {
       setEstimatedDuration('');
       setCustomerResponse(''); setCustomerResponseNote('');
       setAdminNotes('');
-      setEstimationComplaints(formatComplaintsAndDiagnosis(selectedSpk?.complaints, selectedSpk?.notes).displayText);
+      setEstimationComplaints(formatComplaintsAndDiagnosis(selectedSpk?.complaints).displayText);
       setVehicleStatus('Di Tinggal');
       setShowDiscount(false); setShowOpsi2(false); setShowTax(false); setShowRangePrice(false); setDiscountAmount(0);
     }
@@ -1017,19 +1017,23 @@ function EstimationBuilderContent() {
       const qty = it.qty || 1;
       const isP1Empty = it.price_opsi1 === '' || it.price_opsi1 === 0 || it.price_opsi1 === '0';
       const p1Raw = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
-      const isP2Empty = it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0';
-      const p2Raw = isP2Empty ? 0 : (it.price_opsi2 !== undefined && it.price_opsi2 !== '' ? it.price_opsi2 : p1Raw);
+
+      // Opsi 2 mengarah langsung ke total harga
+      const val2Raw = it.total_opsi2 !== undefined && it.total_opsi2 !== '' ? it.total_opsi2 : it.price_opsi2;
+      const isP2Empty = val2Raw === undefined || val2Raw === null || val2Raw === '' || val2Raw === 0 || val2Raw === '0';
 
       if (showRangePrice) {
         const r1 = parseRangePrice(p1Raw);
-        const r2 = parseRangePrice(p2Raw);
         if (!isP1Empty) {
           tot1Min += r1.min * qty;
           tot1Max += r1.max * qty;
         }
         if (!isP2Empty) {
-          tot2Min += r2.min * qty;
-          tot2Max += r2.max * qty;
+          const r2 = parseRangePrice(val2Raw);
+          if (typeof val2Raw !== 'string' || !/[a-zA-Z]/.test(String(val2Raw)) || r2.min > 0) {
+            tot2Min += r2.min;
+            tot2Max += r2.max;
+          }
         }
       } else {
         const parsed1 = parseNumericPriceValue(p1Raw);
@@ -1038,11 +1042,13 @@ function EstimationBuilderContent() {
           tot1Min += Number.isNaN(t1) ? 0 : t1;
           tot1Max += Number.isNaN(t1) ? 0 : t1;
         }
-        const parsed2 = parseNumericPriceValue(p2Raw);
-        if (!isP2Empty && !parsed2.isText) {
-          const t2 = typeof it.total_opsi2 === 'number' && it.total_opsi2 > 0 ? it.total_opsi2 : parsed2.num * qty;
-          tot2Min += Number.isNaN(t2) ? 0 : t2;
-          tot2Max += Number.isNaN(t2) ? 0 : t2;
+        if (!isP2Empty) {
+          const parsed2 = parseNumericPriceValue(val2Raw);
+          if (!parsed2.isText) {
+            const t2 = parsed2.num;
+            tot2Min += Number.isNaN(t2) ? 0 : t2;
+            tot2Max += Number.isNaN(t2) ? 0 : t2;
+          }
         }
       }
     });
@@ -1098,21 +1104,7 @@ function EstimationBuilderContent() {
         row.total_opsi1 = parsed1.num * qty;
       }
       row.subtotal = row.total_opsi1;
-
-      // Jika harga Opsi 2 kosong/0, total Opsi 2 tetap 0
-      if (row.price_opsi2 === '' || row.price_opsi2 === 0 || row.price_opsi2 === '0') {
-        row.total_opsi2 = 0;
-      } else {
-        const p2Val = row.price_opsi2 !== undefined ? row.price_opsi2 : row.price_opsi1;
-        const parsed2 = parseNumericPriceValue(p2Val);
-        if (parsed2.isText) {
-          row.total_opsi2 = parsed2.text;
-        } else if (parsed2.isRange) {
-          row.total_opsi2 = parsed2.min === parsed2.max ? parsed2.min * qty : `${parsed2.min * qty} - ${parsed2.max * qty}`;
-        } else {
-          row.total_opsi2 = parsed2.num * qty;
-        }
-      }
+      // Opsi 2 langsung mengarah ke total harga yang ditentukan user
     } else if (field === 'price_opsi1') {
       const valStr = String(value);
       const qty = row.qty || 1;
@@ -1141,29 +1133,22 @@ function EstimationBuilderContent() {
           row.subtotal = row.total_opsi1;
         }
       }
-      if (row.price_opsi2 === undefined) {
-        row.price_opsi2 = 0;
-        row.total_opsi2 = 0;
-      }
-    } else if (field === 'price_opsi2') {
+    } else if (field === 'total_opsi2' || field === 'price_opsi2') {
       const valStr = String(value);
-      const qty = row.qty || 1;
       const parsed = parseNumericPriceValue(valStr);
 
-      if (parsed.isText) {
-        row.price_opsi2 = parsed.text;
+      if (valStr.trim() === '') {
+        row.total_opsi2 = '';
+        row.price_opsi2 = '';
+      } else if (parsed.isText) {
         row.total_opsi2 = parsed.text;
+        row.price_opsi2 = parsed.text;
       } else if (parsed.isRange) {
+        row.total_opsi2 = valStr;
         row.price_opsi2 = valStr;
-        row.total_opsi2 = parsed.min === parsed.max ? parsed.min * qty : `${parsed.min * qty} - ${parsed.max * qty}`;
       } else {
-        if (valStr.trim() === '' || valStr.trim() === '0') {
-          row.price_opsi2 = '';
-          row.total_opsi2 = 0;
-        } else {
-          row.price_opsi2 = parsed.num > 0 ? new Intl.NumberFormat('id-ID').format(parsed.num) : valStr;
-          row.total_opsi2 = parsed.num * qty;
-        }
+        row.total_opsi2 = parsed.num > 0 ? new Intl.NumberFormat('id-ID').format(parsed.num) : valStr;
+        row.price_opsi2 = row.total_opsi2;
       }
     } else if (field === 'name') {
       row.name = String(value);
@@ -1184,8 +1169,8 @@ function EstimationBuilderContent() {
       unit: 'PCS',
       price_opsi1: 0,
       total_opsi1: 0,
-      price_opsi2: 0,
-      total_opsi2: 0,
+      price_opsi2: '',
+      total_opsi2: '',
       price: 0,
       subtotal: 0,
       section: targetTable,
@@ -1256,8 +1241,8 @@ function EstimationBuilderContent() {
       unit: inventoryItem.unit ? inventoryItem.unit.toUpperCase() : (inventoryItem.is_service ? 'JASA' : 'PCS'),
       price_opsi1: p,
       total_opsi1: p,
-      price_opsi2: p,
-      total_opsi2: p,
+      price_opsi2: '',
+      total_opsi2: '',
       price: p,
       subtotal: p,
       section: target,
@@ -1271,38 +1256,37 @@ function EstimationBuilderContent() {
     setShowCatalogModal(false);
   };
 
-  // Salin seluruh item harga Opsi 1 ke Opsi 2 secara instan
+  // Salin seluruh total Opsi 1 ke Opsi 2 secara instan
   const handleCopyAllFromOpsi1 = () => {
     if (isLocked) return;
     const copyFn = (it: InvoiceItem) => {
-      const p1 = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : 0;
-      const tot1 = it.total_opsi1 !== undefined ? it.total_opsi1 : 0;
+      const tot1 = it.total_opsi1 !== undefined && it.total_opsi1 !== '' ? it.total_opsi1 : (it.price_opsi1 !== undefined ? it.price_opsi1 : 0);
       return {
         ...it,
-        price_opsi2: p1,
         total_opsi2: tot1,
+        price_opsi2: tot1,
       };
     };
     setItems((prev) => prev.map(copyFn));
     if (hasSecondTable) {
       setItemsTable2((prev) => prev.map(copyFn));
     }
-    showToast('Seluruh harga Opsi 2 berhasil diselaraskan persis dari Opsi 1!', 'success');
+    showToast('Seluruh total Opsi 2 berhasil diselaraskan dari Opsi 1!', 'success');
   };
 
-  // Kosongkan / hilangkan seluruh harga Opsi 2
+  // Kosongkan / hilangkan seluruh total Opsi 2
   const handleClearAllOpsi2 = () => {
     if (isLocked) return;
     const clearFn = (it: InvoiceItem) => ({
       ...it,
       price_opsi2: '',
-      total_opsi2: 0,
+      total_opsi2: '',
     });
     setItems((prev) => prev.map(clearFn));
     if (hasSecondTable) {
       setItemsTable2((prev) => prev.map(clearFn));
     }
-    showToast('Seluruh harga Opsi 2 berhasil dikosongkan.', 'info');
+    showToast('Seluruh total Opsi 2 berhasil dikosongkan.', 'info');
   };
 
   // Add new estimate tab with unique id
@@ -1485,7 +1469,7 @@ function EstimationBuilderContent() {
         estimator_signature: estimatorSignature,
         signature_admin_url: estimatorSignature,
         estimated_duration: estimatedDuration,
-        complaints: estimationComplaints.trim() || formatComplaintsAndDiagnosis(selectedSpk.complaints, selectedSpk.notes).displayText,
+        complaints: estimationComplaints.trim() || formatComplaintsAndDiagnosis(selectedSpk.complaints).displayText,
         customer_response: customerResponse as any,
         customer_response_note: customerResponseNote,
         has_discount: showDiscount,
@@ -1903,7 +1887,7 @@ function EstimationBuilderContent() {
           </div>
         )}
 
-        {/* Banner Rincian SPK Sah (Keluhan Customer & Uraian Pekerjaan / Diagnosa Awal) */}
+        {/* Banner Rincian SPK Sah (Keluhan Pemilik Kendaraan) */}
         {selectedSpk && (
           <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-4 text-xs text-amber-950 shadow-2xs space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200/60 pb-2">
@@ -1937,22 +1921,13 @@ function EstimationBuilderContent() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-0.5">
+            <div className="pt-0.5">
               <div className="bg-white/90 p-3 rounded-xl border border-amber-100 space-y-1">
                 <span className="text-[10px] font-black text-rose-800 uppercase tracking-wider block">
-                  1. Keluhan Customer (SPK):
+                  Keluhan Pemilik Kendaraan (SPK):
                 </span>
                 <p className="font-semibold text-slate-900 text-xs leading-relaxed break-words whitespace-pre-wrap">
                   {selectedSpk.complaints || 'Perawatan berkala / Servis rutin'}
-                </p>
-              </div>
-
-              <div className="bg-white/90 p-3 rounded-xl border border-amber-100 space-y-1">
-                <span className="text-[10px] font-black text-blue-800 uppercase tracking-wider block">
-                  2. Uraian Pekerjaan / Diagnosa Awal (SPK):
-                </span>
-                <p className="font-semibold text-slate-900 text-xs leading-relaxed break-words whitespace-pre-wrap">
-                  {selectedSpk.notes || 'Pemeriksaan menyeluruh, tune-up berkala, dan uji fungsi sistem kendaraan.'}
                 </p>
               </div>
             </div>
@@ -2349,38 +2324,35 @@ function EstimationBuilderContent() {
                   {showRangePrice ? 'Total Opsi 1 (Kisaran)' : 'Total Opsi 1'}
                 </th>
                 {showOpsi2 && (
-                  <>
-                    <th className={`p-3 text-center border-r border-slate-200 bg-blue-50/40 text-blue-950 ${showRangePrice ? 'w-56' : 'w-56'}`}>
-                      <div className="flex items-center justify-center space-x-1.5">
-                        <span>{showRangePrice ? 'Harga Opsi 2 (Min – Maks)' : 'Hrg Opsi 2 (Rp)'}</span>
-                        {!isLocked && (
-                          <div className="flex items-center space-x-1">
-                            <button
-                              type="button"
-                              onClick={handleCopyAllFromOpsi1}
-                              className="text-[9px] bg-blue-100 hover:bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded font-bold transition flex items-center space-x-0.5 shadow-2xs cursor-pointer select-none"
-                              title="Salin seluruh harga Opsi 1 ke Opsi 2"
-                            >
-                              <Copy className="w-2.5 h-2.5" />
-                              <span>Samakan</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleClearAllOpsi2}
-                              className="text-[9px] bg-rose-50 hover:bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold transition flex items-center space-x-0.5 shadow-2xs cursor-pointer select-none border border-rose-200"
-                              title="Kosongkan / hilangkan semua harga Opsi 2"
-                            >
-                              <X className="w-2.5 h-2.5" />
-                              <span>Kosongkan</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </th>
-                    <th className={`p-3 text-right bg-blue-50/40 text-blue-950 ${showRangePrice ? 'w-52' : 'w-36'}`}>
-                      {showRangePrice ? 'Total Opsi 2 (Kisaran)' : 'Total Opsi 2'}
-                    </th>
-                  </>
+                  <th className={`p-3 text-center bg-blue-50/40 text-blue-950 ${showRangePrice ? 'w-56' : 'w-48'}`}>
+                    <div className="flex items-center justify-between space-x-1.5 px-1">
+                      <span className="font-black text-[10.5px]">
+                        {showRangePrice ? 'Total Opsi 2 (Kisaran)' : 'Total Opsi 2 (Rp)'}
+                      </span>
+                      {!isLocked && (
+                        <div className="flex items-center space-x-1">
+                          <button
+                            type="button"
+                            onClick={handleCopyAllFromOpsi1}
+                            className="text-[9px] bg-blue-100 hover:bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded font-bold transition flex items-center space-x-0.5 shadow-2xs cursor-pointer select-none"
+                            title="Salin seluruh total Opsi 1 ke Opsi 2"
+                          >
+                            <Copy className="w-2.5 h-2.5" />
+                            <span>Samakan</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleClearAllOpsi2}
+                            className="text-[9px] bg-rose-50 hover:bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold transition flex items-center space-x-0.5 shadow-2xs cursor-pointer select-none border border-rose-200"
+                            title="Kosongkan / hilangkan semua harga Opsi 2"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                            <span>Kosongkan</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </th>
                 )}
                 {!isLocked && <th className="p-3 w-20 text-center">Aksi</th>}
               </tr>
@@ -2390,7 +2362,7 @@ function EstimationBuilderContent() {
               {hasSecondTable && (
                 <tr className="bg-slate-100/90 border-b-2 border-slate-300">
                   <td
-                    colSpan={showOpsi2 ? (!isLocked ? 9 : 8) : (!isLocked ? 7 : 6)}
+                    colSpan={showOpsi2 ? (!isLocked ? 8 : 7) : (!isLocked ? 7 : 6)}
                     className="py-2.5 px-4 text-center"
                   >
                     <div className="flex items-center justify-center space-x-2.5">
@@ -2530,60 +2502,33 @@ function EstimationBuilderContent() {
                       )}
                     </td>
 
-                    {/* Opsi 2 (if enabled) */}
+                    {/* Opsi 2 (if enabled): Direct Total Opsi 2 input */}
                     {showOpsi2 && (
-                      <>
-                        <td className="p-2 text-center border-r border-slate-200 align-middle bg-blue-50/20">
-                          <div className="relative flex items-center justify-center">
-                            <span className="text-[10px] font-bold text-blue-400 mr-1 select-none">Rp</span>
-                            <input
-                              type="text"
-                              disabled={isLocked}
-                              value={item.price_opsi2 !== undefined ? item.price_opsi2 : ''}
-                              onChange={(e) => handleUpdateItemField(idx, 'price_opsi2', e.target.value, 1)}
-                              placeholder={
-                                item.price_opsi1 !== undefined && item.price_opsi1 !== '' && item.price_opsi1 !== 0
-                                  ? String(item.price_opsi1)
-                                  : (showRangePrice ? '150000 - 160000' : '0 (Kosong)')
-                              }
-                              className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
-                                showRangePrice ? 'w-48' : 'w-28'
-                              }`}
-                            />
-                            {!isLocked && item.price_opsi2 !== undefined && item.price_opsi2 !== '' && item.price_opsi2 !== 0 && item.price_opsi2 !== '0' && (
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateItemField(idx, 'price_opsi2', '', 1)}
-                                className="ml-1 p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition cursor-pointer select-none"
-                                title="Hilangkan / kosongkan harga Opsi 2 untuk baris ini"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-3 text-right align-middle bg-blue-50/20">
-                          {isP2Text ? (
-                            <span className="font-mono font-black text-sm text-blue-950 whitespace-nowrap">
-                              {p2TextVal}
-                            </span>
-                          ) : showRangePrice ? (
-                            <span className="font-mono font-black text-sm text-blue-950 whitespace-nowrap">
-                              {isP2Empty ? (
-                                <span className="text-slate-400 font-normal">Rp 0</span>
-                              ) : rowTot2Min === rowTot2Max ? (
-                                formatCurrency(rowTot2Min)
-                              ) : (
-                                `${formatCurrency(rowTot2Min)} – ${formatCurrency(rowTot2Max)}`
-                              )}
-                            </span>
-                          ) : (
-                            <span className={`font-mono font-black text-sm whitespace-nowrap ${isP2Empty ? 'text-slate-400 font-normal' : 'text-slate-900'}`}>
-                              {isP2Empty ? 'Rp 0' : formatCurrency(tot2)}
-                            </span>
+                      <td className="p-2 text-center border-r border-slate-200 align-middle bg-blue-50/20">
+                        <div className="relative flex items-center justify-center">
+                          <span className="text-[10px] font-bold text-blue-400 mr-1 select-none">Rp</span>
+                          <input
+                            type="text"
+                            disabled={isLocked}
+                            value={item.total_opsi2 !== undefined && item.total_opsi2 !== null ? String(item.total_opsi2) : ''}
+                            onChange={(e) => handleUpdateItemField(idx, 'total_opsi2', e.target.value, 1)}
+                            placeholder={showRangePrice ? '150000 - 160000' : '0 / CEK'}
+                            className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
+                              showRangePrice ? 'w-48' : 'w-32'
+                            }`}
+                          />
+                          {!isLocked && item.total_opsi2 !== undefined && item.total_opsi2 !== null && item.total_opsi2 !== '' && (
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateItemField(idx, 'total_opsi2', '', 1)}
+                              className="ml-1 p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition cursor-pointer select-none"
+                              title="Hapus / kosongkan total Opsi 2 untuk baris ini"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
                           )}
-                        </td>
-                      </>
+                        </div>
+                      </td>
                     )}
 
                     {/* Aksi: Move Up, Move Down, Delete */}
@@ -2641,18 +2586,15 @@ function EstimationBuilderContent() {
                       )}
                     </td>
                     {showOpsi2 && (
-                      <>
-                        <td className="p-2.5 bg-blue-50/20 border-r border-slate-200"></td>
-                        <td className="p-2.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 whitespace-nowrap">
-                          {showRangePrice ? (
-                            t1Totals.tot2Min === t1Totals.tot2Max
-                              ? formatCurrency(t1Totals.tot2Min)
-                              : `${formatCurrency(t1Totals.tot2Min)} – ${formatCurrency(t1Totals.tot2Max)}`
-                          ) : (
-                            formatCurrency(t1Totals.tot2Min)
-                          )}
-                        </td>
-                      </>
+                      <td className="p-2.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 whitespace-nowrap">
+                        {showRangePrice ? (
+                          t1Totals.tot2Min === t1Totals.tot2Max
+                            ? formatCurrency(t1Totals.tot2Min)
+                            : `${formatCurrency(t1Totals.tot2Min)} – ${formatCurrency(t1Totals.tot2Max)}`
+                        ) : (
+                          formatCurrency(t1Totals.tot2Min)
+                        )}
+                      </td>
                     )}
                     {!isLocked && <td className="p-2.5 bg-slate-100/90"></td>}
                   </tr>
@@ -2660,7 +2602,7 @@ function EstimationBuilderContent() {
                   {/* Slice Divider */}
                   <tr className="bg-slate-100/90 border-y-2 border-slate-300">
                     <td
-                      colSpan={showOpsi2 ? (!isLocked ? 9 : 8) : (!isLocked ? 7 : 6)}
+                      colSpan={showOpsi2 ? (!isLocked ? 8 : 7) : (!isLocked ? 7 : 6)}
                       className="py-2.5 px-4 text-center"
                     >
                       <div className="flex items-center justify-center space-x-2.5">
@@ -2812,60 +2754,33 @@ function EstimationBuilderContent() {
                           )}
                         </td>
 
-                        {/* Opsi 2 (if enabled) */}
+                        {/* Opsi 2 (if enabled): Direct Total Opsi 2 input */}
                         {showOpsi2 && (
-                          <>
-                            <td className="p-2 text-center border-r border-slate-200 align-middle bg-blue-50/20">
-                              <div className="relative flex items-center justify-center">
-                                <span className="text-[10px] font-bold text-blue-400 mr-1 select-none">Rp</span>
-                                <input
-                                  type="text"
-                                  disabled={isLocked}
-                                  value={item.price_opsi2 !== undefined ? item.price_opsi2 : ''}
-                                  onChange={(e) => handleUpdateItemField(idx, 'price_opsi2', e.target.value, 2)}
-                                  placeholder={
-                                    item.price_opsi1 !== undefined && item.price_opsi1 !== '' && item.price_opsi1 !== 0
-                                      ? String(item.price_opsi1)
-                                      : (showRangePrice ? '150000 - 160000' : '0 (Kosong)')
-                                  }
-                                  className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
-                                    showRangePrice ? 'w-48' : 'w-28'
-                                  }`}
-                                />
-                                {!isLocked && item.price_opsi2 !== undefined && item.price_opsi2 !== '' && item.price_opsi2 !== 0 && item.price_opsi2 !== '0' && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateItemField(idx, 'price_opsi2', '', 2)}
-                                    className="ml-1 p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition cursor-pointer select-none"
-                                    title="Hilangkan / kosongkan harga Opsi 2 untuk baris ini"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                            <td className="p-3 text-right align-middle bg-blue-50/20">
-                              {isP2Text ? (
-                                <span className="font-mono font-black text-sm text-blue-950 whitespace-nowrap">
-                                  {p2TextVal}
-                                </span>
-                              ) : showRangePrice ? (
-                                <span className="font-mono font-black text-sm text-blue-950 whitespace-nowrap">
-                                  {isP2Empty ? (
-                                    <span className="text-slate-400 font-normal">Rp 0</span>
-                                  ) : rowTot2Min === rowTot2Max ? (
-                                    formatCurrency(rowTot2Min)
-                                  ) : (
-                                    `${formatCurrency(rowTot2Min)} – ${formatCurrency(rowTot2Max)}`
-                                  )}
-                                </span>
-                              ) : (
-                                <span className={`font-mono font-black text-sm whitespace-nowrap ${isP2Empty ? 'text-slate-400 font-normal' : 'text-slate-900'}`}>
-                                  {isP2Empty ? 'Rp 0' : formatCurrency(tot2)}
-                                </span>
+                          <td className="p-2 text-center border-r border-slate-200 align-middle bg-blue-50/20">
+                            <div className="relative flex items-center justify-center">
+                              <span className="text-[10px] font-bold text-blue-400 mr-1 select-none">Rp</span>
+                              <input
+                                type="text"
+                                disabled={isLocked}
+                                value={item.total_opsi2 !== undefined && item.total_opsi2 !== null ? String(item.total_opsi2) : ''}
+                                onChange={(e) => handleUpdateItemField(idx, 'total_opsi2', e.target.value, 2)}
+                                placeholder={showRangePrice ? '150000 - 160000' : '0 / CEK'}
+                                className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
+                                  showRangePrice ? 'w-48' : 'w-32'
+                                }`}
+                              />
+                              {!isLocked && item.total_opsi2 !== undefined && item.total_opsi2 !== null && item.total_opsi2 !== '' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateItemField(idx, 'total_opsi2', '', 2)}
+                                  className="ml-1 p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition cursor-pointer select-none"
+                                  title="Hapus / kosongkan total Opsi 2 untuk baris ini"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
                               )}
-                            </td>
-                          </>
+                            </div>
+                          </td>
                         )}
 
                         {/* Aksi: Move Up, Move Down, Delete */}
@@ -2920,18 +2835,15 @@ function EstimationBuilderContent() {
                       )}
                     </td>
                     {showOpsi2 && (
-                      <>
-                        <td className="p-2.5 bg-blue-50/20 border-r border-slate-200"></td>
-                        <td className="p-2.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 whitespace-nowrap">
-                          {showRangePrice ? (
-                            t2Totals.tot2Min === t2Totals.tot2Max
-                              ? formatCurrency(t2Totals.tot2Min)
-                              : `${formatCurrency(t2Totals.tot2Min)} – ${formatCurrency(t2Totals.tot2Max)}`
-                          ) : (
-                            formatCurrency(t2Totals.tot2Min)
-                          )}
-                        </td>
-                      </>
+                      <td className="p-2.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 whitespace-nowrap">
+                        {showRangePrice ? (
+                          t2Totals.tot2Min === t2Totals.tot2Max
+                            ? formatCurrency(t2Totals.tot2Min)
+                            : `${formatCurrency(t2Totals.tot2Min)} – ${formatCurrency(t2Totals.tot2Max)}`
+                        ) : (
+                          formatCurrency(t2Totals.tot2Min)
+                        )}
+                      </td>
                     )}
                     {!isLocked && <td className="p-2.5 bg-slate-100/90"></td>}
                   </tr>
@@ -2956,20 +2868,17 @@ function EstimationBuilderContent() {
                   )}
                 </td>
                 {showOpsi2 && (
-                  <>
-                    <td className="p-3 bg-blue-50/20 border-r border-slate-200"></td>
-                    <td className="p-3 text-right font-mono font-black text-blue-950 bg-blue-50/20">
-                      {showRangePrice ? (
-                        <span className="text-sm whitespace-nowrap">
-                          {totalFinalOpsi2 === totalFinalOpsi2Max
-                            ? formatCurrency(totalFinalOpsi2)
-                            : `${formatCurrency(totalFinalOpsi2)} – ${formatCurrency(totalFinalOpsi2Max)}`}
-                        </span>
-                      ) : (
-                        <span className="text-sm whitespace-nowrap">{formatCurrency(totalFinalOpsi2)}</span>
-                      )}
-                    </td>
-                  </>
+                  <td className="p-3 text-right font-mono font-black text-blue-950 bg-blue-50/20">
+                    {showRangePrice ? (
+                      <span className="text-sm whitespace-nowrap">
+                        {totalFinalOpsi2 === totalFinalOpsi2Max
+                          ? formatCurrency(totalFinalOpsi2)
+                          : `${formatCurrency(totalFinalOpsi2)} – ${formatCurrency(totalFinalOpsi2Max)}`}
+                      </span>
+                    ) : (
+                      <span className="text-sm whitespace-nowrap">{formatCurrency(totalFinalOpsi2)}</span>
+                    )}
+                  </td>
                 )}
                 {!isLocked && <td></td>}
               </tr>
@@ -3278,22 +3187,22 @@ function EstimationBuilderContent() {
 
         {/* 5. NOTES & ACTION CONTROLS */}
         <div className="space-y-4 pt-2">
-          {/* Keluhan / Diagnosa Awal untuk Lembar Estimasi & TTD Customer */}
+          {/* Keluhan untuk Lembar Estimasi & TTD Customer */}
           <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <label className="block text-xs font-bold text-slate-800">
-                Keluhan / Diagnosa Awal (Tampil pada Surat Estimasi &amp; TTD Customer):
+                Keluhan (Tampil pada Surat Estimasi &amp; TTD Customer):
               </label>
               {selectedSpk && !isLocked && (
                 <button
                   type="button"
                   onClick={() => {
-                    const spkDefault = formatComplaintsAndDiagnosis(selectedSpk.complaints, selectedSpk.notes).displayText;
+                    const spkDefault = formatComplaintsAndDiagnosis(selectedSpk.complaints).displayText;
                     setEstimationComplaints(spkDefault);
-                    showToast('Keluhan / Diagnosa Awal berhasil di-reset sesuai isi SPK.', 'info');
+                    showToast('Keluhan berhasil di-reset sesuai isi SPK.', 'info');
                   }}
                   className="inline-flex items-center space-x-1 text-[11px] font-bold text-blue-700 hover:text-blue-800 hover:underline cursor-pointer"
-                  title="Tarik ulang teks keluhan dan diagnosa awal asli dari SPK"
+                  title="Tarik ulang teks keluhan asli dari SPK"
                 >
                   <RotateCcw className="w-3 h-3" />
                   <span>Reset Sesuai SPK</span>
@@ -3305,11 +3214,11 @@ function EstimationBuilderContent() {
               disabled={isLocked}
               value={estimationComplaints}
               onChange={(e) => setEstimationComplaints(e.target.value)}
-              placeholder="Keluhan customer dan diagnosa awal perbaikan..."
+              placeholder="Keluhan customer..."
               className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-white resize-none outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
             />
             <p className="text-[10.5px] text-slate-500">
-              💡 Otomatis menyinkronkan keluhan &amp; diagnosa dari SPK intake. Anda dapat menambahkan catatan diagnosa teknis khusus untuk tab estimasi ini bila diperlukan.
+              💡 Otomatis menyinkronkan keluhan dari SPK intake. Anda dapat menambahkan catatan keluhan khusus untuk tab estimasi ini bila diperlukan.
             </p>
           </div>
 
@@ -3334,12 +3243,12 @@ function EstimationBuilderContent() {
                     const isP1Text = (typeof it.price_opsi1 === 'string' && /[a-zA-Z]/.test(it.price_opsi1)) ||
                                      (typeof it.price === 'string' && /[a-zA-Z]/.test(String(it.price))) ||
                                      (typeof it.total_opsi1 === 'string' && /[a-zA-Z]/.test(it.total_opsi1));
-                    const isP2Text = (typeof it.price_opsi2 === 'string' && /[a-zA-Z]/.test(it.price_opsi2)) ||
-                                     (typeof it.total_opsi2 === 'string' && /[a-zA-Z]/.test(it.total_opsi2));
+                    const isP2Text = (typeof it.total_opsi2 === 'string' && /[a-zA-Z]/.test(it.total_opsi2)) ||
+                                     (typeof it.price_opsi2 === 'string' && /[a-zA-Z]/.test(it.price_opsi2));
                     const p1Text = (it.price_opsi1 || it.price || it.total_opsi1 || 'CEK').toString().trim().toUpperCase();
-                    const p2Text = (it.price_opsi2 || it.total_opsi2 || 'CEK').toString().trim().toUpperCase();
+                    const p2Text = (it.total_opsi2 || it.price_opsi2 || 'CEK').toString().trim().toUpperCase();
                     const p1Val = isP1Text ? p1Text : it.price_opsi1;
-                    const p2Val = isP2Text ? p2Text : it.price_opsi2;
+                    const p2Val = isP2Text ? p2Text : (it.total_opsi2 !== undefined && it.total_opsi2 !== '' ? it.total_opsi2 : it.price_opsi2);
 
                     const finalPrice: string | number = isP1Text
                       ? p1Text
@@ -3352,11 +3261,11 @@ function EstimationBuilderContent() {
                       ...it,
                       section: sec,
                       price_opsi1: p1Val,
-                      total_opsi1: isP1Text ? p1Text : it.total_opsi1,
+                      total_opsi1: p1Val,
+                      price_opsi2: p2Val,
+                      total_opsi2: p2Val,
                       price: finalPrice,
                       subtotal: finalSubtotal,
-                      price_opsi2: p2Val,
-                      total_opsi2: isP2Text ? p2Text : it.total_opsi2,
                     };
                   };
 
@@ -3371,33 +3280,18 @@ function EstimationBuilderContent() {
                   const activeTabTitle = currentTabObj?.name || estimationType || 'Umum';
 
                   const livePreview: Invoice = {
-                    ...(currentEstimationRecord || {}),
-                    id: currentEstimationRecord?.id || 'preview-temp-id',
-                    invoice_number: currentEstimationRecord?.invoice_number || `EST-${selectedSpk?.spk_number || 'DRAFT'}`,
+                    id: currentEstimationRecord?.id || 'live-preview-id',
+                    invoice_number: currentEstimationRecord?.invoice_number || 'EST-OFFICIAL',
                     type: 'estimation',
-                    work_order_id: selectedSpkId,
-                    vehicle_id: selectedSpk?.vehicle_id || '',
-                    tab_id: activeTabId,
-                    estimation_tab: activeTabId,
-                    estimation_type: activeTabTitle,
-                    estimation_date: estimationDate,
-                    estimation_time: estimationTime,
-                    items: combinedItems,
-                    subtotal: (subtotalOpsi1Min || 0),
-                    discount_amount: discountAmount,
+                    has_discount: showDiscount,
+                    has_opsi2: showOpsi2,
+                    has_tax: showTax,
+                    has_range_price: showRangePrice,
+                    discount_amount: effectiveDiscount,
                     tax_percent: showTax ? taxPercent : 0,
-                    tax_amount: 0,
-                    total_amount: (subtotalOpsi1Min || 0) - (discountAmount || 0),
-                    down_payment: 0,
-                    balance_due: (subtotalOpsi1Min || 0) - (discountAmount || 0),
-                    payment_status: 'pending',
-                    admin_notes: adminNotes,
-                    estimator_name: estimatorName || currentEstimationRecord?.estimator_name || '',
-                    estimator_signature: estimatorSignature || currentEstimationRecord?.estimator_signature,
-                    customer_signature: customerSignature || currentEstimationRecord?.customer_signature,
-                    customer_signed_name: customerSignedName || currentEstimationRecord?.customer_signed_name || selectedSpk?.vehicle?.customer_name || '',
-                    customer_response: customerResponse as any,
-                    customer_response_note: customerResponseNote || undefined,
+                    tax_amount: taxAmountOpsi1,
+                    total_amount: totalFinalOpsi1,
+                    items: items.map(it => mapItemForLive(it, 1)),
                     has_second_table: hasSecondTable,
                     table1_title: table1Title,
                     table2_title: table2Title,
@@ -3407,7 +3301,7 @@ function EstimationBuilderContent() {
                     vehicle: selectedSpk?.vehicle,
                     work_order: selectedSpk || undefined,
                     estimated_duration: estimatedDuration || currentEstimationRecord?.estimated_duration || '',
-                    complaints: estimationComplaints.trim() || formatComplaintsAndDiagnosis(selectedSpk?.complaints, selectedSpk?.notes).displayText,
+                    complaints: estimationComplaints.trim() || formatComplaintsAndDiagnosis(selectedSpk?.complaints).displayText,
                   } as Invoice;
                   setSavedEstimation(livePreview);
                 }}
@@ -3440,7 +3334,7 @@ function EstimationBuilderContent() {
                       setShowTax(false);
                       setShowRangePrice(false);
                       setAdminNotes('');
-                      setEstimationComplaints(formatComplaintsAndDiagnosis(selectedSpk?.complaints, selectedSpk?.notes).displayText);
+                      setEstimationComplaints(formatComplaintsAndDiagnosis(selectedSpk?.complaints).displayText);
                       setEstimatedDuration('');
                       setCustomerResponse('');
                       setCustomerResponseNote('');
@@ -3453,7 +3347,7 @@ function EstimationBuilderContent() {
                           }
                         } catch {}
                       }
-                      showToast('Form estimasi dibersihkan.', 'info');
+                      showToast('Draft estimasi tab ini berhasil dibersihkan.', 'info');
                     }
                   }}
                   className="inline-flex items-center space-x-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3.5 py-2.5 rounded-xl border border-slate-300 transition cursor-pointer"

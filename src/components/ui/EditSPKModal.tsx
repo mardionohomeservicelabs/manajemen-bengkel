@@ -208,20 +208,20 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* Section 1: Pelanggan & Kendaraan */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/60 p-5 rounded-2xl border border-slate-200">
-            {/* Kolom Kiri: Identitas Pelanggan */}
+            {/* Kolom Kiri: Identitas Pemilik Kendaraan */}
             <div className="space-y-3.5">
               <div className="flex items-center space-x-2 pb-2 border-b border-slate-200">
                 <div className="w-6 h-6 rounded-lg bg-maroon-100 text-maroon-800 flex items-center justify-center font-bold">
                   <User className="w-3.5 h-3.5" />
                 </div>
                 <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                  1. Identitas Pelanggan (Customer)
+                  1. Identitas Pemilik Kendaraan
                 </h4>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Nama Lengkap Pelanggan <span className="text-red-500">*</span>
+                  Nama Lengkap Pemilik Kendaraan <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -248,7 +248,7 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Alamat Customer</label>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Alamat Pemilik Kendaraan</label>
                 <input
                   type="text"
                   placeholder="Contoh: Menganti resident / Sidoarjo"
@@ -400,15 +400,15 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* Keluhan Customer */}
+              {/* Keluhan Pemilik Kendaraan */}
               <div>
                 <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
-                  Keluhan Customer : <span className="text-red-500">*</span>
+                  Keluhan Pemilik Kendaraan : <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   required
                   rows={3}
-                  placeholder="Tulis keluhan utama customer..."
+                  placeholder="Tulis keluhan utama pemilik kendaraan..."
                   value={complaints}
                   onChange={(e) => setComplaints(e.target.value)}
                   className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none leading-relaxed font-medium"

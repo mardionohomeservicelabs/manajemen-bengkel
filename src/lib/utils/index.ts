@@ -212,11 +212,11 @@ export function isSPKGenericBoilerplate(text?: string | null): boolean {
 }
 
 /**
- * Memformat teks Keluhan dan Diagnosa Awal dari SPK untuk kolom Estimasi
+ * Memformat teks Keluhan untuk kolom Estimasi (hanya keluhan customer, tanpa uraian pekerjaan)
  */
 export function formatComplaintsAndDiagnosis(
   complaint?: string | null,
-  notes?: string | null,
+  _notes?: string | null,
   customText?: string | null
 ): {
   displayText: string;
@@ -226,37 +226,32 @@ export function formatComplaintsAndDiagnosis(
 } {
   const custom = customText?.trim();
   const comp = complaint?.trim() || '';
-  const diag = notes?.trim() || '';
 
   if (custom && custom !== comp) {
+    // Jika customText dari data lama berisi penggabungan "Keluhan: ... | Diagnosa Awal: ...", ambil keluhannya saja
+    let cleanCustom = custom;
+    if (cleanCustom.includes('| Diagnosa Awal:')) {
+      cleanCustom = cleanCustom.split('| Diagnosa Awal:')[0].replace(/^Keluhan:\s*/i, '').trim();
+    } else if (cleanCustom.includes('| Uraian:')) {
+      cleanCustom = cleanCustom.split('| Uraian:')[0].replace(/^Keluhan:\s*/i, '').trim();
+    } else if (cleanCustom.includes('| Uraian SPK:')) {
+      cleanCustom = cleanCustom.split('| Uraian SPK:')[0].replace(/^Keluhan:\s*/i, '').trim();
+    }
     return {
-      displayText: custom,
+      displayText: cleanCustom,
       hasBoth: false,
-      complaintPart: custom,
+      complaintPart: cleanCustom,
       diagnosisPart: '',
     };
   }
 
-  const isDiagBoilerplate = isSPKGenericBoilerplate(diag);
   const isCompBoilerplate = isSPKGenericBoilerplate(comp);
+  const validComp = comp && !isCompBoilerplate ? comp : (comp || 'Perawatan berkala / Servis rutin');
 
-  const validComp = comp && (!isCompBoilerplate || !diag) ? comp : (!isDiagBoilerplate ? '' : comp);
-  const validDiag = diag && !isDiagBoilerplate ? diag : '';
-
-  if (validComp && validDiag && validComp.toLowerCase() !== validDiag.toLowerCase()) {
-    return {
-      displayText: `Keluhan: ${validComp} | Diagnosa Awal: ${validDiag}`,
-      hasBoth: true,
-      complaintPart: validComp,
-      diagnosisPart: validDiag,
-    };
-  }
-
-  const singleText = validComp || validDiag || comp || diag || 'Perawatan berkala / Servis rutin';
   return {
-    displayText: singleText,
+    displayText: validComp,
     hasBoth: false,
-    complaintPart: singleText,
+    complaintPart: validComp,
     diagnosisPart: '',
   };
 }

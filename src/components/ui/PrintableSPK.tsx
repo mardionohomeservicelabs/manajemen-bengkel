@@ -57,7 +57,7 @@ export function PrintableSPK({ workOrder, settings, onClose, onEdit }: Printable
 
   const getWhatsAppMessage = () => {
     return (
-      `Halo Bpk/Ibu ${vehicle?.customer_name || 'Pelanggan'},\n` +
+      `Halo Bpk/Ibu ${vehicle?.customer_name || 'Pemilik Kendaraan'},\n` +
       `Berikut konfirmasi Dokumen Surat Perintah Kerja Bengkel (PKB) dari ${settings.name}:\n\n` +
       `No. PKB: ${workOrder.spk_number}\n` +
       `Unit: ${vehicle?.car_brand} ${vehicle?.car_model} (${vehicle?.license_plate})\n` +
@@ -175,20 +175,20 @@ export function PrintableSPK({ workOrder, settings, onClose, onEdit }: Printable
             {/* Kolom Kiri */}
             <div className="space-y-1 border-r border-slate-300 pr-2">
               <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">Jam Datang</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0">: {jamDatang}</span>
+                <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Pemilik Kendaraan</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {vehicle?.customer_name || 'Pemilik Kendaraan'}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">Customer</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {vehicle?.customer_name || 'Pelanggan'}</span>
+                <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Alamat</span>
+                <span className="font-bold text-slate-950 leading-tight flex-1 min-w-0 break-words">: {vehicle?.address || 'Surabaya / Sidoarjo'}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">Alamat</span>
-                <span className="text-slate-800 leading-tight flex-1 min-w-0 break-words">: {vehicle?.address || 'Surabaya / Sidoarjo'}</span>
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">Unit</span>
+                <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Unit</span>
                 <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {vehicle?.car_brand} {vehicle?.car_model} {vehicle?.car_year ? `(${vehicle.car_year})` : ''}</span>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Jam Datang</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0">: {jamDatang}</span>
               </div>
             </div>
 
@@ -213,10 +213,10 @@ export function PrintableSPK({ workOrder, settings, onClose, onEdit }: Printable
             </div>
           </div>
 
-          {/* Box 1: KELUHAN CUSTOMER */}
+          {/* Box 1: KELUHAN PEMILIK KENDARAAN */}
           <div className="border border-slate-800 rounded-xl p-2 bg-white text-[11px] space-y-0.5">
             <h4 className="font-black text-[#8B0000] uppercase text-[10px]">
-              KELUHAN CUSTOMER :
+              KELUHAN PEMILIK KENDARAAN :
             </h4>
             <p className="text-slate-900 font-medium text-[10.5px] leading-relaxed min-h-[22px] pl-1 whitespace-pre-wrap break-words">
               {workOrder.complaints || 'Perawatan berkala / Servis rutin'}
@@ -239,12 +239,12 @@ export function PrintableSPK({ workOrder, settings, onClose, onEdit }: Printable
               KETENTUAN:
             </h4>
             <ol className="list-decimal pl-3.5 space-y-0.5 font-medium">
-              <li>PKB ini merupakan <strong>SURAT KUASA</strong> dari pelanggan kepada bengkel untuk mengerjakan pekerjaan seperti yang tertulis.</li>
+              <li>PKB ini merupakan <strong>SURAT KUASA</strong> dari pemilik kendaraan kepada bengkel untuk mengerjakan pekerjaan seperti yang tertulis.</li>
               <li>Jaminan Pekerjaan Berlaku: <strong>General repair 100 KM dalam waktu 3 hari</strong>.</li>
               <li>Apabila dalam waktu 2 hari part bekas tidak diambil, kami berhak melakukan pemusnahan.</li>
-              <li>Untuk menjaga kualitas, kami membatasi customer membawa sparepart sendiri pada pekerjaan Overhaul.</li>
-              <li>Apabila customer membawa part sendiri, maksimal parkir gratis 2 hari, lebih dari itu <strong>Rp 25.000/hari</strong>.</li>
-              <li>Segala resiko akibat part yang dibawa customer <strong>bukan tanggung jawab Mardiono Home Service</strong>.</li>
+              <li>Untuk menjaga kualitas, kami membatasi pemilik kendaraan membawa sparepart sendiri pada pekerjaan Overhaul.</li>
+              <li>Apabila pemilik kendaraan membawa part sendiri, maksimal parkir gratis 2 hari, lebih dari itu <strong>Rp 25.000/hari</strong>.</li>
+              <li>Segala resiko akibat part yang dibawa pemilik kendaraan <strong>bukan tanggung jawab Mardiono Home Service</strong>.</li>
               <li>Batas pengambilan kendaraan setelah service adalah <strong>1x24 jam</strong>.</li>
               <li>Apabila lebih dari 1 minggu bukan menjadi tanggung jawab bengkel (Misal: Aki tekor, Cat Baret).</li>
               <li><strong>Jika Membawa Part Sendiri Tidak Ada Garansi Dalam Bentuk Apapun.</strong></li>
@@ -334,7 +334,7 @@ export function PrintableSPK({ workOrder, settings, onClose, onEdit }: Printable
                   )}
                 </div>
                 <p className="font-bold text-slate-950 text-[9.5px] border-t border-slate-300 pt-0.5 break-words leading-tight">
-                  ({vehicle?.customer_name || 'Pelanggan'})
+                  ({vehicle?.customer_name || 'Pemilik Kendaraan'})
                 </p>
               </div>
             </div>

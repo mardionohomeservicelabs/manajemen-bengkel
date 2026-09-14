@@ -201,13 +201,13 @@ export default function NewSPKPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Left: Customer Info */}
+            {/* Left: Pemilik Kendaraan Info */}
             <div className="space-y-4">
-              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Identitas Pemilik</h3>
+              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Identitas Pemilik Kendaraan</h3>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Nama Lengkap Pelanggan (Customer) <span className="text-red-500">*</span>
+                  Nama Lengkap Pemilik Kendaraan <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -234,7 +234,7 @@ export default function NewSPKPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Alamat Customer</label>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Alamat Pemilik Kendaraan</label>
                 <input
                   type="text"
                   placeholder="Contoh: Menganti resident / Graha Candi, Sidoarjo"
@@ -421,10 +421,10 @@ export default function NewSPKPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {/* Keluhan Customer */}
+            {/* Keluhan Pemilik Kendaraan */}
             <div>
               <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
-                KELUHAN CUSTOMER : <span className="text-red-500">*</span>
+                KELUHAN PEMILIK KENDARAAN : <span className="text-red-500">*</span>
               </label>
               <textarea
                 required

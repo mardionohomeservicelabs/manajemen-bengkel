@@ -2,9 +2,10 @@
 
 import React, { useState, useRef } from 'react';
 import { UndersteelCheckupData, WorkshopSettings } from '@/lib/types/database';
-import { formatDate, formatPlate, createWhatsAppLink } from '@/lib/utils';
+import { formatDate, formatPlate, createWhatsAppLink, formatKM } from '@/lib/utils';
 import { printCleanDocument } from '@/lib/utils/print-helper';
 import { Printer, Share2, X, Wrench, ShieldCheck } from 'lucide-react';
+import { DBService } from '@/lib/services/db-service';
 import {
   OfficialDocumentHeader,
   OfficialDocumentFooter,
@@ -23,6 +24,13 @@ export function PrintableUndersteelCheckup({
   onClose,
 }: PrintableUndersteelCheckupProps) {
   const documentRef = useRef<HTMLDivElement>(null);
+
+  const vehicle = DBService.getVehicleByPlate(checkup.license_plate) || (checkup as any).vehicle;
+  const address = (checkup as any).address || vehicle?.address || 'Surabaya / Sidoarjo';
+  const entryDateObj = new Date(checkup.check_date);
+  const jamDatang = !isNaN(entryDateObj.getTime()) && checkup.check_date?.includes('T')
+    ? entryDateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    : ((checkup as any).jam_datang || (checkup as any).entry_time || '09:00');
 
   const [signerTeknisi, setSignerTeknisi] = useState<string>(
     checkup.technician_name || 'Mekanik Understeel'
@@ -46,7 +54,7 @@ export function PrintableUndersteelCheckup({
       .join('\n');
 
     return (
-      `Halo Bpk/Ibu ${checkup.customer_name || 'Pelanggan'},\n` +
+      `Halo Bpk/Ibu ${checkup.customer_name || vehicle?.customer_name || 'Pemilik Kendaraan'},\n` +
       `Berikut hasil Form Keluhan Understeel (Kaki-Kaki) kendaraan Anda (${checkup.license_plate}) dari ${settings.name}:\n\n` +
       `No. Dokumen: ${checkup.document_number}\n` +
       `Mobil: ${checkup.car_brand || ''} ${checkup.car_model || ''} (${checkup.car_year || ''} / ${checkup.car_color || ''})\n` +
@@ -145,31 +153,39 @@ export function PrintableUndersteelCheckup({
           <div className="border border-slate-900 text-xs p-2.5 grid grid-cols-2 gap-3 bg-white">
             <div className="space-y-1 border-r border-slate-300 pr-2">
               <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-800 whitespace-nowrap">Merk:</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words">{checkup.car_brand || '-'}</span>
+                <span className="w-28 shrink-0 font-bold text-slate-800 whitespace-nowrap">Pemilik Kendaraan:</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">{checkup.customer_name || vehicle?.customer_name || 'Pemilik Kendaraan'}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-800 whitespace-nowrap">Tipe Mobil:</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">{checkup.car_model || '-'}</span>
+                <span className="w-28 shrink-0 font-bold text-slate-800 whitespace-nowrap">Alamat:</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">{address}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-800 whitespace-nowrap">Tahun/Warna:</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words">{checkup.car_year || '-'} / {checkup.car_color || '-'}</span>
+                <span className="w-28 shrink-0 font-bold text-slate-800 whitespace-nowrap">Unit:</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">{checkup.car_brand ? `${checkup.car_brand} ` : ''}{checkup.car_model || '-'}{checkup.car_year ? ` (${checkup.car_year})` : ''}</span>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-28 shrink-0 font-bold text-slate-800 whitespace-nowrap">Jam Datang:</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0">{jamDatang}</span>
               </div>
             </div>
 
             <div className="space-y-1 pl-1">
               <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-800 whitespace-nowrap">No. Polisi:</span>
+                <span className="w-24 shrink-0 font-bold text-slate-800 whitespace-nowrap">No. Polisi:</span>
                 <span className="font-mono font-black text-[#8B0000] text-[13px] flex-1 min-w-0">{formatPlate(checkup.license_plate)}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-800 whitespace-nowrap">Pelanggan:</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">{checkup.customer_name || 'Pelanggan'}</span>
+                <span className="w-24 shrink-0 font-bold text-slate-800 whitespace-nowrap">No. PKB / Form:</span>
+                <span className="font-mono font-bold text-slate-950 flex-1 min-w-0">{checkup.document_number || '-'}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-800 whitespace-nowrap">Tanggal:</span>
+                <span className="w-24 shrink-0 font-bold text-slate-800 whitespace-nowrap">Tanggal:</span>
                 <span className="font-bold text-slate-950 flex-1 min-w-0">{formatDate(checkup.check_date)}</span>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-24 shrink-0 font-bold text-slate-800 whitespace-nowrap">KM:</span>
+                <span className="font-mono font-bold text-slate-950 flex-1 min-w-0">{formatKM((checkup as any).mileage || vehicle?.current_mileage, false)}</span>
               </div>
             </div>
           </div>

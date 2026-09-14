@@ -5,6 +5,7 @@ import { QCGeneralCheckupData, WorkshopSettings } from '@/lib/types/database';
 import { formatDate, formatPlate, createWhatsAppLink, formatKM } from '@/lib/utils';
 import { printCleanDocument } from '@/lib/utils/print-helper';
 import { Printer, Share2, X, Wrench, CheckCircle2 } from 'lucide-react';
+import { DBService } from '@/lib/services/db-service';
 import {
   OfficialDocumentHeader,
   OfficialDocumentFooter,
@@ -24,6 +25,13 @@ export function PrintableGeneralCheckup({
 }: PrintableGeneralCheckupProps) {
   const documentRef = useRef<HTMLDivElement>(null);
 
+  const vehicle = DBService.getVehicleByPlate(checkup.license_plate) || (checkup as any).vehicle;
+  const address = (checkup as any).address || vehicle?.address || 'Surabaya / Sidoarjo';
+  const entryDateObj = new Date(checkup.check_date);
+  const jamDatang = !isNaN(entryDateObj.getTime()) && checkup.check_date?.includes('T')
+    ? entryDateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    : ((checkup as any).jam_datang || (checkup as any).entry_time || '09:00');
+
   // State untuk nama teknisi yang bisa diketik manual
   const [signerTeknisi, setSignerTeknisi] = useState<string>(
     checkup.technician_name || ''
@@ -35,7 +43,7 @@ export function PrintableGeneralCheckup({
 
   const getWhatsAppMessage = () => {
     return (
-      `Halo Bpk/Ibu ${checkup.customer_name || 'Pelanggan'},\n` +
+      `Halo Bpk/Ibu ${checkup.customer_name || vehicle?.customer_name || 'Pemilik Kendaraan'},\n` +
       `Berikut hasil Lembar Quality Control Tune Up kendaraan Anda (${checkup.license_plate}) dari ${settings.name}:\n\n` +
       `No. Dokumen: ${checkup.document_number}\n` +
       `KM: ${formatKM(checkup.mileage)}\n` +
@@ -128,21 +136,25 @@ export function PrintableGeneralCheckup({
             </h2>
           </div>
 
-          {/* Symmetrical Metadata Grid: Pelanggan & Kendaraan */}
+          {/* Symmetrical Metadata Grid: Pemilik Kendaraan & Kendaraan */}
           <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50/70 p-2.5 rounded-xl border border-slate-800 font-medium">
             {/* Kolom Kiri */}
             <div className="space-y-1 border-r border-slate-300 pr-3">
               <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">Pelanggan</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {checkup.customer_name || 'Pelanggan'}</span>
+                <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Pemilik Kendaraan</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {checkup.customer_name || vehicle?.customer_name || 'Pemilik Kendaraan'}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">Unit / Tipe</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {checkup.car_model || '-'}</span>
+                <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Alamat</span>
+                <span className="font-bold text-slate-950 leading-tight flex-1 min-w-0 break-words">: {address}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">Teknisi PIC</span>
-                <span className="font-bold text-[#8B0000] flex-1 min-w-0 break-words">: {signerTeknisi || checkup.technician_name || 'Teknisi Pemeriksa'}</span>
+                <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Unit</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {checkup.car_model || vehicle?.car_model || '-'}</span>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Jam Datang</span>
+                <span className="font-bold text-slate-950 flex-1 min-w-0">: {jamDatang}</span>
               </div>
             </div>
 

@@ -63,9 +63,17 @@ export function PrintableInvoice({
     return method ? map[method] || method : 'Tunai';
   };
 
+  // Format Jam Datang (HH:mm) dan Tanggal
+  const spkIssuedTimestamp = invoice.work_order?.created_at || invoice.work_order?.entry_date || invoice.created_at;
+  const entryDateObj = new Date(spkIssuedTimestamp);
+  const jamDatang = !isNaN(entryDateObj.getTime())
+    ? entryDateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    : '09:00';
+  const tanggalDatang = formatDate(invoice.created_at);
+
   const getWhatsAppMessage = () => {
     return (
-      `Halo Bpk/Ibu ${vehicle?.customer_name || 'Pelanggan'},\n` +
+      `Halo Bpk/Ibu ${vehicle?.customer_name || 'Pemilik Kendaraan'},\n` +
       `Berikut rincian Nota Servis resmi dari ${settings.name}:\n\n` +
       `No. Nota: ${invoice.invoice_number}\n` +
       `Kendaraan: ${vehicle?.car_brand} ${vehicle?.car_model} (${vehicle?.license_plate})\n` +
@@ -215,29 +223,45 @@ export function PrintableInvoice({
               </div>
             </div>
 
-            {/* Customer & Vehicle Info Box (Symmetrical 2-Column) */}
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="border border-slate-800 rounded-xl p-3 bg-white space-y-1">
-                <h4 className="font-black text-[#8B0000] uppercase text-[10.5px] pb-0.5 border-b border-slate-200">
-                  Ditagihkan Kepada:
-                </h4>
-                <div className="font-black text-slate-900 text-sm break-words leading-tight">{vehicle?.customer_name || 'Pelanggan'}</div>
-                <div className="text-slate-600 font-mono break-words">{vehicle?.phone_number || '-'}</div>
-                <div className="text-slate-700 leading-tight text-[11px] break-words">{vehicle?.address || '-'}</div>
+            {/* Symmetrical Grid: Data Pemilik Kendaraan & Kendaraan */}
+            <div className="grid grid-cols-2 gap-3 text-[11px] bg-slate-50/70 p-2.5 rounded-xl border border-slate-800 font-medium">
+              {/* Kolom Kiri */}
+              <div className="space-y-1 border-r border-slate-300 pr-2">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Pemilik Kendaraan</span>
+                  <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {vehicle?.customer_name || 'Pemilik Kendaraan'}</span>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Alamat</span>
+                  <span className="font-bold text-slate-950 leading-tight flex-1 min-w-0 break-words">: {vehicle?.address || 'Surabaya / Sidoarjo'}</span>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Unit</span>
+                  <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {vehicle?.car_brand} {vehicle?.car_model} {vehicle?.car_year ? `(${vehicle.car_year})` : ''}</span>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Jam Datang</span>
+                  <span className="font-bold text-slate-950 flex-1 min-w-0">: {jamDatang}</span>
+                </div>
               </div>
 
-              <div className="border border-slate-800 rounded-xl p-3 bg-white space-y-1">
-                <h4 className="font-black text-[#001F7A] uppercase text-[10.5px] pb-0.5 border-b border-slate-200">
-                  Identitas Kendaraan:
-                </h4>
-                <div className="font-mono font-black text-[#8B0000] text-sm break-words">
-                  {vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'}
+              {/* Kolom Kanan */}
+              <div className="space-y-1 pl-1">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="w-16 shrink-0 font-bold text-slate-600 whitespace-nowrap">No Pol</span>
+                  <span className="font-mono font-black text-[#8B0000] text-sm flex-1 min-w-0">: {vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'}</span>
                 </div>
-                <div className="font-bold text-slate-900 break-words leading-tight">
-                  {vehicle?.car_brand} {vehicle?.car_model} ({vehicle?.car_year || '-'})
+                <div className="flex items-baseline gap-1.5">
+                  <span className="w-16 shrink-0 font-bold text-slate-600 whitespace-nowrap">No Nota</span>
+                  <span className="font-mono font-bold text-[#001F7A] flex-1 min-w-0 break-words">: {invoice.invoice_number}</span>
                 </div>
-                <div className="text-slate-600 text-[11px] break-words">
-                  KM: <strong>{formatKM(vehicle?.current_mileage)}</strong>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="w-16 shrink-0 font-bold text-slate-600 whitespace-nowrap">Tanggal</span>
+                  <span className="font-bold text-slate-950 flex-1 min-w-0">: {tanggalDatang}</span>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="w-16 shrink-0 font-bold text-slate-600 whitespace-nowrap">KM</span>
+                  <span className="font-mono font-bold text-slate-950 flex-1 min-w-0">: {formatKM(vehicle?.current_mileage, false)}</span>
                 </div>
               </div>
             </div>
@@ -390,23 +414,23 @@ export function PrintableInvoice({
                   </p>
                 </div>
 
-                {/* TTD Pelanggan */}
+                {/* TTD Pemilik Kendaraan */}
                 <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between min-h-[105px]">
-                  <p className="font-black text-[#001F7A] text-[10px] uppercase">Pelanggan / Pembayar</p>
+                  <p className="font-black text-[#001F7A] text-[10px] uppercase">Pemilik Kendaraan / Pembayar</p>
                   <div className="h-12 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white overflow-hidden my-0.5">
                     {invoice.signature_customer_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={invoice.signature_customer_url}
-                        alt="TTD Pelanggan"
+                        alt="TTD Pemilik Kendaraan"
                         className="max-h-11 max-w-full object-contain block mx-auto"
                       />
                     ) : (
-                      <span className="text-[9px] text-slate-400 italic">Tanda tangan pelanggan</span>
+                      <span className="text-[9px] text-slate-400 italic">Tanda tangan pemilik kendaraan</span>
                     )}
                   </div>
                   <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 break-words leading-tight">
-                    {vehicle?.customer_name || 'Pelanggan'}
+                    {vehicle?.customer_name || 'Pemilik Kendaraan'}
                   </p>
                 </div>
               </div>
@@ -441,12 +465,20 @@ export function PrintableInvoice({
               <span>{formatDateTime(invoice.created_at)}</span>
             </div>
             <div className="flex justify-between">
-              <span>Pelanggan:</span>
+              <span>Pemilik Kendaraan:</span>
               <span className="font-bold">{vehicle?.customer_name || 'Umum'}</span>
             </div>
             <div className="flex justify-between">
-              <span>Kendaraan:</span>
-              <span>{vehicle?.car_brand} {vehicle?.car_model} ({vehicle?.license_plate})</span>
+              <span>Alamat:</span>
+              <span className="font-bold text-right break-words">{vehicle?.address || '-'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Unit:</span>
+              <span className="font-bold">{vehicle?.car_brand} {vehicle?.car_model} ({vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'})</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Jam Datang:</span>
+              <span className="font-bold">{jamDatang}</span>
             </div>
           </div>
 
