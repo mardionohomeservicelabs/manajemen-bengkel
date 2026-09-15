@@ -23,7 +23,7 @@ import {
 import { supabase, isSupabaseConfigured } from '../supabase/client';
 import { generateSpkNumber, generateInvoiceNumber, getBranchCode } from '../utils';
 
-export const SYSTEM_DATA_EPOCH = '2026-09-11T22:35:00.000Z';
+export const SYSTEM_DATA_EPOCH = '2026-09-16T05:46:00.000Z';
 
 const BASE_STORAGE_KEYS = {
   VEHICLES: 'acwms_vehicles',
