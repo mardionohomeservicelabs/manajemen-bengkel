@@ -9,6 +9,7 @@ import { DBService } from '@/lib/services/db-service';
 import {
   OfficialDocumentHeader,
   OfficialDocumentFooter,
+  OfficialDocumentMetaGrid,
 } from './OfficialDocumentLayout';
 import { DocumentImageModal } from './DocumentImageModal';
 
@@ -150,45 +151,18 @@ export function PrintableUndersteelCheckup({
           </div>
 
           {/* Vehicle Metadata Box */}
-          <div className="border border-slate-900 text-xs p-2.5 grid grid-cols-2 gap-3 bg-white">
-            <div className="space-y-1 border-r border-slate-300 pr-2">
-              <div className="flex items-baseline gap-1.5">
-                <span className="w-28 shrink-0 font-bold text-slate-800 whitespace-nowrap">Pemilik Kendaraan:</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">{checkup.customer_name || vehicle?.customer_name || 'Pemilik Kendaraan'}</span>
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="w-28 shrink-0 font-bold text-slate-800 whitespace-nowrap">Alamat:</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">{address}</span>
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="w-28 shrink-0 font-bold text-slate-800 whitespace-nowrap">Unit:</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">{checkup.car_brand ? `${checkup.car_brand} ` : ''}{checkup.car_model || '-'}{checkup.car_year ? ` (${checkup.car_year})` : ''}</span>
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="w-28 shrink-0 font-bold text-slate-800 whitespace-nowrap">Jam Datang:</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0">{jamDatang}</span>
-              </div>
-            </div>
-
-            <div className="space-y-1 pl-1">
-              <div className="flex items-baseline gap-1.5">
-                <span className="w-24 shrink-0 font-bold text-slate-800 whitespace-nowrap">No. Polisi:</span>
-                <span className="font-mono font-black text-[#8B0000] text-[13px] flex-1 min-w-0">{formatPlate(checkup.license_plate)}</span>
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="w-24 shrink-0 font-bold text-slate-800 whitespace-nowrap">No. PKB / Form:</span>
-                <span className="font-mono font-bold text-slate-950 flex-1 min-w-0">{checkup.document_number || '-'}</span>
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="w-24 shrink-0 font-bold text-slate-800 whitespace-nowrap">Tanggal:</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0">{formatDate(checkup.check_date)}</span>
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="w-24 shrink-0 font-bold text-slate-800 whitespace-nowrap">KM:</span>
-                <span className="font-mono font-bold text-slate-950 flex-1 min-w-0">{formatKM((checkup as any).mileage || vehicle?.current_mileage, false)}</span>
-              </div>
-            </div>
-          </div>
+          <OfficialDocumentMetaGrid
+            customerName={checkup.customer_name || vehicle?.customer_name || 'Pemilik Kendaraan'}
+            address={address}
+            unit={`${checkup.car_brand ? `${checkup.car_brand} ` : ''}${checkup.car_model || '-'}${checkup.car_year ? ` (${checkup.car_year})` : ''}`.trim()}
+            entryTime={jamDatang}
+            licensePlate={checkup.license_plate ? formatPlate(checkup.license_plate) : '-'}
+            docNumber={checkup.document_number || '-'}
+            docLabel="No. PKB / Form"
+            docColor="#001F7A"
+            date={formatDate(checkup.check_date)}
+            mileage={formatKM((checkup as any).mileage || vehicle?.current_mileage, false)}
+          />
 
           {/* Main 26-Point Checklist Table */}
           <div className="border border-slate-900 overflow-hidden text-[10.5px]">

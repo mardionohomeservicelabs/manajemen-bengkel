@@ -5,6 +5,7 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
   --primary-maroon: #800000;
   --dark-crimson: #4A0404;
   --surface-slate: #F8FAFC;
@@ -81,6 +82,9 @@ body {
   /* Reset body */
   html, body {
     background: #FFFFFF !important;
+    color: #0f172a !important;
+    color-scheme: light !important;
+    forced-color-adjust: none !important;
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
@@ -89,6 +93,45 @@ body {
     overflow: visible !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  *, *::before, *::after {
+    color-scheme: light !important;
+    forced-color-adjust: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Force high contrast text on printed documents to prevent faded/white text on Windows 7 & legacy Chromium */
+  .doc-sheet, .printable-estimation-sheet, .printable-qc-sheet, .thermal-receipt-print {
+    color-scheme: light !important;
+    forced-color-adjust: none !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  .doc-sheet .text-slate-950, .doc-sheet .text-slate-900, .doc-sheet .text-slate-800, .doc-sheet .text-slate-700,
+  .printable-estimation-sheet .text-slate-950, .printable-estimation-sheet .text-slate-900, .printable-estimation-sheet .text-slate-800, .printable-estimation-sheet .text-slate-700,
+  .printable-qc-sheet .text-slate-950, .printable-qc-sheet .text-slate-900, .printable-qc-sheet .text-slate-800, .printable-qc-sheet .text-slate-700 {
+    color: #0f172a !important;
+  }
+
+  .doc-sheet .text-slate-600, .doc-sheet .text-slate-500,
+  .printable-estimation-sheet .text-slate-600, .printable-estimation-sheet .text-slate-500,
+  .printable-qc-sheet .text-slate-600, .printable-qc-sheet .text-slate-500 {
+    color: #1e293b !important;
+  }
+
+  .doc-sheet .text-slate-400,
+  .printable-estimation-sheet .text-slate-400,
+  .printable-qc-sheet .text-slate-400 {
+    color: #334155 !important;
+  }
+
+  .doc-sheet th, .printable-estimation-sheet th, .printable-qc-sheet th {
+    color: #0f172a !important;
   }
 
   /* Sembunyikan elemen navigasi, sidebar, header, dan UI non-cetak */
@@ -176,14 +219,14 @@ body {
     break-inside: avoid !important;
   }
 
-  /* Step 8: Logo — fixed dimensions, never collapse */
+  /* Step 8: Logo — proportional dimensions matching 1003x196 aspect ratio (5.12:1) */
   .official-document-logo {
-    width: 260px !important;
-    min-width: 260px !important;
-    max-width: 260px !important;
-    height: 65px !important;
-    min-height: 65px !important;
-    max-height: 65px !important;
+    width: 240px !important;
+    min-width: 240px !important;
+    max-width: 240px !important;
+    height: 47px !important;
+    min-height: 47px !important;
+    max-height: 47px !important;
     object-fit: contain !important;
     object-position: left center !important;
     display: block !important;
@@ -199,7 +242,7 @@ body {
     visibility: visible !important;
   }
 
-  /* Step 10: Tables — multi-page flow with repeating headers */
+  /* Step 10: Tables — multi-page flow with repeating headers & vertical symmetry */
   .doc-sheet table {
     border-collapse: collapse !important;
     width: 100% !important;
@@ -231,6 +274,7 @@ body {
   .doc-sheet th,
   .doc-sheet td {
     border-color: #1e293b !important;
+    vertical-align: middle !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
@@ -246,9 +290,9 @@ body {
   }
 
   .printable-qc-sheet .official-document-logo {
-    width: 200px !important;
-    max-width: 200px !important;
-    height: 48px !important;
+    width: 210px !important;
+    max-width: 210px !important;
+    height: 41px !important;
   }
 
   .printable-qc-sheet .official-document-footer-wrap {
@@ -261,6 +305,7 @@ body {
     padding: 3px 6px !important;
     font-size: 8pt !important;
     line-height: 1.25 !important;
+    vertical-align: middle !important;
   }
 
   .printable-qc-sheet h2 {
@@ -402,6 +447,7 @@ body {
     font-size: 8.5pt !important;
     line-height: 1.25 !important;
     border-color: #cbd5e1 !important;
+    vertical-align: middle !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }

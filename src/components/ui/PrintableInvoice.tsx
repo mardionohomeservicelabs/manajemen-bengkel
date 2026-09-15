@@ -22,6 +22,7 @@ import {
 import {
   OfficialDocumentHeader,
   OfficialDocumentFooter,
+  OfficialDocumentMetaGrid,
 } from './OfficialDocumentLayout';
 import { DocumentImageModal } from './DocumentImageModal';
 
@@ -188,12 +189,12 @@ export function PrintableInvoice({
             {/* Title Header */}
             <div className="flex items-center justify-between pb-1.5 border-b-2 border-slate-900">
               <div>
-                <span className="bg-[#8B0000] text-white px-3 py-1 rounded text-xs font-black uppercase tracking-wider">
+                <span className="inline-flex items-center justify-center bg-[#8B0000] text-white px-3 py-1 rounded text-xs font-black uppercase tracking-wider leading-none">
                   FAKTUR / NOTA PEMBAYARAN RESMI
                 </span>
               </div>
-              <div className="text-right">
-                <span className="text-[10px] text-slate-500 font-bold uppercase">No. Nota: </span>
+              <div className="text-right inline-flex items-center gap-1">
+                <span className="text-[10px] text-slate-500 font-bold uppercase">No. Nota:</span>
                 <span className="font-mono font-black text-sm text-[#001F7A]">
                   {invoice.invoice_number}
                 </span>
@@ -224,47 +225,18 @@ export function PrintableInvoice({
             </div>
 
             {/* Symmetrical Grid: Data Pemilik Kendaraan & Kendaraan */}
-            <div className="grid grid-cols-2 gap-3 text-[11px] bg-slate-50/70 p-2.5 rounded-xl border border-slate-800 font-medium">
-              {/* Kolom Kiri */}
-              <div className="space-y-1 border-r border-slate-300 pr-2">
-                <div className="flex items-baseline gap-1.5">
-                  <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Pemilik Kendaraan</span>
-                  <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {vehicle?.customer_name || 'Pemilik Kendaraan'}</span>
-                </div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Alamat</span>
-                  <span className="font-bold text-slate-950 leading-tight flex-1 min-w-0 break-words">: {vehicle?.address || 'Surabaya / Sidoarjo'}</span>
-                </div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Unit</span>
-                  <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {vehicle?.car_brand} {vehicle?.car_model} {vehicle?.car_year ? `(${vehicle.car_year})` : ''}</span>
-                </div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Jam Datang</span>
-                  <span className="font-bold text-slate-950 flex-1 min-w-0">: {jamDatang}</span>
-                </div>
-              </div>
-
-              {/* Kolom Kanan */}
-              <div className="space-y-1 pl-1">
-                <div className="flex items-baseline gap-1.5">
-                  <span className="w-16 shrink-0 font-bold text-slate-600 whitespace-nowrap">No Pol</span>
-                  <span className="font-mono font-black text-[#8B0000] text-sm flex-1 min-w-0">: {vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'}</span>
-                </div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="w-16 shrink-0 font-bold text-slate-600 whitespace-nowrap">No Nota</span>
-                  <span className="font-mono font-bold text-[#001F7A] flex-1 min-w-0 break-words">: {invoice.invoice_number}</span>
-                </div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="w-16 shrink-0 font-bold text-slate-600 whitespace-nowrap">Tanggal</span>
-                  <span className="font-bold text-slate-950 flex-1 min-w-0">: {tanggalDatang}</span>
-                </div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="w-16 shrink-0 font-bold text-slate-600 whitespace-nowrap">KM</span>
-                  <span className="font-mono font-bold text-slate-950 flex-1 min-w-0">: {formatKM(vehicle?.current_mileage, false)}</span>
-                </div>
-              </div>
-            </div>
+            <OfficialDocumentMetaGrid
+              customerName={vehicle?.customer_name || 'Pemilik Kendaraan'}
+              address={vehicle?.address || 'Surabaya / Sidoarjo'}
+              unit={`${vehicle?.car_brand || ''} ${vehicle?.car_model || ''} ${vehicle?.car_year ? `(${vehicle.car_year})` : ''}`.trim() || '-'}
+              entryTime={jamDatang}
+              licensePlate={vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'}
+              docNumber={invoice.invoice_number}
+              docLabel="No Nota"
+              docColor="#001F7A"
+              date={tanggalDatang}
+              mileage={formatKM(vehicle?.current_mileage, false)}
+            />
 
             {/* Items Table */}
             <div className="border border-slate-800 rounded-xl overflow-hidden text-xs">

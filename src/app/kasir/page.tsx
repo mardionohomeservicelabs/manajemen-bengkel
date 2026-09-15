@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useApp } from '@/lib/context/AppContext';
 import { DBService } from '@/lib/services/db-service';
@@ -11,6 +11,7 @@ import {
   PaymentStatus,
   WorkOrder,
   InventoryItem,
+  CRMReminderPeriod,
 } from '@/lib/types/database';
 import {
   formatCurrency,
@@ -42,6 +43,7 @@ import {
   Eye,
   X,
   FileCheck,
+  MessageSquare,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { PrintableInvoice } from '@/components/ui/PrintableInvoice';
@@ -73,6 +75,7 @@ function CashierContent() {
   const [taxPercent, setTaxPercent] = useState<number>(0);
   const [downPayment, setDownPayment] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [crmFollowupPeriod, setCrmFollowupPeriod] = useState<CRMReminderPeriod>('none');
   const [adminNotes, setAdminNotes] = useState<string>('');
 
   // Item Picker & Manual Item Input
@@ -95,6 +98,101 @@ function CashierContent() {
   const [savedInvoice, setSavedInvoice] = useState<Invoice | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
+  // Lacak SPK mana yang item estimasinya sudah dimuat agar sinkronisasi latar belakang tidak menimpa item tambahan kasir
+  const loadedSpkIdRef = useRef<string>('');
+
+  // Helper fungsi untuk memuat rincian item dari estimasi yang disetujui
+  const loadEstimationItems = useCallback(
+    (targetWo: WorkOrder) => {
+      // Check estimations for this SPK - prioritize approved estimation
+      const allSpkEsts = invoices.filter(
+        (inv) =>
+          inv.type === 'estimation' &&
+          (inv.work_order_id === targetWo.id ||
+            (targetWo.spk_number && inv.work_order_id === targetWo.spk_number) ||
+            (inv.work_order?.spk_number && targetWo.spk_number && inv.work_order.spk_number === targetWo.spk_number))
+      );
+
+      const approvedEst = allSpkEsts.find(
+        (inv) =>
+          inv.customer_approved_option === 'opsi1' ||
+          inv.customer_approved_option === 'opsi2' ||
+          inv.customer_response === 'opsi1' ||
+          inv.customer_response === 'opsi2' ||
+          inv.ttd_status === 'signed'
+      );
+
+      const targetEst: Invoice | null =
+        approvedEst ||
+        (targetWo.checklist_data?.estimation &&
+        (targetWo.checklist_data.estimation as any).customer_response !== 'batal' &&
+        (targetWo.checklist_data.estimation as any).ttd_status !== 'rejected'
+          ? (targetWo.checklist_data.estimation as Invoice)
+          : null) ||
+        allSpkEsts.find((inv) => inv.customer_response !== 'batal' && inv.ttd_status !== 'rejected') ||
+        allSpkEsts[0] ||
+        null;
+
+      if (targetEst && targetEst.items && targetEst.items.length > 0) {
+        const chosenOpt = targetEst.customer_approved_option || targetEst.customer_response || 'opsi1';
+        const isOpsi2 = chosenOpt === 'opsi2';
+
+        const mappedItems: InvoiceItem[] = targetEst.items
+          .map((it) => {
+            let priceToUse: any = it.price;
+            let subtotalToUse: any = it.subtotal;
+
+            if (isOpsi2) {
+              const hasP2 =
+                it.price_opsi2 !== undefined &&
+                it.price_opsi2 !== '' &&
+                it.price_opsi2 !== 0 &&
+                it.price_opsi2 !== '0';
+              if (hasP2) {
+                priceToUse = it.price_opsi2;
+                subtotalToUse =
+                  it.total_opsi2 !== undefined && it.total_opsi2 !== 0
+                    ? it.total_opsi2
+                    : parseNumericPrice(priceToUse) * (it.qty || 1);
+              } else if (it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0') {
+                priceToUse = 0;
+                subtotalToUse = 0;
+              } else {
+                priceToUse = it.price_opsi1 !== undefined ? it.price_opsi1 : it.price;
+                subtotalToUse = it.total_opsi1 !== undefined ? it.total_opsi1 : it.subtotal;
+              }
+            } else {
+              priceToUse = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : it.price;
+              subtotalToUse = it.total_opsi1 !== undefined ? it.total_opsi1 : it.subtotal;
+            }
+
+            const numPrice = parseNumericPrice(priceToUse);
+            const numSubtotal = parseNumericPrice(subtotalToUse) || numPrice * (it.qty || 1);
+
+            return {
+              ...it,
+              name: (it.name || '').toUpperCase(),
+              price: numPrice,
+              subtotal: numSubtotal,
+            };
+          })
+          // Filter out items that have 0 price in the selected option (e.g. only existed in the other option)
+          .filter((it) => it.subtotal > 0 || it.price > 0 || Boolean(it.name));
+
+        setItems(mappedItems);
+        setDiscountAmount(targetEst.discount_amount || 0);
+        setTaxPercent(targetEst.tax_percent || 0);
+        setDownPayment(targetEst.down_payment || 0);
+      } else {
+        setItems([]);
+        setDiscountAmount(0);
+        setTaxPercent(0);
+        setDownPayment(0);
+      }
+    },
+    [invoices]
+  );
+
   // Load from SPK or Estimation
   useEffect(() => {
     if (selectedSpkId && workOrders.length > 0) {
@@ -102,90 +200,29 @@ function CashierContent() {
       if (found) {
         setSelectedSpk(found);
 
-        // Check estimations for this SPK - prioritize approved estimation
-        const allSpkEsts = invoices.filter(
-          (inv) =>
-            inv.type === 'estimation' &&
-            (inv.work_order_id === found.id ||
-              (found.spk_number && inv.work_order_id === found.spk_number) ||
-              (inv.work_order?.spk_number && found.spk_number && inv.work_order.spk_number === found.spk_number))
-        );
-
-        const approvedEst = allSpkEsts.find(
-          (inv) =>
-            inv.customer_approved_option === 'opsi1' ||
-            inv.customer_approved_option === 'opsi2' ||
-            inv.customer_response === 'opsi1' ||
-            inv.customer_response === 'opsi2' ||
-            inv.ttd_status === 'signed'
-        );
-
-        const targetEst: Invoice | null =
-          approvedEst ||
-          (found.checklist_data?.estimation &&
-          (found.checklist_data.estimation as any).customer_response !== 'batal' &&
-          (found.checklist_data.estimation as any).ttd_status !== 'rejected'
-            ? (found.checklist_data.estimation as Invoice)
-            : null) ||
-          allSpkEsts.find((inv) => inv.customer_response !== 'batal' && inv.ttd_status !== 'rejected') ||
-          allSpkEsts[0] ||
-          null;
-
-        if (targetEst && targetEst.items && targetEst.items.length > 0) {
-          const chosenOpt = targetEst.customer_approved_option || targetEst.customer_response || 'opsi1';
-          const isOpsi2 = chosenOpt === 'opsi2';
-
-          const mappedItems: InvoiceItem[] = targetEst.items
-            .map((it) => {
-              let priceToUse: any = it.price;
-              let subtotalToUse: any = it.subtotal;
-
-              if (isOpsi2) {
-                const hasP2 =
-                  it.price_opsi2 !== undefined &&
-                  it.price_opsi2 !== '' &&
-                  it.price_opsi2 !== 0 &&
-                  it.price_opsi2 !== '0';
-                if (hasP2) {
-                  priceToUse = it.price_opsi2;
-                  subtotalToUse =
-                    it.total_opsi2 !== undefined && it.total_opsi2 !== 0
-                      ? it.total_opsi2
-                      : parseNumericPrice(priceToUse) * (it.qty || 1);
-                } else if (it.price_opsi2 === '' || it.price_opsi2 === 0 || it.price_opsi2 === '0') {
-                  priceToUse = 0;
-                  subtotalToUse = 0;
-                } else {
-                  priceToUse = it.price_opsi1 !== undefined ? it.price_opsi1 : it.price;
-                  subtotalToUse = it.total_opsi1 !== undefined ? it.total_opsi1 : it.subtotal;
-                }
-              } else {
-                priceToUse = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : it.price;
-                subtotalToUse = it.total_opsi1 !== undefined ? it.total_opsi1 : it.subtotal;
-              }
-
-              const numPrice = parseNumericPrice(priceToUse);
-              const numSubtotal = parseNumericPrice(subtotalToUse) || numPrice * (it.qty || 1);
-
-              return {
-                ...it,
-                name: (it.name || '').toUpperCase(),
-                price: numPrice,
-                subtotal: numSubtotal,
-              };
-            })
-            // Filter out items that have 0 price in the selected option (e.g. only existed in the other option)
-            .filter((it) => it.subtotal > 0 || it.price > 0 || Boolean(it.name));
-
-          setItems(mappedItems);
-          setDiscountAmount(targetEst.discount_amount || 0);
-          setTaxPercent(targetEst.tax_percent || 0);
-        } else {
-          setItems([]);
+        // Hanya muat ulang item dari estimasi jika SPK berubah (mencegah background sync 12s menghapus item tambahan)
+        if (loadedSpkIdRef.current !== selectedSpkId) {
+          loadedSpkIdRef.current = selectedSpkId;
+          loadEstimationItems(found);
+          setCrmFollowupPeriod((found.crm_followup_period as CRMReminderPeriod) || 'none');
         }
       }
+    } else {
+      setSelectedSpk(null);
+      loadedSpkIdRef.current = '';
+      setItems([]);
+      setDiscountAmount(0);
+      setTaxPercent(0);
+      setDownPayment(0);
     }
-  }, [selectedSpkId, workOrders, invoices]);
+  }, [selectedSpkId, workOrders, loadEstimationItems]);
+
+  // Tombol aksi manual untuk memuat ulang rincian item persis seperti estimasi awal
+  const handleResetFromEstimation = () => {
+    if (!selectedSpk) return;
+    loadEstimationItems(selectedSpk);
+    showToast('Rincian item berhasil dikembalikan sesuai estimasi awal yang disetujui.', 'info');
+  };
 
   // Cek apakah ada estimasi yang disetujui untuk SPK terpilih
   const spkInvoices = invoices.filter(
@@ -235,44 +272,64 @@ function CashierContent() {
   const balanceDue = Math.max(0, totalAmount - downPayment);
 
   const handleAddItem = (item: InventoryItem) => {
-    const existingIndex = items.findIndex((i) => i.item_id === item.id);
-    if (existingIndex !== -1) {
-      const updated = [...items];
-      updated[existingIndex].qty += 1;
-      const numPrice = parseNumericPrice(updated[existingIndex].price);
-      updated[existingIndex].subtotal = updated[existingIndex].qty * numPrice;
-      setItems(updated);
-    } else {
-      const newItem: InvoiceItem = {
-        item_id: item.id,
-        code: item.item_code,
-        name: (item.name || '').toUpperCase(),
-        is_service: item.is_service,
-        qty: 1,
-        price: item.sell_price,
-        buy_price: item.buy_price,
-        subtotal: item.sell_price,
-      };
-      setItems([...items, newItem]);
-    }
+    setItems((prevItems) => {
+      const existingIndex = prevItems.findIndex((i) => i.item_id === item.id);
+      if (existingIndex !== -1) {
+        const updated = [...prevItems];
+        const newQty = (updated[existingIndex].qty || 1) + 1;
+        const numPrice = parseNumericPrice(updated[existingIndex].price);
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          qty: newQty,
+          subtotal: newQty * numPrice,
+        };
+        return updated;
+      } else {
+        const newItem: InvoiceItem = {
+          item_id: item.id,
+          code: item.item_code,
+          name: (item.name || '').toUpperCase(),
+          is_service: Boolean(item.is_service),
+          is_custom: true,
+          qty: 1,
+          price: item.sell_price,
+          buy_price: item.buy_price,
+          subtotal: item.sell_price,
+        };
+        return [...prevItems, newItem];
+      }
+    });
+    showToast(`"${item.name.toUpperCase()}" berhasil ditambahkan ke nota.`, 'success');
   };
 
   const handleUpdateQty = (index: number, newQty: number) => {
     const qty = Math.max(1, newQty);
-    const updated = [...items];
-    updated[index].qty = qty;
-    const numPrice = parseNumericPrice(updated[index].price);
-    updated[index].subtotal = qty * numPrice;
-    setItems(updated);
+    setItems((prev) => {
+      const updated = [...prev];
+      if (!updated[index]) return prev;
+      const numPrice = parseNumericPrice(updated[index].price);
+      updated[index] = {
+        ...updated[index],
+        qty,
+        subtotal: qty * numPrice,
+      };
+      return updated;
+    });
   };
 
   const handleUpdatePrice = (index: number, newPrice: number) => {
     const price = Math.max(0, newPrice);
-    const updated = [...items];
-    updated[index].price = price;
-    const qty = updated[index].qty || 1;
-    updated[index].subtotal = qty * price;
-    setItems(updated);
+    setItems((prev) => {
+      const updated = [...prev];
+      if (!updated[index]) return prev;
+      const qty = updated[index].qty || 1;
+      updated[index] = {
+        ...updated[index],
+        price,
+        subtotal: qty * price,
+      };
+      return updated;
+    });
   };
 
   const handleAddCustomItem = (e?: React.FormEvent) => {
@@ -306,7 +363,7 @@ function CashierContent() {
   };
 
   const handleRemoveItem = (index: number) => {
-    setItems(items.filter((_, idx) => idx !== index));
+    setItems((prev) => prev.filter((_, idx) => idx !== index));
   };
 
   const openSignAndReviewModal = () => {
@@ -360,7 +417,20 @@ function CashierContent() {
       const uppercaseItems = items.map((it) => ({
         ...it,
         name: (it.name || '').toUpperCase(),
+        price: parseNumericPrice(it.price),
+        subtotal: parseNumericPrice(it.subtotal) || parseNumericPrice(it.price) * (it.qty || 1),
       }));
+
+      const calculatedSubtotal = uppercaseItems.reduce(
+        (sum, item) => sum + parseNumericPrice(item.subtotal),
+        0
+      );
+      const calculatedTaxAmount = (calculatedSubtotal - discountAmount) * (taxPercent / 100);
+      const calculatedTotalAmount = Math.max(0, calculatedSubtotal - discountAmount + calculatedTaxAmount);
+      const calculatedBalanceDue = Math.max(
+        0,
+        calculatedTotalAmount - (status === 'paid' ? calculatedTotalAmount : downPayment)
+      );
 
       const newInvoice = await saveInvoiceAsync({
         invoice_number: invoiceNumber,
@@ -368,13 +438,13 @@ function CashierContent() {
         work_order_id: selectedSpk.id,
         vehicle_id: selectedSpk.vehicle_id,
         items: uppercaseItems,
-        subtotal,
+        subtotal: calculatedSubtotal,
         discount_amount: discountAmount,
         tax_percent: taxPercent,
-        tax_amount: taxAmount,
-        total_amount: totalAmount,
-        down_payment: status === 'paid' ? totalAmount : downPayment,
-        balance_due: status === 'paid' ? 0 : balanceDue,
+        tax_amount: calculatedTaxAmount,
+        total_amount: calculatedTotalAmount,
+        down_payment: status === 'paid' ? calculatedTotalAmount : downPayment,
+        balance_due: status === 'paid' ? 0 : calculatedBalanceDue,
         payment_status: status,
         payment_method: paymentMethod,
         paid_at: status === 'paid' ? new Date().toISOString() : undefined,
@@ -382,12 +452,29 @@ function CashierContent() {
         signature_customer_url: signatureCustomer,
         signature_admin_url: signatureAdmin,
         created_at: new Date().toISOString(),
+        crm_followup_period: crmFollowupPeriod,
       });
+
+      // Simpan jadwal follow up CRM ke WorkOrder & CRMLog (1 jadwal terpilih per mobil)
+      DBService.setTransactionFollowupPeriod(selectedSpk.id, crmFollowupPeriod);
 
       // Update status SPK ke 'paid' di Supabase & local jika lunas
       if (status === 'paid' && selectedSpk.id) {
         await updateWorkOrderStatusAsync(selectedSpk.id, 'paid');
       }
+
+      // Objek nota lengkap untuk pratinjau & cetak resmi langsung
+      const invoiceForPreview: Invoice = {
+        ...newInvoice,
+        items: uppercaseItems,
+        subtotal: calculatedSubtotal,
+        total_amount: calculatedTotalAmount,
+        tax_amount: calculatedTaxAmount,
+        vehicle: selectedSpk.vehicle || newInvoice.vehicle,
+        work_order: selectedSpk || newInvoice.work_order,
+        signature_customer_url: signatureCustomer || newInvoice.signature_customer_url,
+        signature_admin_url: signatureAdmin || newInvoice.signature_admin_url,
+      };
 
       // Ambil ulang data authoritative terbaru dari Supabase
       await syncWithSupabase();
@@ -406,11 +493,11 @@ function CashierContent() {
       setIsSignModalOpen(false);
       showToast(
         status === 'paid'
-          ? `Tersimpan! Pembayaran Nota ${newInvoice.invoice_number} LUNAS berhasil disimpan ke database cloud.`
-          : `Tersimpan! Nota ${newInvoice.invoice_number} berhasil disimpan (Pending) ke database cloud.`,
+          ? `Tersimpan! Pembayaran Nota ${invoiceForPreview.invoice_number} LUNAS berhasil disimpan ke database cloud.`
+          : `Tersimpan! Nota ${invoiceForPreview.invoice_number} berhasil disimpan (Pending) ke database cloud.`,
         'success'
       );
-      setSavedInvoice(newInvoice);
+      setSavedInvoice(invoiceForPreview);
     } catch (err: any) {
       console.error('Payment processing error:', err);
       showToast(`Gagal disimpan: ${err?.message || 'Gagal memproses nota pembayaran.'}`, 'error');
@@ -762,10 +849,23 @@ function CashierContent() {
 
         {/* Right 8 Cols: Invoice Items & Payment Method */}
         <div className="lg:col-span-8 bg-white p-5 rounded-2xl border border-slate-200 shadow-card space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <h3 className="font-black text-xs uppercase tracking-wider text-slate-900">
-              Rincian Item Nota ({items.length})
-            </h3>
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
+            <div className="flex items-center space-x-3">
+              <h3 className="font-black text-xs uppercase tracking-wider text-slate-900">
+                Rincian Item Nota ({items.length})
+              </h3>
+              {selectedSpk && existingEstimation && (
+                <button
+                  type="button"
+                  onClick={handleResetFromEstimation}
+                  title="Kembalikan rincian item persis seperti estimasi awal yang disetujui"
+                  className="text-[10.5px] font-bold text-slate-500 hover:text-maroon-700 hover:bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 transition inline-flex items-center space-x-1 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Muat Ulang Estimasi Awal</span>
+                </button>
+              )}
+            </div>
             {selectedSpk && (
               <span className="text-xs font-black text-maroon-900">
                 {selectedSpk.vehicle?.license_plate ? formatPlate(selectedSpk.vehicle.license_plate) : ''} •{' '}
@@ -903,6 +1003,42 @@ function CashierContent() {
                   className="w-full text-xs p-2 rounded-lg border border-slate-200 bg-white font-medium"
                 />
               </div>
+
+              {/* Jadwal Follow Up CRM (Langsung di Kasir) */}
+              <div className="pt-2.5 border-t border-slate-200">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-[11px] font-bold text-slate-700 flex items-center space-x-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-maroon-700" />
+                    <span>Jadwal Follow-Up CRM (Opsional):</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">Pilih 1 jadwal</span>
+                </div>
+                <div className="grid grid-cols-5 gap-1 text-center">
+                  {[
+                    { id: 'none', label: 'Tanpa', desc: 'Dilewati' },
+                    { id: '1_week', label: '1 Mgg', desc: '+7 hari' },
+                    { id: '2_weeks', label: '2 Mgg', desc: '+14 hari' },
+                    { id: '1_month', label: '1 Bln', desc: '+30 hari' },
+                    { id: '3_months', label: '3 Bln', desc: '+90 hari' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setCrmFollowupPeriod(opt.id as CRMReminderPeriod)}
+                      className={`p-1.5 rounded-lg border transition ${
+                        crmFollowupPeriod === opt.id
+                          ? 'bg-maroon-700 text-white border-maroon-800 font-bold shadow-xs'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100 font-medium'
+                      }`}
+                    >
+                      <div className="text-[11px]">{opt.label}</div>
+                      <div className={`text-[9px] ${crmFollowupPeriod === opt.id ? 'text-maroon-100' : 'text-slate-400'}`}>
+                        {opt.desc}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Right: Calculations */}
@@ -1021,7 +1157,16 @@ function CashierContent() {
                 <tbody className="divide-y divide-slate-100">
                   {items.map((item, idx) => (
                     <tr key={idx}>
-                      <td className="p-2 font-semibold text-slate-800 uppercase">{(item.name || '').toUpperCase()}</td>
+                      <td className="p-2 font-semibold text-slate-800 uppercase">
+                        <div className="flex items-center space-x-1.5">
+                          <span>{(item.name || '').toUpperCase()}</span>
+                          {item.is_custom && (
+                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">
+                              TAMBAHAN
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-2 text-center font-mono">{item.qty}</td>
                       <td className="p-2 text-right font-mono text-slate-600">{formatCurrency(item.price)}</td>
                       <td className="p-2 text-right font-mono font-bold text-slate-900">{formatCurrency(item.subtotal)}</td>
@@ -1042,6 +1187,42 @@ function CashierContent() {
                   <span>TOTAL YANG HARUS DIBAYAR:</span>
                 </div>
                 <span className="font-mono text-base">{formatCurrency(totalAmount)}</span>
+              </div>
+            </div>
+
+            {/* OPSI JADWAL FOLLOW UP CRM */}
+            <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block font-bold text-xs text-slate-800 flex items-center space-x-1.5">
+                  <MessageSquare className="w-4 h-4 text-maroon-700" />
+                  <span>Jadwal Follow-up CRM Pelanggan (Opsional):</span>
+                </label>
+                <span className="text-[10.5px] text-slate-500 font-medium">Bisa diubah kapan saja di menu CRM</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                {[
+                  { id: 'none', label: 'Tanpa Follow Up', desc: 'Tidak wajib / Dilewati' },
+                  { id: '1_week', label: '1 Minggu', desc: 'Kepuasan awal' },
+                  { id: '2_weeks', label: '2 Minggu', desc: 'Performa mesin/AC' },
+                  { id: '1_month', label: '1 Bulan', desc: 'Garansi servis' },
+                  { id: '3_months', label: '3 Bulan', desc: 'Servis berkala / Oli' },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setCrmFollowupPeriod(opt.id as CRMReminderPeriod)}
+                    className={`p-2 rounded-xl border text-left transition ${
+                      crmFollowupPeriod === opt.id
+                        ? 'bg-maroon-700 text-white border-maroon-800 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="font-bold text-xs">{opt.label}</div>
+                    <div className={`text-[10px] mt-0.5 ${crmFollowupPeriod === opt.id ? 'text-maroon-100' : 'text-slate-400'}`}>
+                      {opt.desc}
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
 

@@ -272,6 +272,8 @@ export interface WorkOrder {
   vehicle_status?: string;
   received_at_branch?: string; // MHS 1 | MHS 2 | MHS 3
   checklist_data?: Record<string, any>;
+  crm_followup_period?: CRMReminderPeriod;
+  crm_followup_date?: string;
 
   status: WorkOrderStatus;
   created_at?: string;
@@ -404,6 +406,8 @@ export interface Invoice {
   vehicle?: VehicleCustomer;
   work_order?: WorkOrder;
   complaints?: string;
+  crm_followup_period?: CRMReminderPeriod;
+  crm_followup_date?: string;
 }
 
 export interface StockMovement {
@@ -425,6 +429,7 @@ export type CRMReminderPeriod =
   | '2_weeks'
   | '1_month'
   | '3_months'
+  | 'none'
   | 'custom'
   | 'periodic_service'
   | 'ac_cleaning'
@@ -437,21 +442,28 @@ export interface CRMLog {
   branch?: string;
   work_order_id?: string;
   spk_number?: string;
+  invoice_number?: string;
   last_service_id?: string;
   service_date?: string;
   due_date: string;
   reminder_type: CRMReminderPeriod;
   status: CRMStatus;
   contacted_at?: string;
+  contacted_by?: string;
+  question_sent?: string;
+  customer_response?: string;
+  customer_sentiment?: 'very_satisfied' | 'satisfied' | 'complaint' | 'reschedule' | 'unresponsive';
   scheduled_date?: string;
   notes?: string;
   whatsapp_message?: string;
+  is_optional?: boolean;
   created_at?: string;
   updated_at?: string;
 
   // Joined fields
   vehicle?: VehicleCustomer;
   work_order?: WorkOrder;
+  invoice?: Invoice;
 }
 
 export interface WorkshopSettings {

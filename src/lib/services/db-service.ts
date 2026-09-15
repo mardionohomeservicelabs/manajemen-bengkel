@@ -4,6 +4,7 @@ import {
   WorkOrder,
   Invoice,
   CRMLog,
+  CRMStatus,
   CRMReminderPeriod,
   WorkshopSettings,
   StockMovement,
@@ -218,11 +219,20 @@ function smartMergeInvoices(cloudItems: Invoice[], localItems: Invoice[]): Invoi
       // 1. ATURAN EMAS PEMBAYARAN: Status 'paid' (Lunas) MUTLAK menang atas status 'pending'
       // Mencegah device lain yang belum sync menimpa pembayaran yang sudah selesai kembali menjadi pending
       if (cloud.payment_status === 'paid' && local.payment_status !== 'paid') {
-        mergedMap.set(key, cloud);
+        mergedMap.set(key, {
+          ...local,
+          ...cloud,
+          items: (Array.isArray(cloud.items) && cloud.items.length > 0) ? cloud.items : local.items,
+        });
         return;
       }
       if (local.payment_status === 'paid' && cloud.payment_status !== 'paid') {
-        mergedMap.set(key, { ...local, id: cloud.id });
+        mergedMap.set(key, {
+          ...cloud,
+          ...local,
+          id: cloud.id,
+          items: (Array.isArray(local.items) && local.items.length > 0) ? local.items : cloud.items,
+        });
         return;
       }
 
@@ -234,6 +244,7 @@ function smartMergeInvoices(cloudItems: Invoice[], localItems: Invoice[]): Invoi
         mergedMap.set(key, {
           ...local,
           ...cloud,
+          items: (Array.isArray(cloud.items) && cloud.items.length > 0) ? cloud.items : local.items,
           // Pertahankan field kaya estimasi dari local jika di cloud kosong
           estimated_duration: cloud.estimated_duration || local.estimated_duration,
           estimator_name: cloud.estimator_name || local.estimator_name,
@@ -255,6 +266,7 @@ function smartMergeInvoices(cloudItems: Invoice[], localItems: Invoice[]): Invoi
           ...cloud,
           ...local,
           id: cloud.id,
+          items: (Array.isArray(local.items) && local.items.length > 0) ? local.items : cloud.items,
           estimated_duration: local.estimated_duration || cloud.estimated_duration,
           work_order: local.work_order || cloud.work_order,
           vehicle: local.vehicle || cloud.vehicle,
@@ -1932,11 +1944,23 @@ export class DBService {
         let validWorkOrderId = localSaved.work_order_id || null;
         let spkNumberTarget = (localSaved as any).work_order?.spk_number || (localSaved.work_order_id && localSaved.work_order_id.startsWith('SPK-') ? localSaved.work_order_id : null);
         if (validWorkOrderId && !uuidRegex.test(validWorkOrderId)) {
-          const { data: woRow } = await supabase
-            .from('work_orders')
-            .select('id, spk_number')
-            .eq('spk_number', validWorkOrderId)
-            .maybeSingle();
+          let woRow: any = null;
+          if (spkNumberTarget) {
+            const { data } = await supabase
+              .from('work_orders')
+              .select('id, spk_number')
+              .eq('spk_number', spkNumberTarget)
+              .maybeSingle();
+            woRow = data;
+          }
+          if (!woRow && validWorkOrderId.startsWith('SPK-')) {
+            const { data } = await supabase
+              .from('work_orders')
+              .select('id, spk_number')
+              .eq('spk_number', validWorkOrderId)
+              .maybeSingle();
+            woRow = data;
+          }
           if (woRow?.id) {
             validWorkOrderId = woRow.id;
             spkNumberTarget = woRow.spk_number;
@@ -2042,6 +2066,9 @@ export class DBService {
           return {
             ...localSaved,
             ...data[0],
+            items: (Array.isArray(data[0].items) && data[0].items.length > 0) ? data[0].items : localSaved.items,
+            signature_customer_url: data[0].signature_customer_url || localSaved.signature_customer_url,
+            signature_admin_url: data[0].signature_admin_url || localSaved.signature_admin_url,
             vehicle: localSaved.vehicle,
             work_order: localSaved.work_order,
           };
@@ -2666,65 +2693,133 @@ export class DBService {
     const key = getBranchKey(BASE_STORAGE_KEYS.CRM_LOGS, branch);
     const manualLogs = getLocal<CRMLog[]>(key, []);
     const vehicles = this.getVehicles(branch);
-    const workOrders = this.getWorkOrders(branch).filter((w) => w.status === 'completed');
+    const workOrders = this.getWorkOrders(branch).filter(
+      (w) => w.status === 'completed' || w.status === 'paid' || w.status === 'completed_service'
+    );
 
-    // Buat map log manual/tersimpan agar status update (contacted/scheduled/notes) tidak hilang
+    // Buat map log manual/tersimpan agar status update tidak hilang
     const logsMap = new Map<string, CRMLog>();
+
+    // Migrasikan dan bersihkan log milestone legacy (-1_week, -2_weeks, dll) menjadi 1 primary log
     manualLogs.forEach((l) => {
-      logsMap.set(l.id, l);
+      const isOldMilestone =
+        l.id.endsWith('-1_week') ||
+        l.id.endsWith('-2_weeks') ||
+        l.id.endsWith('-1_month') ||
+        l.id.endsWith('-3_months');
+
+      if (isOldMilestone) {
+        const baseId = l.id.replace(/-(1_week|2_weeks|1_month|3_months)$/, '');
+        if (!logsMap.has(baseId)) {
+          logsMap.set(baseId, {
+            ...l,
+            id: baseId,
+            reminder_type: l.reminder_type || 'none',
+          });
+        } else if (l.status === 'contacted' || l.status === 'scheduled') {
+          const cur = logsMap.get(baseId)!;
+          if (cur.status === 'pending') {
+            cur.status = l.status;
+            cur.contacted_at = l.contacted_at;
+            cur.contacted_by = l.contacted_by;
+            cur.question_sent = l.question_sent;
+            cur.customer_response = l.customer_response;
+            cur.customer_sentiment = l.customer_sentiment;
+          }
+        }
+      } else {
+        logsMap.set(l.id, l);
+      }
     });
 
-    // Otomatis generate 4 milestone follow-up untuk setiap SPK yang sudah selesai
+    // 1 Transaksi Mobil = 1 Jadwal Follow-up yang Dipilih (1 Minggu, 2 Minggu, 1 Bulan, 3 Bulan, atau Tanpa Follow-up)
     workOrders.forEach((wo) => {
-      const v = wo.vehicle || vehicles.find((veh) => veh.id === wo.vehicle_id) || this.getVehicleById(wo.vehicle_id);
       const finishDateStr = wo.finish_date || wo.updated_at || wo.entry_date || new Date().toISOString();
       const finishTime = new Date(finishDateStr).getTime();
 
-      const milestones: { period: CRMReminderPeriod; days: number }[] = [
-        { period: '1_week', days: 7 },
-        { period: '2_weeks', days: 14 },
-        { period: '1_month', days: 30 },
-        { period: '3_months', days: 90 },
-      ];
+      const primaryLogId = `crm-${wo.id}`;
+      let existing = logsMap.get(primaryLogId);
 
-      milestones.forEach(({ period, days }) => {
-        const logId = `crm-${wo.id}-${period}`;
-        const dueDate = new Date(finishTime + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-
-        if (!logsMap.has(logId)) {
-          const newLog: CRMLog = {
-            id: logId,
-            vehicle_id: wo.vehicle_id,
-            work_order_id: wo.id,
-            spk_number: wo.spk_number,
-            branch: wo.received_at_branch || branch || 'MHS 1',
-            service_date: finishDateStr,
-            due_date: dueDate,
-            reminder_type: period,
-            status: 'pending',
-            created_at: wo.created_at || new Date().toISOString(),
-            updated_at: wo.updated_at || new Date().toISOString(),
-          };
-          logsMap.set(logId, newLog);
-        } else {
-          const existing = logsMap.get(logId)!;
-          // PERBAIKAN KRITIS: Selalu pulihkan field data pelanggan jika sebelumnya kosong / ter-overwrite
-          if (!existing.vehicle_id || existing.vehicle_id === '') existing.vehicle_id = wo.vehicle_id;
-          if (!existing.reminder_type || existing.reminder_type === 'custom') existing.reminder_type = period;
-          if (!existing.spk_number) existing.spk_number = wo.spk_number;
-          if (!existing.work_order_id) existing.work_order_id = wo.id;
-          if (!existing.service_date) existing.service_date = finishDateStr;
-          if (!existing.due_date || existing.reminder_type === 'custom') existing.due_date = dueDate;
-          if (!existing.branch) existing.branch = wo.received_at_branch || branch || 'MHS 1';
+      // Fallback cek log lama jika ada
+      if (!existing) {
+        for (const p of ['1_week', '2_weeks', '1_month', '3_months']) {
+          const oldLog = logsMap.get(`crm-${wo.id}-${p}`);
+          if (oldLog) {
+            existing = oldLog;
+            break;
+          }
         }
-      });
+      }
+
+      // Default jika belum ditentukan oleh kasir/admin: 'none' (Tidak wajib / Belum ditentukan)
+      const period: CRMReminderPeriod = wo.crm_followup_period || existing?.reminder_type || 'none';
+      const daysMap: Record<string, number> = {
+        '1_week': 7,
+        '2_weeks': 14,
+        '1_month': 30,
+        '3_months': 90,
+      };
+
+      const days = daysMap[period] || 0;
+      const dueDate = period === 'none'
+        ? ''
+        : (existing?.due_date && existing.reminder_type === period)
+        ? existing.due_date
+        : new Date(finishTime + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+      const logId = primaryLogId;
+
+      if (!logsMap.has(logId)) {
+        const newLog: CRMLog = {
+          id: logId,
+          vehicle_id: wo.vehicle_id,
+          work_order_id: wo.id,
+          spk_number: wo.spk_number,
+          branch: wo.received_at_branch || branch || 'MHS 1',
+          service_date: finishDateStr,
+          due_date: dueDate,
+          reminder_type: period,
+          status: existing?.status || 'pending',
+          contacted_at: existing?.contacted_at,
+          contacted_by: existing?.contacted_by,
+          question_sent: existing?.question_sent,
+          customer_response: existing?.customer_response,
+          customer_sentiment: existing?.customer_sentiment,
+          notes: existing?.notes,
+          scheduled_date: existing?.scheduled_date,
+          whatsapp_message: existing?.whatsapp_message,
+          is_optional: period === 'none',
+          created_at: wo.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        logsMap.set(logId, newLog);
+      } else {
+        const currentLog = logsMap.get(logId)!;
+        if (!currentLog.vehicle_id) currentLog.vehicle_id = wo.vehicle_id;
+        if (!currentLog.spk_number) currentLog.spk_number = wo.spk_number;
+        if (!currentLog.work_order_id) currentLog.work_order_id = wo.id;
+        if (!currentLog.service_date) currentLog.service_date = finishDateStr;
+        if (!currentLog.branch) currentLog.branch = wo.received_at_branch || branch || 'MHS 1';
+        if (wo.crm_followup_period && wo.crm_followup_period !== currentLog.reminder_type) {
+          currentLog.reminder_type = wo.crm_followup_period;
+          currentLog.due_date = dueDate;
+          currentLog.is_optional = wo.crm_followup_period === 'none';
+        }
+      }
     });
 
-    // Simpan kembali manualLogs yang sudah diperbaiki ke storage
-    const updatedManualLogs = manualLogs.map((l) => logsMap.get(l.id) || l);
-    setLocal(key, updatedManualLogs);
+    // Simpan hanya log yang valid ke storage (membersihkan duplikasi lama secara otomatis)
+    const validLogs = Array.from(logsMap.values()).filter((l) => {
+      const isLegacySub =
+        l.id.endsWith('-1_week') ||
+        l.id.endsWith('-2_weeks') ||
+        l.id.endsWith('-1_month') ||
+        l.id.endsWith('-3_months');
+      return !isLegacySub;
+    });
+    setLocal(key, validLogs);
 
-    const allLogs = Array.from(logsMap.values()).map((log) => {
+    const allLogs = validLogs.map((log) => {
       const wo = workOrders.find((w) => w.id === log.work_order_id || w.spk_number === log.spk_number) || this.getWorkOrderById(log.work_order_id || '');
       const vehicle = vehicles.find((v) => v.id === log.vehicle_id) || wo?.vehicle || this.getVehicleById(log.vehicle_id);
 
@@ -2736,8 +2831,149 @@ export class DBService {
       };
     });
 
-    // Urutkan berdasarkan due_date (yang paling dekat/overdue di paling atas)
-    return allLogs.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+    // Urutkan: yang ada due_date & pending/overdue di paling atas, kemudian yang selesai atau 'none' di bawah
+    return allLogs.sort((a, b) => {
+      if (a.reminder_type === 'none' && b.reminder_type !== 'none') return 1;
+      if (a.reminder_type !== 'none' && b.reminder_type === 'none') return -1;
+      if (!a.due_date && b.due_date) return 1;
+      if (a.due_date && !b.due_date) return -1;
+      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+    });
+  }
+
+  // Update pilihan periode follow up transaksi (1 minggu, 2 minggu, 1 bulan, 3 bulan, none, custom)
+  static setTransactionFollowupPeriod(
+    workOrderId: string,
+    period: CRMReminderPeriod,
+    customDueDate?: string,
+    branch?: BranchId
+  ): boolean {
+    const targetBranch = normalizeBranch(branch || this.getActiveBranch());
+    const woKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, targetBranch);
+    const workOrders = getLocal<WorkOrder[]>(woKey, []);
+    const woIdx = workOrders.findIndex((w) => w.id === workOrderId || w.spk_number === workOrderId);
+
+    let finishDateStr = new Date().toISOString();
+    if (woIdx !== -1) {
+      workOrders[woIdx].crm_followup_period = period;
+      if (customDueDate) workOrders[woIdx].crm_followup_date = customDueDate;
+      finishDateStr = workOrders[woIdx].finish_date || workOrders[woIdx].updated_at || workOrders[woIdx].entry_date || finishDateStr;
+      setLocal(woKey, workOrders);
+    }
+
+    const crmKey = getBranchKey(BASE_STORAGE_KEYS.CRM_LOGS, targetBranch);
+    const crmLogs = getLocal<CRMLog[]>(crmKey, []);
+    const logId = `crm-${workOrderId}`;
+    let logIdx = crmLogs.findIndex((l) => l.id === logId || l.work_order_id === workOrderId);
+
+    const finishTime = new Date(finishDateStr).getTime();
+    const daysMap: Record<string, number> = {
+      '1_week': 7,
+      '2_weeks': 14,
+      '1_month': 30,
+      '3_months': 90,
+    };
+    const days = daysMap[period] || 0;
+    const dueDate = customDueDate || (period === 'none' ? '' : new Date(finishTime + days * 86400000).toISOString().slice(0, 10));
+
+    if (logIdx !== -1) {
+      crmLogs[logIdx].reminder_type = period;
+      crmLogs[logIdx].due_date = dueDate;
+      crmLogs[logIdx].is_optional = period === 'none';
+      crmLogs[logIdx].updated_at = new Date().toISOString();
+    } else {
+      const wo = woIdx !== -1 ? workOrders[woIdx] : undefined;
+      crmLogs.push({
+        id: logId,
+        vehicle_id: wo?.vehicle_id || '',
+        work_order_id: workOrderId,
+        spk_number: wo?.spk_number,
+        branch: wo?.received_at_branch || targetBranch,
+        service_date: finishDateStr,
+        due_date: dueDate,
+        reminder_type: period,
+        status: 'pending',
+        is_optional: period === 'none',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    setLocal(crmKey, crmLogs);
+    return true;
+  }
+
+  // Simpan hasil follow up (pertanyaan kita, respon customer, kategori sentimen, PIC, waktu)
+  static recordFollowupResult(
+    logId: string,
+    data: {
+      question_sent?: string;
+      customer_response?: string;
+      customer_sentiment?: CRMLog['customer_sentiment'];
+      contacted_by?: string;
+      notes?: string;
+      scheduled_date?: string;
+      status?: CRMStatus;
+    },
+    branch?: BranchId
+  ): boolean {
+    const targetBranch = normalizeBranch(branch || this.getActiveBranch());
+    const key = getBranchKey(BASE_STORAGE_KEYS.CRM_LOGS, targetBranch);
+    let logs = getLocal<CRMLog[]>(key, []);
+    let idx = logs.findIndex((l) => l.id === logId);
+
+    // Cari juga di cabang lain jika tidak ditemukan di target branch
+    let actualKey = key;
+    if (idx === -1) {
+      for (const b of ['MHS 1', 'MHS 2', 'MHS 3'] as BranchId[]) {
+        if (b === targetBranch) continue;
+        const bKey = getBranchKey(BASE_STORAGE_KEYS.CRM_LOGS, b);
+        const bLogs = getLocal<CRMLog[]>(bKey, []);
+        const bIdx = bLogs.findIndex((l) => l.id === logId);
+        if (bIdx !== -1) {
+          actualKey = bKey;
+          logs = bLogs;
+          idx = bIdx;
+          break;
+        }
+      }
+    }
+
+    if (idx !== -1) {
+      logs[idx].status = data.status || 'contacted';
+      logs[idx].contacted_at = new Date().toISOString();
+      if (data.question_sent) logs[idx].question_sent = data.question_sent;
+      if (data.customer_response) logs[idx].customer_response = data.customer_response;
+      if (data.customer_sentiment) logs[idx].customer_sentiment = data.customer_sentiment;
+      if (data.contacted_by) logs[idx].contacted_by = data.contacted_by;
+      if (data.notes !== undefined) logs[idx].notes = data.notes;
+      if (data.scheduled_date !== undefined) logs[idx].scheduled_date = data.scheduled_date;
+      logs[idx].updated_at = new Date().toISOString();
+      setLocal(actualKey, logs);
+      return true;
+    }
+
+    // Jika belum ada, buat entri baru
+    const newEntry: CRMLog = {
+      id: logId,
+      vehicle_id: '',
+      branch: targetBranch,
+      due_date: new Date().toISOString().slice(0, 10),
+      reminder_type: 'custom',
+      status: data.status || 'contacted',
+      contacted_at: new Date().toISOString(),
+      question_sent: data.question_sent,
+      customer_response: data.customer_response,
+      customer_sentiment: data.customer_sentiment,
+      contacted_by: data.contacted_by,
+      notes: data.notes,
+      scheduled_date: data.scheduled_date,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    logs.push(newEntry);
+    setLocal(actualKey, logs);
+    return true;
   }
 
   static getAllCRMLogs(): CRMLog[] {

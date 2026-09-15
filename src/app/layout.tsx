@@ -17,6 +17,11 @@ export const metadata: Metadata = {
   title: 'Mardiono Home Service - Workshop Management System',
   description:
     'Sistem Manajemen Bengkel Mobil Modern: Intake SPK Digital, Checklist Inspeksi Mesin & AC, Estimasi Biaya, Kasir, Inventaris & CRM Service Reminder.',
+  other: {
+    'color-scheme': 'light',
+    'supported-color-schemes': 'light',
+    'darkreader-lock': 'true',
+  },
 };
 
 export default function RootLayout({
@@ -25,7 +30,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="id" className={montserrat.variable}>
+    <html lang="id" className={`${montserrat.variable} light`} style={{ colorScheme: 'light', forcedColorAdjust: 'none' as any }}>
+      <head>
+        <meta name="color-scheme" content="light" />
+        <meta name="supported-color-schemes" content="light" />
+        <meta name="darkreader-lock" content="true" />
+      </head>
       <body className={`${montserrat.className} bg-surface-50 text-slate-900 min-h-screen font-sans antialiased selection:bg-maroon-700 selection:text-white`}>
         <AuthProvider>
           <AppProvider>

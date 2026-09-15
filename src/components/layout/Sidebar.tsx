@@ -117,11 +117,12 @@ export function Sidebar() {
     (i) => !i.is_service && i.stock_qty <= i.min_stock_alert
   ).length;
 
-  // Notifikasi CRM: Hitung jumlah unit mobil unik yang memiliki follow-up pending
+  // Notifikasi CRM: Hitung jumlah unit mobil unik yang sudah jatuh tempo / hari ini (tidak termasuk 'none')
   const pendingCrmVehicleCount = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
     const pendingVehicles = new Set<string>();
     crmLogs.forEach((c) => {
-      if (c.status === 'pending') {
+      if (c.status === 'pending' && c.reminder_type !== 'none' && c.due_date && c.due_date <= today) {
         const plate = (c.vehicle?.license_plate || (c as any).license_plate || c.vehicle_id || '').trim().toUpperCase().replace(/\s+/g, '');
         const key = c.vehicle_id || plate || c.id;
         pendingVehicles.add(key);

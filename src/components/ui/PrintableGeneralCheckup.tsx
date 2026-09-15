@@ -9,6 +9,7 @@ import { DBService } from '@/lib/services/db-service';
 import {
   OfficialDocumentHeader,
   OfficialDocumentFooter,
+  OfficialDocumentMetaGrid,
 } from './OfficialDocumentLayout';
 import { DocumentImageModal } from './DocumentImageModal';
 
@@ -137,47 +138,18 @@ export function PrintableGeneralCheckup({
           </div>
 
           {/* Symmetrical Metadata Grid: Pemilik Kendaraan & Kendaraan */}
-          <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50/70 p-2.5 rounded-xl border border-slate-800 font-medium">
-            {/* Kolom Kiri */}
-            <div className="space-y-1 border-r border-slate-300 pr-3">
-              <div className="flex items-baseline gap-1.5">
-                <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Pemilik Kendaraan</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {checkup.customer_name || vehicle?.customer_name || 'Pemilik Kendaraan'}</span>
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Alamat</span>
-                <span className="font-bold text-slate-950 leading-tight flex-1 min-w-0 break-words">: {address}</span>
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Unit</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0 break-words leading-tight">: {checkup.car_model || vehicle?.car_model || '-'}</span>
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="w-28 shrink-0 font-bold text-slate-600 whitespace-nowrap">Jam Datang</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0">: {jamDatang}</span>
-              </div>
-            </div>
-
-            {/* Kolom Kanan */}
-            <div className="space-y-1 pl-1">
-              <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">No Pol</span>
-                <span className="font-mono font-black text-[#8B0000] text-sm flex-1 min-w-0">: {formatPlate(checkup.license_plate)}</span>
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">No PKB / QC</span>
-                <span className="font-mono font-bold text-[#8B0000] flex-1 min-w-0 break-words">: {checkup.document_number}</span>
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">Tanggal</span>
-                <span className="font-bold text-slate-950 flex-1 min-w-0">: {formatDate(checkup.check_date)}</span>
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="w-20 shrink-0 font-bold text-slate-600 whitespace-nowrap">KM Odometer</span>
-                <span className="font-mono font-bold text-slate-950 flex-1 min-w-0">: {formatKM(checkup.mileage)}</span>
-              </div>
-            </div>
-          </div>
+          <OfficialDocumentMetaGrid
+            customerName={checkup.customer_name || vehicle?.customer_name || 'Pemilik Kendaraan'}
+            address={address}
+            unit={checkup.car_model || vehicle?.car_model || '-'}
+            entryTime={jamDatang}
+            licensePlate={checkup.license_plate ? formatPlate(checkup.license_plate) : '-'}
+            docNumber={checkup.document_number}
+            docLabel="No PKB / QC"
+            docColor="#8B0000"
+            date={formatDate(checkup.check_date)}
+            mileage={formatKM(checkup.mileage)}
+          />
 
           {/* 1. Cek Kondisi Aki & Bahan Bakar (BBM) */}
           <div className="border border-slate-800 rounded-xl overflow-hidden text-xs">

@@ -4,9 +4,10 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '@/lib/context/AppContext';
 import { useAuth } from '@/lib/context/AuthContext';
 import { DBService } from '@/lib/services/db-service';
-import { CRMLog, CRMStatus, CRMReminderPeriod, VehicleCustomer } from '@/lib/types/database';
+import { CRMLog, CRMStatus, CRMReminderPeriod } from '@/lib/types/database';
 import {
   formatDate,
+  formatDateTime,
   formatPlate,
   createWhatsAppLink,
 } from '@/lib/utils';
@@ -37,40 +38,52 @@ import {
   ChevronDown,
   Info,
   ExternalLink,
+  Eye,
+  FileText,
+  X,
+  MessageCircle,
+  AlertTriangle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { BranchId } from '@/lib/auth/users';
 
-interface CRMVehicleGroup {
-  key: string;
-  vehicleId?: string;
+interface CRMItem {
+  id: string;
+  vehicle_id: string;
+  work_order_id?: string;
+  spk_number?: string;
+  invoice_number?: string;
+  branch: string;
+  service_date?: string;
+  due_date: string;
+  reminder_type: CRMReminderPeriod;
+  status: CRMStatus;
+  contacted_at?: string;
+  contacted_by?: string;
+  question_sent?: string;
+  customer_response?: string;
+  customer_sentiment?: 'very_satisfied' | 'satisfied' | 'complaint' | 'reschedule' | 'unresponsive';
+  scheduled_date?: string;
+  notes?: string;
+  is_optional?: boolean;
+
+  // Joined vehicle info
   licensePlate: string;
   customerName: string;
   phoneNumber: string;
   carBrand: string;
   carModel: string;
   carYear?: number | string;
-  branch: string;
-  spkNumber: string;
-  serviceDate?: string;
-  logs: CRMLog[];
-  milestones: {
-    '1_week'?: CRMLog;
-    '2_weeks'?: CRMLog;
-    '1_month'?: CRMLog;
-    '3_months'?: CRMLog;
-    [key: string]: CRMLog | undefined;
-  };
-  activeMilestone?: CRMLog;
+
+  // Calculation info
   daysUntilNext: number | null;
   isOverdue: boolean;
   isDueToday: boolean;
-  isCompletedAll: boolean;
 }
 
 export default function CRMPage() {
   const { allCrmLogs, vehicles, refreshData, showToast } = useApp();
-  const { activeBranch } = useAuth();
+  const { activeBranch, currentUser } = useAuth();
 
   const [selectedBranch, setSelectedBranch] = useState<'ALL' | BranchId>('ALL');
   const [periodFilter, setPeriodFilter] = useState<string>('all');
@@ -78,18 +91,78 @@ export default function CRMPage() {
   const [timingFilter, setTimingFilter] = useState<'all' | 'due' | 'upcoming'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Selected vehicle group for detail / follow-up modal
-  const [selectedGroup, setSelectedGroup] = useState<CRMVehicleGroup | null>(null);
-  const [selectedMilestonePeriod, setSelectedMilestonePeriod] = useState<CRMReminderPeriod>('1_week');
-  const [customWaMessage, setCustomWaMessage] = useState<string>('');
-  const [followupNotes, setFollowupNotes] = useState<string>('');
-  const [scheduledBookingDate, setScheduledBookingDate] = useState<string>('');
+  // Modal 1: Follow-Up & Input Respon
+  const [followupModalItem, setFollowupModalItem] = useState<CRMItem | null>(null);
+  const [modalPeriod, setModalPeriod] = useState<CRMReminderPeriod>('1_week');
+  const [modalQuestion, setModalQuestion] = useState<string>('');
+  const [modalResponse, setModalResponse] = useState<string>('');
+  const [modalSentiment, setModalSentiment] = useState<CRMLog['customer_sentiment'] | ''>('satisfied');
+  const [modalPic, setModalPic] = useState<string>('');
+  const [modalScheduledDate, setModalScheduledDate] = useState<string>('');
+  const [modalNotes, setModalNotes] = useState<string>('');
+
+  // Modal 2: Buka Riwayat Respon Customer
+  const [responseDetailItem, setResponseDetailItem] = useState<CRMItem | null>(null);
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayTime = new Date(todayStr).getTime();
 
-  // Helper template pesan WA per milestone
-  const getTemplateForPeriod = (period: CRMReminderPeriod, customerName: string, car: string, plate: string, serviceDateStr?: string) => {
+  // Opsi periode follow up
+  const periodOptions: { id: CRMReminderPeriod; label: string; days: number; desc: string; badgeClass: string }[] = [
+    { id: 'none', label: 'Tanpa Follow Up', days: 0, desc: 'Tidak wajib / dilewati', badgeClass: 'bg-slate-100 text-slate-700 border-slate-300' },
+    { id: '1_week', label: '1 Minggu', days: 7, desc: 'Kepuasan servis awal (+7 hari)', badgeClass: 'bg-indigo-100 text-indigo-900 border-indigo-300' },
+    { id: '2_weeks', label: '2 Minggu', days: 14, desc: 'Performa mesin & AC (+14 hari)', badgeClass: 'bg-blue-100 text-blue-900 border-blue-300' },
+    { id: '1_month', label: '1 Bulan', days: 30, desc: 'Masa garansi servis (+30 hari)', badgeClass: 'bg-amber-100 text-amber-900 border-amber-300' },
+    { id: '3_months', label: '3 Bulan', days: 90, desc: 'Servis berkala & oli (+90 hari)', badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
+    { id: 'custom', label: 'Custom', days: 0, desc: 'Jadwal khusus bengkel', badgeClass: 'bg-purple-100 text-purple-900 border-purple-300' },
+  ];
+
+  const sentimentMap: Record<
+    NonNullable<CRMLog['customer_sentiment']>,
+    { label: string; icon: string; badgeClass: string }
+  > = {
+    very_satisfied: {
+      label: 'Sangat Puas',
+      icon: '😍',
+      badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+    },
+    satisfied: {
+      label: 'Puas / Sesuai',
+      icon: '👍',
+      badgeClass: 'bg-blue-100 text-blue-900 border-blue-300',
+    },
+    complaint: {
+      label: 'Komplain / Keluhan',
+      icon: '⚠️',
+      badgeClass: 'bg-red-100 text-red-900 border-red-300',
+    },
+    reschedule: {
+      label: 'Minta Jadwal Ulang',
+      icon: '📅',
+      badgeClass: 'bg-amber-100 text-amber-900 border-amber-300',
+    },
+    unresponsive: {
+      label: 'Tidak Merespon',
+      icon: '🔕',
+      badgeClass: 'bg-slate-100 text-slate-800 border-slate-300',
+    },
+  };
+
+  const statusMap: Record<CRMStatus, { label: string; class: string }> = {
+    pending: { label: 'Belum Dihubungi', class: 'bg-amber-50 text-amber-800 border-amber-300' },
+    contacted: { label: 'Sudah Dihubungi', class: 'bg-blue-50 text-blue-800 border-blue-300' },
+    scheduled: { label: 'Booking Dibuat', class: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold' },
+    declined: { label: 'Ditolak / Tunda', class: 'bg-red-50 text-red-800 border-red-300' },
+  };
+
+  // Helper template pertanyaan WA per periode
+  const getQuestionTemplate = (
+    period: CRMReminderPeriod,
+    customerName: string,
+    car: string,
+    plate: string,
+    serviceDateStr?: string
+  ) => {
     const sDate = serviceDateStr ? formatDate(serviceDateStr) : 'beberapa waktu lalu';
 
     switch (period) {
@@ -115,138 +188,159 @@ Mengingatkan bahwa masa garansi servis 1 bulan untuk mobil ${car} (${plate}) aka
 Bpk/Ibu juga dipersilakan mampir ke bengkel kami untuk cek tekanan angin ban & air radiator gratis kapan saja. Terima kasih! 🛠️`;
 
       case '3_months':
-      default:
         return `Halo Bpk/Ibu ${customerName}, salam hangat dari Mardiono Home Service.
 
 Sudah 3 bulan sejak perawatan terakhir mobil ${car} (${plate}) di bengkel kami pada tanggal ${sDate}. Untuk menjaga performa mesin tetap awet, bertenaga, dan hemat BBM, kini sudah waktunya untuk Servis Berkala / Ganti Oli Mesin berikutnya.
 
 Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! 📅🔧`;
+
+      default:
+        return `Halo Bpk/Ibu ${customerName}, salam hangat dari Mardiono Home Service.
+
+Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) setelah selesai servis di bengkel kami pada tanggal ${sDate}. Semoga aktivitas berkendara selalu lancar dan prima! 🙏`;
     }
   };
 
-  const periodLabels: Record<string, { label: string; badgeClass: string; desc: string; shortLabel: string }> = {
-    '1_week': { label: '1 Minggu', badgeClass: 'bg-indigo-100 text-indigo-900 border-indigo-300', desc: 'Kepuasan Servis Awal', shortLabel: '1 Mgg' },
-    '2_weeks': { label: '2 Minggu', badgeClass: 'bg-blue-100 text-blue-900 border-blue-300', desc: 'Performa Mesin & AC', shortLabel: '2 Mgg' },
-    '1_month': { label: '1 Bulan', badgeClass: 'bg-amber-100 text-amber-900 border-amber-300', desc: 'Masa Garansi Servis', shortLabel: '1 Bln' },
-    '3_months': { label: '3 Bulan', badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-300', desc: 'Servis Berkala & Ganti Oli', shortLabel: '3 Bln' },
-    'periodic_service': { label: 'Servis Berkala', badgeClass: 'bg-slate-100 text-slate-800 border-slate-300', desc: 'Perawatan Rutin', shortLabel: 'Berkala' },
-    'ac_cleaning': { label: 'Perawatan AC', badgeClass: 'bg-cyan-100 text-cyan-900 border-cyan-300', desc: 'Pembersihan AC', shortLabel: 'AC' },
-    'oil_change': { label: 'Ganti Oli', badgeClass: 'bg-orange-100 text-orange-900 border-orange-300', desc: 'Oli Mesin', shortLabel: 'Oli' },
-    'general_check': { label: 'Cek Umum', badgeClass: 'bg-purple-100 text-purple-900 border-purple-300', desc: 'Checkup Kendaraan', shortLabel: 'Check' },
-    'custom': { label: 'Custom', badgeClass: 'bg-slate-100 text-slate-700 border-slate-300', desc: 'Jadwal Khusus', shortLabel: 'Custom' },
-  };
-
-  const statusMap: Record<CRMStatus, { label: string; class: string }> = {
-    pending: { label: 'Belum Dihubungi', class: 'bg-amber-50 text-amber-800 border-amber-300' },
-    contacted: { label: 'Sudah Dihubungi', class: 'bg-blue-50 text-blue-800 border-blue-300' },
-    scheduled: { label: 'Booking Dibuat', class: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold' },
-    declined: { label: 'Ditolak / Tunda', class: 'bg-red-50 text-red-800 border-red-300' },
-  };
-
-  // 1. Sumber data sesuai Cabang yang dipilih
+  // 1. Filter log mentah berdasarkan Cabang
   const sourceLogs = useMemo(() => {
     return selectedBranch === 'ALL'
       ? allCrmLogs
       : allCrmLogs.filter((l) => (l.branch || 'MHS 1') === selectedBranch);
   }, [allCrmLogs, selectedBranch]);
 
-  // 2. Kelompokkan data menjadi 1 baris per unit mobil (Deduplikasi)
-  const vehicleGroups: CRMVehicleGroup[] = useMemo(() => {
-    const map = new Map<string, CRMVehicleGroup>();
+  // 2. Olah data: 1 baris per unit transaksi kendaraan
+  const crmItems: CRMItem[] = useMemo(() => {
+    const list: CRMItem[] = [];
+    const seenWo = new Set<string>();
 
     sourceLogs.forEach((log) => {
+      // Deduplikasi per transaksi work_order_id atau spk_number
+      const cleanId = log.id.replace(/-(1_week|2_weeks|1_month|3_months)$/, '');
+      const woKey = log.work_order_id || log.spk_number || cleanId;
+      if (seenWo.has(woKey)) return;
+      seenWo.add(woKey);
+
       const vehicle = log.vehicle || vehicles.find((v) => v.id === log.vehicle_id) || log.work_order?.vehicle;
       const plate = (vehicle?.license_plate || (log as any).license_plate || '').trim().toUpperCase();
-      const normPlate = plate.replace(/\s+/g, '');
-      const key = log.vehicle_id || normPlate || log.spk_number || log.id;
 
-      let group = map.get(key);
-      if (!group) {
-        group = {
-          key,
-          vehicleId: log.vehicle_id || vehicle?.id,
-          licensePlate: vehicle?.license_plate || (log as any).license_plate || 'Tanpa Plat',
-          customerName: vehicle?.customer_name || 'Pelanggan',
-          phoneNumber: vehicle?.phone_number || '',
-          carBrand: vehicle?.car_brand || '',
-          carModel: vehicle?.car_model || '',
-          carYear: vehicle?.car_year || '',
-          branch: log.branch || 'MHS 1',
-          spkNumber: log.spk_number || 'SPK Servis',
-          serviceDate: log.service_date,
-          logs: [],
-          milestones: {},
-          daysUntilNext: null,
-          isOverdue: false,
-          isDueToday: false,
-          isCompletedAll: false,
-        };
-        map.set(key, group);
+      let daysUntilNext: number | null = null;
+      let isOverdue = false;
+      let isDueToday = false;
+
+      if (log.due_date && log.reminder_type !== 'none') {
+        const dueTime = new Date(log.due_date).getTime();
+        const diffDays = Math.round((dueTime - todayTime) / (1000 * 60 * 60 * 24));
+        daysUntilNext = diffDays;
+        isOverdue = diffDays < 0 && log.status === 'pending';
+        isDueToday = diffDays === 0 && log.status === 'pending';
       }
 
-      group.logs.push(log);
-      group.milestones[log.reminder_type] = log;
-      if (log.service_date && (!group.serviceDate || new Date(log.service_date).getTime() > new Date(group.serviceDate).getTime())) {
-        group.serviceDate = log.service_date;
-      }
+      list.push({
+        id: log.id,
+        vehicle_id: log.vehicle_id || vehicle?.id || '',
+        work_order_id: log.work_order_id,
+        spk_number: log.spk_number || log.work_order?.spk_number || 'SPK',
+        invoice_number: log.invoice_number,
+        branch: log.branch || log.work_order?.received_at_branch || 'MHS 1',
+        service_date: log.service_date || log.work_order?.finish_date || log.work_order?.entry_date,
+        due_date: log.due_date,
+        reminder_type: log.reminder_type || 'none',
+        status: log.status || 'pending',
+        contacted_at: log.contacted_at,
+        contacted_by: log.contacted_by,
+        question_sent: log.question_sent,
+        customer_response: log.customer_response,
+        customer_sentiment: log.customer_sentiment,
+        scheduled_date: log.scheduled_date,
+        notes: log.notes,
+        is_optional: log.is_optional ?? (log.reminder_type === 'none'),
+
+        licensePlate: plate || vehicle?.license_plate || 'Tanpa Plat',
+        customerName: vehicle?.customer_name || 'Pelanggan',
+        phoneNumber: vehicle?.phone_number || '',
+        carBrand: vehicle?.car_brand || '',
+        carModel: vehicle?.car_model || '',
+        carYear: vehicle?.car_year,
+
+        daysUntilNext,
+        isOverdue,
+        isDueToday,
+      });
     });
 
-    // Evaluasi milestone tiap mobil & hitung hari
-    return Array.from(map.values()).map((group) => {
-      // Urutkan logs berdasarkan due_date
-      group.logs.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+    // Urutan prioritas:
+    // 1. Yang jatuh tempo (overdue / hari ini) di paling atas
+    // 2. Yang upcoming berikutnya
+    // 3. Yang sudah dihubungi
+    // 4. Yang 'none' (tanpa follow up) di paling bawah
+    return list.sort((a, b) => {
+      const aIsDue = a.reminder_type !== 'none' && a.due_date && a.status === 'pending' && (a.isOverdue || a.isDueToday);
+      const bIsDue = b.reminder_type !== 'none' && b.due_date && b.status === 'pending' && (b.isOverdue || b.isDueToday);
 
-      // Cari milestone yang masih pending terdekat
-      const pendingLogs = group.logs.filter((l) => l.status === 'pending');
-      let targetLog: CRMLog | undefined;
+      if (aIsDue && !bIsDue) return -1;
+      if (!aIsDue && bIsDue) return 1;
 
-      if (pendingLogs.length > 0) {
-        // Milestone pending dengan due_date paling awal
-        targetLog = pendingLogs[0];
-      } else if (group.logs.length > 0) {
-        // Jika sudah dihubungi semua, ambil milestone terakhir
-        targetLog = group.logs[group.logs.length - 1];
+      const aPending = a.reminder_type !== 'none' && a.status === 'pending';
+      const bPending = b.reminder_type !== 'none' && b.status === 'pending';
+      if (aPending && !bPending) return -1;
+      if (!aPending && bPending) return 1;
+
+      if (aPending && bPending) {
+        return (a.daysUntilNext ?? 999) - (b.daysUntilNext ?? 999);
       }
 
-      group.activeMilestone = targetLog;
+      if (a.reminder_type === 'none' && b.reminder_type !== 'none') return 1;
+      if (a.reminder_type !== 'none' && b.reminder_type === 'none') return -1;
 
-      if (targetLog) {
-        const dueTime = new Date(targetLog.due_date).getTime();
-        const diffDays = Math.round((dueTime - todayTime) / (1000 * 60 * 60 * 24));
-        group.daysUntilNext = diffDays;
-        group.isOverdue = diffDays < 0 && targetLog.status === 'pending';
-        group.isDueToday = diffDays === 0 && targetLog.status === 'pending';
-      }
-
-      group.isCompletedAll = group.logs.length > 0 && group.logs.every((l) => l.status === 'contacted' || l.status === 'scheduled');
-
-      return group;
+      return new Date(b.service_date || 0).getTime() - new Date(a.service_date || 0).getTime();
     });
   }, [sourceLogs, vehicles, todayTime]);
 
-  // 3. Filter mobil
-  const filteredVehicleGroups = useMemo(() => {
-    return vehicleGroups.filter((group) => {
-      // Filter Milestone: cek apakah mobil memiliki milestone tertentu yang aktif atau match
-      if (periodFilter !== 'all') {
-        const hasMatchingMilestone = group.logs.some((l) => l.reminder_type === periodFilter);
-        if (!hasMatchingMilestone) return false;
-      }
+  // List transaksi yang jatuh tempo hari ini atau overdue (Notifikasi Utama)
+  const dueNowList = useMemo(() => {
+    return crmItems.filter(
+      (item) => item.reminder_type !== 'none' && item.status === 'pending' && (item.isOverdue || item.isDueToday)
+    );
+  }, [crmItems]);
 
-      // Filter Status: cek status dari activeMilestone atau salah satu milestone
-      if (statusFilter !== 'all') {
-        if (group.activeMilestone?.status !== statusFilter) {
+  // KPI Counters
+  const countDueNow = dueNowList.length;
+  const count1W2W = crmItems.filter((i) => i.reminder_type === '1_week' || i.reminder_type === '2_weeks').length;
+  const count1M3M = crmItems.filter((i) => i.reminder_type === '1_month' || i.reminder_type === '3_months').length;
+  const countNone = crmItems.filter((i) => i.reminder_type === 'none').length;
+  const countCompleted = crmItems.filter((i) => i.status === 'contacted' || i.status === 'scheduled').length;
+
+  const count1Week = crmItems.filter((i) => i.reminder_type === '1_week').length;
+  const count2Weeks = crmItems.filter((i) => i.reminder_type === '2_weeks').length;
+  const count1Month = crmItems.filter((i) => i.reminder_type === '1_month').length;
+  const count3Months = crmItems.filter((i) => i.reminder_type === '3_months').length;
+
+  // Filter Data Tabel
+  const filteredItems = useMemo(() => {
+    return crmItems.filter((item) => {
+      // Period filter
+      if (periodFilter !== 'all') {
+        if (periodFilter === 'due') {
+          if (!item.isOverdue && !item.isDueToday) return false;
+        } else if (periodFilter === 'completed') {
+          if (item.status !== 'contacted' && item.status !== 'scheduled') return false;
+        } else if (item.reminder_type !== periodFilter) {
           return false;
         }
       }
 
-      // Filter Timing (Due now vs Upcoming)
+      // Status filter
+      if (statusFilter !== 'all' && item.status !== statusFilter) {
+        return false;
+      }
+
+      // Timing filter
       if (timingFilter === 'due') {
-        if (!group.isOverdue && !group.isDueToday) {
+        if ((!item.isOverdue && !item.isDueToday) || item.reminder_type === 'none' || item.status !== 'pending') {
           return false;
         }
       } else if (timingFilter === 'upcoming') {
-        if (group.daysUntilNext === null || group.daysUntilNext <= 0 || group.isCompletedAll) {
+        if (item.daysUntilNext === null || item.daysUntilNext <= 0 || item.reminder_type === 'none' || item.status !== 'pending') {
           return false;
         }
       }
@@ -254,166 +348,158 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! �
       // Search Query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const plate = group.licensePlate.toLowerCase();
-        const name = group.customerName.toLowerCase();
-        const phone = group.phoneNumber.toLowerCase();
-        const car = `${group.carBrand} ${group.carModel}`.toLowerCase();
-        const spk = group.spkNumber.toLowerCase();
-        const br = group.branch.toLowerCase();
-        return plate.includes(q) || name.includes(q) || phone.includes(q) || car.includes(q) || spk.includes(q) || br.includes(q);
+        const plate = item.licensePlate.toLowerCase();
+        const name = item.customerName.toLowerCase();
+        const phone = item.phoneNumber.toLowerCase();
+        const car = `${item.carBrand} ${item.carModel}`.toLowerCase();
+        const spk = (item.spk_number || '').toLowerCase();
+        const br = item.branch.toLowerCase();
+        const resp = (item.customer_response || '').toLowerCase();
+        return plate.includes(q) || name.includes(q) || phone.includes(q) || car.includes(q) || spk.includes(q) || br.includes(q) || resp.includes(q);
       }
 
       return true;
     });
-  }, [vehicleGroups, periodFilter, statusFilter, timingFilter, searchQuery]);
+  }, [crmItems, periodFilter, statusFilter, timingFilter, searchQuery]);
 
-  // KPI Counters (dihitung berdasarkan Unit Mobil Unik)
-  const countDueNow = useMemo(() => {
-    return vehicleGroups.filter((g) => g.isOverdue || g.isDueToday).length;
-  }, [vehicleGroups]);
-
-  const count1W2W = useMemo(() => {
-    return vehicleGroups.filter((g) => {
-      const type = g.activeMilestone?.reminder_type;
-      return type === '1_week' || type === '2_weeks';
-    }).length;
-  }, [vehicleGroups]);
-
-  const count1M3M = useMemo(() => {
-    return vehicleGroups.filter((g) => {
-      const type = g.activeMilestone?.reminder_type;
-      return type === '1_month' || type === '3_months';
-    }).length;
-  }, [vehicleGroups]);
-
-  const countCompleted = useMemo(() => {
-    return vehicleGroups.filter((g) => g.isCompletedAll).length;
-  }, [vehicleGroups]);
-
-  // Tab counters
-  const count1Week = vehicleGroups.filter((g) => g.logs.some((l) => l.reminder_type === '1_week')).length;
-  const count2Weeks = vehicleGroups.filter((g) => g.logs.some((l) => l.reminder_type === '2_weeks')).length;
-  const count1Month = vehicleGroups.filter((g) => g.logs.some((l) => l.reminder_type === '1_month')).length;
-  const count3Months = vehicleGroups.filter((g) => g.logs.some((l) => l.reminder_type === '3_months')).length;
-
-  // Open detail / follow-up modal for a vehicle group
-  const handleOpenGroupModal = (group: CRMVehicleGroup, targetPeriod?: CRMReminderPeriod) => {
-    setSelectedGroup(group);
-
-    // Tentukan milestone mana yang difokuskan:
-    // Jika targetPeriod diberikan dan ada log-nya, gunakan itu.
-    // Jika tidak, gunakan activeMilestone group, atau default '1_week'.
-    let periodToSelect: CRMReminderPeriod = targetPeriod || group.activeMilestone?.reminder_type || '1_week';
-    if (!group.milestones[periodToSelect] && group.logs.length > 0) {
-      periodToSelect = group.logs[0].reminder_type;
-    }
-
-    setSelectedMilestonePeriod(periodToSelect);
-    loadMilestoneDraft(group, periodToSelect);
-  };
-
-  const loadMilestoneDraft = (group: CRMVehicleGroup, period: CRMReminderPeriod) => {
-    const log = group.milestones[period] || group.activeMilestone;
-    const car = `${group.carBrand} ${group.carModel}`.trim() || 'Mobil';
-    const plate = group.licensePlate ? formatPlate(group.licensePlate) : '';
-    const defaultMsg = getTemplateForPeriod(period, group.customerName, car, plate, group.serviceDate);
-
-    setCustomWaMessage(log?.whatsapp_message || defaultMsg);
-    setFollowupNotes(log?.notes || '');
-    setScheduledBookingDate(log?.scheduled_date || '');
-  };
-
-  const handleSelectMilestoneTabInModal = (period: CRMReminderPeriod) => {
-    if (!selectedGroup) return;
-    setSelectedMilestonePeriod(period);
-    loadMilestoneDraft(selectedGroup, period);
-  };
-
-  // Update status untuk milestone yang sedang dipilih di modal
-  const handleUpdateStatus = (status: CRMStatus) => {
-    if (!selectedGroup) return;
-    const log = selectedGroup.milestones[selectedMilestonePeriod] || selectedGroup.activeMilestone;
-    if (!log) return;
-
-    DBService.updateCRMStatus(
-      log.id,
-      status,
-      followupNotes,
-      scheduledBookingDate,
-      (log.branch as BranchId) || activeBranch,
-      log
-    );
-    refreshData();
-    showToast(`Status milestone ${periodLabels[selectedMilestonePeriod]?.label || selectedMilestonePeriod} berhasil diubah ke "${status.toUpperCase()}"`, 'success');
-    setSelectedGroup(null);
-  };
-
-  // Kirim WA & otomatis set status ke 'contacted'
-  const handleSendWhatsAppAndMarkContacted = () => {
-    if (!selectedGroup) return;
-    const log = selectedGroup.milestones[selectedMilestonePeriod] || selectedGroup.activeMilestone;
-    if (!log) return;
-
-    if (!selectedGroup.phoneNumber) {
-      showToast('Nomor WhatsApp pelanggan tidak ditemukan.', 'error');
+  // Ubah Jadwal Follow Up 1 Waktu Secara Langsung Dari Baris Tabel
+  const handleChangeFollowupPeriod = (item: CRMItem, newPeriod: CRMReminderPeriod) => {
+    if (!item.work_order_id) {
+      showToast('ID Work Order tidak valid.', 'error');
       return;
     }
 
-    const waUrl = createWhatsAppLink(selectedGroup.phoneNumber, customWaMessage);
-    window.open(waUrl, '_blank');
-
-    DBService.updateCRMStatus(
-      log.id,
-      'contacted',
-      followupNotes,
-      scheduledBookingDate,
-      (log.branch as BranchId) || activeBranch,
-      log
+    DBService.setTransactionFollowupPeriod(
+      item.work_order_id,
+      newPeriod,
+      undefined,
+      item.branch as BranchId
     );
     refreshData();
-    showToast(`WhatsApp dibuka & milestone ${periodLabels[selectedMilestonePeriod]?.label || selectedMilestonePeriod} ditandai "Sudah Dihubungi"!`, 'success');
-    setSelectedGroup(null);
+    const opt = periodOptions.find((p) => p.id === newPeriod);
+    showToast(
+      `Jadwal follow-up ${item.licensePlate ? formatPlate(item.licensePlate) : item.customerName} diubah ke "${opt?.label || newPeriod}".`,
+      'success'
+    );
   };
 
-  // Quick mark status langsung dari baris tabel
-  const handleQuickMarkFollowup = (group: CRMVehicleGroup, newStatus: CRMStatus = 'contacted') => {
-    const log = group.activeMilestone;
-    if (!log) return;
+  // Buka Modal 1: Follow Up WA & Input Respon
+  const handleOpenFollowupModal = (item: CRMItem) => {
+    setFollowupModalItem(item);
+    const period = item.reminder_type !== 'none' ? item.reminder_type : '1_week';
+    setModalPeriod(period);
+    const car = `${item.carBrand} ${item.carModel}`.trim() || 'Mobil';
+    const plate = item.licensePlate ? formatPlate(item.licensePlate) : '';
+    const defaultQuestion = item.question_sent || getQuestionTemplate(period, item.customerName, car, plate, item.service_date);
+    setModalQuestion(defaultQuestion);
+    setModalResponse(item.customer_response || '');
+    setModalSentiment(item.customer_sentiment || 'satisfied');
+    setModalPic(item.contacted_by || currentUser?.full_name || 'Admin CRM');
+    setModalScheduledDate(item.scheduled_date || '');
+    setModalNotes(item.notes || '');
+  };
 
+  // Ganti periode saat sedang berada di dalam Modal 1
+  const handleModalPeriodChange = (newPeriod: CRMReminderPeriod) => {
+    setModalPeriod(newPeriod);
+    if (!followupModalItem) return;
+    const car = `${followupModalItem.carBrand} ${followupModalItem.carModel}`.trim() || 'Mobil';
+    const plate = followupModalItem.licensePlate ? formatPlate(followupModalItem.licensePlate) : '';
+    setModalQuestion(getQuestionTemplate(newPeriod, followupModalItem.customerName, car, plate, followupModalItem.service_date));
+  };
+
+  // Buka tautan WhatsApp
+  const handleOpenWhatsApp = () => {
+    if (!followupModalItem?.phoneNumber) {
+      showToast('Nomor WhatsApp pelanggan tidak ditemukan.', 'error');
+      return;
+    }
+    const url = createWhatsAppLink(followupModalItem.phoneNumber, modalQuestion);
+    window.open(url, '_blank');
+    showToast('WhatsApp dibuka. Silakan hubungi customer dan simpan catatan respon di bawah ini.', 'info');
+  };
+
+  // Simpan Hasil Follow Up (Pertanyaan, Respon Customer, Sentimen, PIC)
+  const handleSaveFollowupResult = (statusToSet: CRMStatus = 'contacted') => {
+    if (!followupModalItem) return;
+
+    // Jika periode di modal berbeda dari yang tersimpan, update periodenya juga
+    if (modalPeriod !== followupModalItem.reminder_type && followupModalItem.work_order_id) {
+      DBService.setTransactionFollowupPeriod(
+        followupModalItem.work_order_id,
+        modalPeriod,
+        undefined,
+        followupModalItem.branch as BranchId
+      );
+    }
+
+    DBService.recordFollowupResult(
+      followupModalItem.id,
+      {
+        question_sent: modalQuestion,
+        customer_response: modalResponse,
+        customer_sentiment: modalSentiment || undefined,
+        contacted_by: modalPic,
+        scheduled_date: modalScheduledDate,
+        notes: modalNotes,
+        status: modalScheduledDate ? 'scheduled' : statusToSet,
+      },
+      followupModalItem.branch as BranchId
+    );
+
+    refreshData();
+    showToast(
+      `Hasil follow-up untuk ${followupModalItem.licensePlate ? formatPlate(followupModalItem.licensePlate) : followupModalItem.customerName} berhasil disimpan!`,
+      'success'
+    );
+    setFollowupModalItem(null);
+  };
+
+  // Buka Modal 2: Buka Detail Riwayat Respon Customer
+  const handleOpenResponseDetailModal = (item: CRMItem) => {
+    setResponseDetailItem(item);
+  };
+
+  // Quick reset status ke pending
+  const handleQuickResetStatus = (item: CRMItem) => {
     DBService.updateCRMStatus(
-      log.id,
-      newStatus,
-      log.notes,
-      log.scheduled_date,
-      (log.branch as BranchId) || activeBranch,
-      log
+      item.id,
+      'pending',
+      item.notes,
+      item.scheduled_date,
+      item.branch as BranchId
     );
     refreshData();
-    const plate = group.licensePlate ? formatPlate(group.licensePlate) : '';
-    if (newStatus === 'contacted') {
-      showToast(`Kendaraan ${plate || group.customerName} berhasil ditandai "Sudah Follow-up"!`, 'success');
-    } else {
-      showToast(`Status kendaraan ${plate || group.customerName} dikembalikan ke "${newStatus.toUpperCase()}"`, 'info');
-    }
+    showToast(`Status ${item.licensePlate ? formatPlate(item.licensePlate) : 'kendaraan'} dikembalikan ke "Belum Dihubungi".`, 'info');
   };
 
   // Render badge hitung hari
-  const renderCountdownBadge = (diffDays: number | null, isPending: boolean) => {
+  const renderCountdownBadge = (diffDays: number | null, period: CRMReminderPeriod, isContacted: boolean) => {
+    if (period === 'none') {
+      return (
+        <span className="inline-flex items-center space-x-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200">
+          <span>Tanpa Follow Up</span>
+        </span>
+      );
+    }
+
+    if (isContacted) {
+      return (
+        <span className="inline-flex items-center space-x-1 text-[11px] font-black px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          <span>Sudah Di-follow Up</span>
+        </span>
+      );
+    }
+
     if (diffDays === null) {
       return (
-        <span className="inline-flex items-center space-x-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+        <span className="inline-flex items-center space-x-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200">
           <span>-</span>
         </span>
       );
     }
-    if (!isPending) {
-      return (
-        <span className="inline-flex items-center space-x-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-          <span>Selesai Ter-followup</span>
-        </span>
-      );
-    }
+
     if (diffDays < 0) {
       return (
         <span className="inline-flex items-center space-x-1 text-[11px] font-black px-2.5 py-0.5 rounded-md bg-red-100 text-red-800 border border-red-300 animate-pulse">
@@ -422,14 +508,16 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! �
         </span>
       );
     }
+
     if (diffDays === 0) {
       return (
-        <span className="inline-flex items-center space-x-1 text-[11px] font-black px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300">
-          <BellRing className="w-3.5 h-3.5 text-amber-600" />
-          <span>Hari Ini</span>
+        <span className="inline-flex items-center space-x-1 text-[11px] font-black px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300 shadow-xs">
+          <BellRing className="w-3.5 h-3.5 text-amber-600 animate-bounce" />
+          <span>Waktunya Hari Ini!</span>
         </span>
       );
     }
+
     if (diffDays <= 7) {
       return (
         <span className="inline-flex items-center space-x-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-800 border border-indigo-200">
@@ -438,6 +526,7 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! �
         </span>
       );
     }
+
     return (
       <span className="inline-flex items-center space-x-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
         <Calendar className="w-3 h-3 text-slate-500" />
@@ -447,7 +536,92 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! �
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      {/* 1. TOP NOTIFICATION BANNER: NOTIFIKASI DI ATAS JIKA SUDAH WAKTUNYA FOLLOW UP */}
+      {dueNowList.length > 0 ? (
+        <div className="bg-gradient-to-r from-red-700 via-rose-700 to-amber-700 p-4 sm:p-5 rounded-2xl text-white shadow-lg border border-red-500/50 animate-in fade-in slide-in-from-top-3 duration-200">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start space-x-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center flex-shrink-0 animate-bounce">
+                <BellRing className="w-6 h-6 text-amber-300" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-black text-xs tracking-wider uppercase bg-white/20 px-2.5 py-0.5 rounded-md text-amber-200">
+                    Notifikasi Jatuh Tempo
+                  </span>
+                  <span className="bg-red-900/90 text-white font-black text-xs px-2.5 py-0.5 rounded-full border border-red-300/40">
+                    {countDueNow} Transaksi Waktunya Follow-Up
+                  </span>
+                </div>
+                <h2 className="text-base sm:text-lg font-black tracking-tight">
+                  Ada {countDueNow} Kendaraan Memerlukan Follow-Up Hari Ini / Sudah Lewat Jadwal!
+                </h2>
+                <p className="text-xs text-white/85 leading-relaxed max-w-2xl">
+                  Pelanggan berikut telah mencapai waktu follow-up yang ditentukan (1 Minggu, 2 Minggu, 1 Bulan, atau 3 Bulan). Segera hubungi via WhatsApp untuk memastikan kepuasan kendaraan dan menjalin relasi.
+                </p>
+
+                {/* Quick Chips Kendaraan Jatuh Tempo */}
+                <div className="flex flex-wrap gap-1.5 pt-1.5">
+                  {dueNowList.slice(0, 6).map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleOpenFollowupModal(item)}
+                      className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/30 border border-white/30 text-[11px] font-bold cursor-pointer transition shadow-xs"
+                      title="Klik untuk follow up sekarang"
+                    >
+                      <span className="font-mono text-amber-200">{item.licensePlate ? formatPlate(item.licensePlate) : 'Unit'}</span>
+                      <span className="text-white/90">· {item.customerName}</span>
+                      <span className="text-[10px] bg-red-800/80 px-1 rounded text-white">
+                        {item.daysUntilNext === 0 ? 'Hari Ini' : `Lewat ${Math.abs(item.daysUntilNext || 0)}h`}
+                      </span>
+                    </button>
+                  ))}
+                  {dueNowList.length > 6 && (
+                    <span className="text-xs text-white/80 self-center font-bold px-1">
+                      +{dueNowList.length - 6} unit lainnya
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2 flex-shrink-0 self-end md:self-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setTimingFilter('due');
+                  setPeriodFilter('all');
+                  setStatusFilter('pending');
+                }}
+                className="px-4 py-2.5 rounded-xl bg-white text-red-800 hover:bg-amber-50 font-black text-xs shadow-md transition flex items-center space-x-1.5 cursor-pointer"
+              >
+                <span>Tampilkan Semua Yang Jatuh Tempo</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-emerald-50/90 border border-emerald-200/90 p-3.5 rounded-2xl text-emerald-950 flex items-center justify-between shadow-xs">
+          <div className="flex items-center space-x-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0 font-bold">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div className="text-xs">
+              <span className="font-black text-emerald-900">Semua Jadwal Aman &amp; Terkendali:</span>
+              <span className="text-emerald-800 ml-1.5">
+                Tidak ada antrean follow-up yang jatuh tempo hari ini atau terlambat. Semua transaksi berjalan sesuai jadwal.
+              </span>
+            </div>
+          </div>
+          <div className="text-xs font-mono font-black text-emerald-700 bg-white px-3 py-1 rounded-xl border border-emerald-200 shadow-2xs">
+            0 Pending Due
+          </div>
+        </div>
+      )}
+
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -456,7 +630,7 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! �
             <span>CRM &amp; Service Reminder Engine</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Daftar follow-up pelanggan per unit mobil dengan hitung mundur waktu jatuh tempo otomatis (1 Minggu, 2 Minggu, 1 Bulan &amp; 3 Bulan).
+            Penjadwalan 1 Waktu Follow Up Per Transaksi (1 Minggu, 2 Minggu, 1 Bulan, 3 Bulan, atau Tanpa Follow Up), Notifikasi Jatuh Tempo &amp; Riwayat Respon Pelanggan.
           </p>
         </div>
       </div>
@@ -490,19 +664,11 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! �
             <span className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-black ${
               selectedBranch === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
             }`}>
-              {vehicleGroups.length} Mobil
+              {crmItems.length} Unit
             </span>
           </button>
           {(['MHS 1', 'MHS 2', 'MHS 3'] as BranchId[]).map((b) => {
-            const count = allCrmLogs
-              .filter((l) => (l.branch || 'MHS 1') === b)
-              .reduce((set, item) => {
-                const vehicle = item.vehicle || item.work_order?.vehicle;
-                const plate = (vehicle?.license_plate || (item as any).license_plate || item.vehicle_id || item.id).trim().toUpperCase().replace(/\s+/g, '');
-                set.add(plate);
-                return set;
-              }, new Set<string>()).size;
-
+            const count = crmItems.filter((i) => (i.branch || 'MHS 1') === b).length;
             return (
               <button
                 key={b}
@@ -525,68 +691,86 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! �
         </div>
       </div>
 
-      {/* KPI Cards (Per Mobil Unik) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+      {/* KPI Cards (Per Transaksi Kendaraan) */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        {/* 1. Sudah Waktunya */}
+        <div className="bg-white p-3.5 rounded-2xl border border-red-200 shadow-xs flex items-center justify-between">
           <div>
-            <span className="text-xs text-red-600 font-bold flex items-center space-x-1">
+            <span className="text-[11px] text-red-600 font-black flex items-center space-x-1">
               <BellRing className="w-3.5 h-3.5" />
-              <span>Sudah Waktunya / Lewat</span>
+              <span>Waktunya Follow Up</span>
             </span>
             <div className="text-2xl font-black text-red-700 font-mono mt-0.5">
-              {countDueNow} Mobil
+              {countDueNow} Unit
             </div>
-            <p className="text-[10.5px] text-slate-400 mt-0.5">Perlu follow-up segera</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Jatuh tempo / lewat jadwal</p>
           </div>
-          <div className="w-11 h-11 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
             <Clock className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+        {/* 2. Jadwal 1 & 2 Minggu */}
+        <div className="bg-white p-3.5 rounded-2xl border border-indigo-200 shadow-xs flex items-center justify-between">
           <div>
-            <span className="text-xs text-indigo-700 font-bold">1 &amp; 2 Minggu Pasca Servis</span>
+            <span className="text-[11px] text-indigo-700 font-bold">1 &amp; 2 Minggu</span>
             <div className="text-2xl font-black text-indigo-800 font-mono mt-0.5">
-              {count1W2W} Mobil
+              {count1W2W} Unit
             </div>
-            <p className="text-[10.5px] text-slate-400 mt-0.5">Cek kepuasan &amp; kenyamanan</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Kepuasan &amp; kenyamanan awal</p>
           </div>
-          <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
             <Sparkles className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+        {/* 3. Jadwal 1 & 3 Bulan */}
+        <div className="bg-white p-3.5 rounded-2xl border border-amber-200 shadow-xs flex items-center justify-between">
           <div>
-            <span className="text-xs text-amber-700 font-bold">1 &amp; 3 Bulan Servis Rutin</span>
+            <span className="text-[11px] text-amber-700 font-bold">1 &amp; 3 Bulan</span>
             <div className="text-2xl font-black text-amber-800 font-mono mt-0.5">
-              {count1M3M} Mobil
+              {count1M3M} Unit
             </div>
-            <p className="text-[10.5px] text-slate-400 mt-0.5">Garansi &amp; ganti oli berkala</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Garansi &amp; servis berkala</p>
           </div>
-          <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
             <CalendarClock className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+        {/* 4. Selesai Di-follow Up */}
+        <div className="bg-white p-3.5 rounded-2xl border border-emerald-200 shadow-xs flex items-center justify-between">
           <div>
-            <span className="text-xs text-emerald-700 font-bold">Selesai Ter-followup</span>
+            <span className="text-[11px] text-emerald-700 font-bold">Sudah Di-follow Up</span>
             <div className="text-2xl font-black text-emerald-800 font-mono mt-0.5">
-              {countCompleted} Mobil
+              {countCompleted} Unit
             </div>
-            <p className="text-[10.5px] text-slate-400 mt-0.5">Semua jadwal terhubungi</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Respon tercatat</p>
           </div>
-          <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
             <CheckCircle2 className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* 5. Tanpa Follow Up (Opsional) */}
+        <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[11px] text-slate-500 font-bold">Tanpa Follow Up</span>
+            <div className="text-2xl font-black text-slate-700 font-mono mt-0.5">
+              {countNone} Unit
+            </div>
+            <p className="text-[10px] text-slate-400 mt-0.5">Tidak wajib / dilewati</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center">
+            <History className="w-5 h-5" />
           </div>
         </div>
       </div>
 
       {/* FILTER TABS & SEARCH */}
-      <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
-          {/* Milestone Tabs */}
+          {/* Milestone / Category Tabs */}
           <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold">
             <button
               onClick={() => setPeriodFilter('all')}
@@ -596,7 +780,17 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! �
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Semua Mobil ({vehicleGroups.length})
+              Semua ({crmItems.length})
+            </button>
+            <button
+              onClick={() => setPeriodFilter('due')}
+              className={`px-3 py-1.5 rounded-lg transition ${
+                periodFilter === 'due'
+                  ? 'bg-red-600 text-white shadow-xs'
+                  : 'text-red-700 hover:bg-red-50'
+              }`}
+            >
+              🔥 Jatuh Tempo ({countDueNow})
             </button>
             <button
               onClick={() => setPeriodFilter('1_week')}
@@ -638,6 +832,26 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! �
             >
               3 Bulan ({count3Months})
             </button>
+            <button
+              onClick={() => setPeriodFilter('none')}
+              className={`px-3 py-1.5 rounded-lg transition ${
+                periodFilter === 'none'
+                  ? 'bg-slate-700 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Tanpa Follow Up ({countNone})
+            </button>
+            <button
+              onClick={() => setPeriodFilter('completed')}
+              className={`px-3 py-1.5 rounded-lg transition ${
+                periodFilter === 'completed'
+                  ? 'bg-teal-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Selesai ({countCompleted})
+            </button>
           </div>
 
           {/* Search Box */}
@@ -647,7 +861,7 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! �
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari Plat / Customer / SPK..."
+              placeholder="Cari Plat / Customer / Respon..."
               className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-maroon-600 focus:bg-white transition"
             />
           </div>
@@ -674,7 +888,7 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! �
                 : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
             }`}
           >
-            🔥 Sudah Waktunya / Lewat ({countDueNow})
+            🔥 Jatuh Tempo / Lewat ({countDueNow})
           </button>
           <button
             onClick={() => setTimingFilter('upcoming')}
@@ -706,17 +920,17 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! �
         </div>
       </div>
 
-      {/* Petunjuk Interaktif */}
-      <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3 flex items-center justify-between text-xs text-amber-900">
+      {/* Info Petunjuk Ringkas */}
+      <div className="bg-blue-50/70 border border-blue-200/80 rounded-xl p-3 flex items-center justify-between text-xs text-blue-900">
         <div className="flex items-center space-x-2">
-          <Info className="w-4 h-4 text-amber-600 flex-shrink-0" />
+          <Info className="w-4 h-4 text-blue-600 flex-shrink-0" />
           <span>
-            <strong>Tips CRM:</strong> Setiap baris mewakili <strong>1 unit mobil</strong>. Klik pada baris mobil untuk melihat rincian hitung hari menuju jadwal follow-up ke-4 milestone (1 Minggu, 2 Minggu, 1 Bulan, 3 Bulan) dan mengirim WhatsApp.
+            <strong>Panduan CRM:</strong> Tiap transaksi servis dapat ditentukan <strong>1 waktu follow up</strong> (1 Minggu, 2 Minggu, 1 Bulan, 3 Bulan, atau Tanpa Follow Up). Dropdown jadwal dapat diedit kapan saja. Klik <strong>&ldquo;Follow Up WA&rdquo;</strong> untuk menghubungi dan mencatat respon pelanggan.
           </span>
         </div>
       </div>
 
-      {/* CRM Deduplicated Table (1 Baris Per Unit Mobil) */}
+      {/* TABEL CRM TERPADU */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
@@ -725,170 +939,199 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! �
                 <th className="p-3.5">Plat &amp; Kendaraan</th>
                 <th className="p-3.5">Pelanggan &amp; WhatsApp</th>
                 <th className="p-3.5">Cabang &amp; SPK</th>
-                <th className="p-3.5">Tgl Servis</th>
-                <th className="p-3.5">Hitung Hari Menuju Follow-up</th>
-                <th className="p-3.5">Status 4 Milestone</th>
+                <th className="p-3.5">Pilihan Jadwal Follow Up (Bisa Diedit)</th>
+                <th className="p-3.5">Hitung Hari / Jatuh Tempo</th>
+                <th className="p-3.5">Pertanyaan &amp; Respon Customer</th>
                 <th className="p-3.5 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredVehicleGroups.length === 0 ? (
+              {filteredItems.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-12 text-center text-slate-400 font-medium">
                     {searchQuery || periodFilter !== 'all' || statusFilter !== 'all' || timingFilter !== 'all'
                       ? 'Tidak ada data mobil yang sesuai filter.'
-                      : 'Belum ada data follow-up CRM. Selesaikan SPK di antrean servis untuk mendaftarkan mobil ke jadwal CRM otomatis.'}
+                      : 'Belum ada data follow-up CRM. Selesaikan SPK di antrean servis untuk mendaftarkan transaksi ke jadwal CRM.'}
                   </td>
                 </tr>
               ) : (
-                filteredVehicleGroups.map((group) => {
-                  const activeLog = group.activeMilestone;
-                  const periodInfo = activeLog ? (periodLabels[activeLog.reminder_type] || periodLabels.custom) : null;
-                  const isPending = activeLog?.status === 'pending';
+                filteredItems.map((item) => {
+                  const isDone = item.status === 'contacted' || item.status === 'scheduled';
+                  const currentPeriodOpt = periodOptions.find((p) => p.id === item.reminder_type) || periodOptions[0];
 
                   return (
                     <tr
-                      key={group.key}
-                      onClick={() => handleOpenGroupModal(group)}
-                      className="hover:bg-slate-50/90 transition cursor-pointer group"
+                      key={item.id}
+                      className="hover:bg-slate-50/90 transition group"
                     >
                       {/* 1. Plat & Kendaraan */}
                       <td className="p-3.5">
-                        <div className="font-mono font-black text-maroon-900 text-sm group-hover:text-maroon-700 transition flex items-center space-x-1.5">
-                          <span>{group.licensePlate ? formatPlate(group.licensePlate) : '-'}</span>
-                          <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-maroon-600 transition" />
+                        <div className="font-mono font-black text-maroon-900 text-sm flex items-center space-x-1.5">
+                          <span>{item.licensePlate ? formatPlate(item.licensePlate) : '-'}</span>
                         </div>
                         <div className="font-bold text-slate-900 mt-0.5">
-                          {group.carBrand} {group.carModel} {group.carYear ? `(${group.carYear})` : ''}
+                          {item.carBrand} {item.carModel} {item.carYear ? `(${item.carYear})` : ''}
                         </div>
                       </td>
 
                       {/* 2. Pelanggan & WhatsApp */}
                       <td className="p-3.5">
-                        <div className="font-bold text-slate-900">{group.customerName}</div>
+                        <div className="font-bold text-slate-900">{item.customerName}</div>
                         <div className="text-[11px] text-slate-500 font-mono flex items-center space-x-1 mt-0.5">
                           <Phone className="w-3 h-3 text-slate-400" />
-                          <span>{group.phoneNumber || '-'}</span>
+                          <span>{item.phoneNumber || '-'}</span>
                         </div>
                       </td>
 
                       {/* 3. Cabang & SPK */}
                       <td className="p-3.5 space-y-1">
                         <span className={`inline-block px-2 py-0.5 rounded text-[10.5px] font-black border ${
-                          group.branch === 'MHS 2'
+                          item.branch === 'MHS 2'
                             ? 'bg-amber-50 text-amber-900 border-amber-300'
-                            : group.branch === 'MHS 3'
+                            : item.branch === 'MHS 3'
                             ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
                             : 'bg-blue-50 text-blue-900 border-blue-300'
                         }`}>
-                          {group.branch}
+                          {item.branch}
                         </span>
                         <div className="font-mono text-[10.5px] text-[#001F7A] font-bold">
-                          {group.spkNumber}
+                          {item.spk_number}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          Servis: {item.service_date ? formatDate(item.service_date) : '-'}
                         </div>
                       </td>
 
-                      {/* 4. Tgl Servis Terakhir */}
+                      {/* 4. Dropdown Pilihan Jadwal Follow Up (Bisa Diedit Kapan Saja) */}
                       <td className="p-3.5">
-                        <div className="text-slate-800 font-medium">
-                          {group.serviceDate ? formatDate(group.serviceDate) : '-'}
+                        <div className="space-y-1">
+                          <select
+                            value={item.reminder_type || 'none'}
+                            onChange={(e) => handleChangeFollowupPeriod(item, e.target.value as CRMReminderPeriod)}
+                            className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border outline-none cursor-pointer transition ${
+                              item.reminder_type === 'none'
+                                ? 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
+                                : item.reminder_type === '1_week'
+                                ? 'bg-indigo-50 text-indigo-900 border-indigo-300 hover:bg-indigo-100'
+                                : item.reminder_type === '2_weeks'
+                                ? 'bg-blue-50 text-blue-900 border-blue-300 hover:bg-blue-100'
+                                : item.reminder_type === '1_month'
+                                ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+                                : item.reminder_type === '3_months'
+                                ? 'bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100'
+                                : 'bg-purple-50 text-purple-900 border-purple-300 hover:bg-purple-100'
+                            }`}
+                          >
+                            <option value="none">Tanpa Follow Up (Tidak wajib)</option>
+                            <option value="1_week">1 Minggu (+7 hari)</option>
+                            <option value="2_weeks">2 Minggu (+14 hari)</option>
+                            <option value="1_month">1 Bulan (+30 hari)</option>
+                            <option value="3_months">3 Bulan (+90 hari)</option>
+                            <option value="custom">Custom Jadwal Khusus</option>
+                          </select>
+                          <div className="text-[10px] text-slate-400">
+                            {item.reminder_type === 'none' ? 'Dilewati dari notifikasi' : 'Bisa diganti sewaktu-waktu'}
+                          </div>
                         </div>
                       </td>
 
-                      {/* 5. Hitung Hari Menuju Follow-up (Highlight Utama) */}
+                      {/* 5. Hitung Hari / Jatuh Tempo */}
                       <td className="p-3.5 space-y-1">
                         <div>
-                          {renderCountdownBadge(group.daysUntilNext, isPending)}
+                          {renderCountdownBadge(item.daysUntilNext, item.reminder_type, isDone)}
                         </div>
-                        {activeLog && (
+                        {item.reminder_type !== 'none' && item.due_date && (
                           <div className="text-[10.5px] text-slate-500">
-                            <span>Jadwal: <strong>{periodInfo?.label}</strong> ({formatDate(activeLog.due_date)})</span>
+                            Jatuh tempo: <strong>{formatDate(item.due_date)}</strong>
                           </div>
                         )}
                       </td>
 
-                      {/* 6. Status 4 Milestone (Mini Progress Pills) */}
-                      <td className="p-3.5">
-                        <div className="flex items-center space-x-1">
-                          {(['1_week', '2_weeks', '1_month', '3_months'] as CRMReminderPeriod[]).map((periodKey) => {
-                            const log = group.milestones[periodKey];
-                            const shortLabel = periodLabels[periodKey]?.shortLabel || periodKey;
-                            if (!log) {
-                              return (
-                                <span
-                                  key={periodKey}
-                                  className="px-1.5 py-0.5 rounded text-[9.5px] font-medium bg-slate-100 text-slate-400"
-                                  title={`${shortLabel}: Tidak Terjadwal`}
-                                >
-                                  {shortLabel}
+                      {/* 6. Pertanyaan & Respon Customer (Tercantum dan Bisa Dibuka) */}
+                      <td className="p-3.5 max-w-xs">
+                        {isDone || item.customer_response ? (
+                          <div className="space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-1">
+                              <span className="inline-flex items-center space-x-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>Sudah Follow Up</span>
+                              </span>
+                              {item.customer_sentiment && sentimentMap[item.customer_sentiment] && (
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${sentimentMap[item.customer_sentiment].badgeClass}`}>
+                                  <span>{sentimentMap[item.customer_sentiment].icon}</span>
+                                  <span className="ml-1">{sentimentMap[item.customer_sentiment].label}</span>
                                 </span>
-                              );
-                            }
+                              )}
+                            </div>
 
-                            const isDone = log.status === 'contacted' || log.status === 'scheduled';
-                            const dueTime = new Date(log.due_date).getTime();
-                            const diffDays = Math.round((dueTime - todayTime) / (1000 * 60 * 60 * 24));
-                            const isOverdue = diffDays < 0 && log.status === 'pending';
+                            {item.customer_response ? (
+                              <p className="text-[11px] text-slate-700 italic line-clamp-2 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                                &ldquo;{item.customer_response}&rdquo;
+                              </p>
+                            ) : (
+                              <p className="text-[11px] text-slate-400 italic">
+                                (Terhubungi via WA, belum ada catatan detail)
+                              </p>
+                            )}
 
-                            return (
+                            <div className="flex items-center justify-between pt-0.5">
+                              <span className="text-[10px] text-slate-400">
+                                PIC: <strong>{item.contacted_by || 'Admin'}</strong>
+                              </span>
                               <button
-                                key={periodKey}
                                 type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleOpenGroupModal(group, periodKey);
-                                }}
-                                className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold border transition ${
-                                  isDone
-                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                                    : isOverdue
-                                    ? 'bg-red-50 text-red-800 border-red-300 font-black animate-pulse'
-                                    : 'bg-amber-50 text-amber-800 border-amber-300'
-                                }`}
-                                title={`${periodLabels[periodKey]?.label}: ${statusMap[log.status]?.label || log.status} (${diffDays < 0 ? `Lewat ${Math.abs(diffDays)} hari` : diffDays === 0 ? 'Hari ini' : `${diffDays} hari lagi`})`}
+                                onClick={() => handleOpenResponseDetailModal(item)}
+                                className="inline-flex items-center space-x-1 text-[10.5px] font-bold text-maroon-700 hover:text-maroon-900 underline cursor-pointer"
                               >
-                                {isDone ? '✓ ' : ''}{shortLabel}
+                                <Eye className="w-3 h-3" />
+                                <span>Buka Respon</span>
                               </button>
-                            );
-                          })}
-                        </div>
-                        <div className="text-[10px] text-slate-400 mt-1">
-                          Klik untuk rincian hari
-                        </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-slate-400 text-xs italic space-y-1">
+                            <div>Belum ada respon</div>
+                            <div className="text-[10.5px] text-slate-400 not-italic">
+                              Klik tombol &ldquo;Follow Up WA&rdquo;
+                            </div>
+                          </div>
+                        )}
                       </td>
 
                       {/* 7. Tombol Aksi */}
-                      <td className="p-3.5 text-right whitespace-nowrap space-x-1.5" onClick={(e) => e.stopPropagation()}>
-                        {activeLog && activeLog.status !== 'contacted' && activeLog.status !== 'scheduled' ? (
-                          <button
-                            type="button"
-                            onClick={() => handleQuickMarkFollowup(group, 'contacted')}
-                            className="inline-flex items-center space-x-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-bold text-xs px-2.5 py-1.5 rounded-xl transition shadow-xs cursor-pointer"
-                            title="Tandai tahap follow-up ini sudah selesai dilakukan"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
-                            <span>Tandai Selesai</span>
-                          </button>
+                      <td className="p-3.5 text-right whitespace-nowrap space-x-1.5">
+                        {isDone ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenResponseDetailModal(item)}
+                              className="inline-flex items-center space-x-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold text-xs px-2.5 py-1.5 rounded-xl transition cursor-pointer"
+                              title="Buka rincian pertanyaan dan respon customer"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-indigo-600" />
+                              <span>Lihat Respon</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenFollowupModal(item)}
+                              className="inline-flex items-center space-x-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-2.5 py-1.5 rounded-xl shadow-xs transition cursor-pointer"
+                              title="Follow up ulang atau perbarui catatan"
+                            >
+                              <Share2 className="w-3.5 h-3.5" />
+                              <span>WA / Edit</span>
+                            </button>
+                          </>
                         ) : (
                           <button
                             type="button"
-                            onClick={() => handleQuickMarkFollowup(group, 'pending')}
-                            className="inline-flex items-center space-x-1 bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 font-medium text-xs px-2 py-1.5 rounded-xl transition cursor-pointer"
-                            title="Reset status kembali ke Belum Dihubungi"
+                            onClick={() => handleOpenFollowupModal(item)}
+                            className="inline-flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition cursor-pointer"
+                            title="Buka form follow up dan kirim WhatsApp"
                           >
-                            <RotateCcw className="w-3 h-3 text-slate-400" />
-                            <span>Reset</span>
+                            <Share2 className="w-3.5 h-3.5" />
+                            <span>Follow Up WA</span>
                           </button>
                         )}
-
-                        <button
-                          type="button"
-                          onClick={() => handleOpenGroupModal(group)}
-                          className="inline-flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs px-3 py-1.5 rounded-xl shadow-xs transition cursor-pointer"
-                        >
-                          <Share2 className="w-3.5 h-3.5" />
-                          <span>Rincian &amp; WA</span>
-                        </button>
                       </td>
                     </tr>
                   );
@@ -899,8 +1142,8 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! �
         </div>
       </div>
 
-      {/* DETAIL MODAL: HITUNG HARI & FOLLOW-UP 4 MILESTONE */}
-      {selectedGroup && (
+      {/* MODAL 1: FORM FOLLOW UP & PENCATATAN RESPON CUSTOMER */}
+      {followupModalItem && (
         <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
             {/* Header Modal */}
@@ -911,267 +1154,323 @@ Apakah berkenan kami bantu jadwalkan booking servis minggu ini? Terima kasih! �
                 </div>
                 <div>
                   <h3 className="font-black text-base text-slate-900 flex items-center space-x-2">
-                    <span className="font-mono text-maroon-900">{selectedGroup.licensePlate ? formatPlate(selectedGroup.licensePlate) : 'Tanpa Plat'}</span>
+                    <span className="font-mono text-maroon-900">{followupModalItem.licensePlate ? formatPlate(followupModalItem.licensePlate) : 'Tanpa Plat'}</span>
                     <span className="text-slate-400">·</span>
-                    <span>{selectedGroup.carBrand} {selectedGroup.carModel}</span>
+                    <span>{followupModalItem.carBrand} {followupModalItem.carModel}</span>
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Pelanggan: <strong>{selectedGroup.customerName}</strong> ({selectedGroup.phoneNumber || 'Tanpa No HP'}) · SPK: <strong>{selectedGroup.spkNumber}</strong> ({selectedGroup.branch})
+                    Pelanggan: <strong>{followupModalItem.customerName}</strong> ({followupModalItem.phoneNumber || 'Tanpa No HP'}) · SPK: <strong>{followupModalItem.spk_number}</strong> ({followupModalItem.branch})
                   </p>
                 </div>
               </div>
               <button
-                onClick={() => setSelectedGroup(null)}
+                onClick={() => setFollowupModalItem(null)}
                 className="text-slate-400 hover:text-slate-700 text-base font-bold p-1 rounded-lg hover:bg-slate-100 transition"
               >
                 ✕
               </button>
             </div>
 
-            {/* HIGHLIGHT HITUNG HARI UTAMA */}
-            {(() => {
-              const activeLog = selectedGroup.milestones[selectedMilestonePeriod] || selectedGroup.activeMilestone;
-              if (!activeLog) return null;
-              const dueTime = new Date(activeLog.due_date).getTime();
-              const diffDays = Math.round((dueTime - todayTime) / (1000 * 60 * 60 * 24));
-              const isDone = activeLog.status === 'contacted' || activeLog.status === 'scheduled';
-
-              return (
-                <div className={`p-3.5 rounded-2xl border flex items-center justify-between ${
-                  isDone
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
-                    : diffDays < 0
-                    ? 'bg-red-50 border-red-200 text-red-950'
-                    : diffDays === 0
-                    ? 'bg-amber-50 border-amber-200 text-amber-950'
-                    : 'bg-indigo-50 border-indigo-200 text-indigo-950'
-                }`}>
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
-                      isDone
-                        ? 'bg-emerald-200 text-emerald-800'
-                        : diffDays < 0
-                        ? 'bg-red-200 text-red-800 animate-pulse'
-                        : diffDays === 0
-                        ? 'bg-amber-200 text-amber-800'
-                        : 'bg-indigo-200 text-indigo-800'
-                    }`}>
-                      <Clock className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-wide opacity-75">
-                        Tahap Aktif: {periodLabels[selectedMilestonePeriod]?.label} ({periodLabels[selectedMilestonePeriod]?.desc})
-                      </div>
-                      <div className="text-sm font-black mt-0.5">
-                        {isDone ? (
-                          <span>Sudah selesai di-follow up ({statusMap[activeLog.status]?.label || activeLog.status})</span>
-                        ) : diffDays < 0 ? (
-                          <span className="text-red-700">🔥 Lewat {Math.abs(diffDays)} hari dari jadwal jatuh tempo!</span>
-                        ) : diffDays === 0 ? (
-                          <span className="text-amber-800">⚡ Jatuh tempo hari ini! Segera hubungi pelanggan.</span>
-                        ) : (
-                          <span className="text-indigo-900">⏳ Kurang {diffDays} hari lagi menuju waktu follow-up.</span>
-                        )}
-                      </div>
-                      <div className="text-[11px] opacity-80 mt-0.5">
-                        Tanggal Jatuh Tempo: <strong>{formatDate(activeLog.due_date)}</strong> · Servis Terakhir: {selectedGroup.serviceDate ? formatDate(selectedGroup.serviceDate) : '-'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-black border ${
-                      isDone
-                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                        : diffDays < 0
-                        ? 'bg-red-100 text-red-800 border-red-300'
-                        : 'bg-white text-slate-800 border-slate-300'
-                    }`}>
-                      {statusMap[activeLog.status]?.label || activeLog.status}
-                    </span>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* TABEL KARTU JADWAL 4 MILESTONE (HITUNG HARI LENGKAP) */}
-            <div>
-              <div className="text-xs font-black text-slate-900 uppercase tracking-wide mb-2 flex items-center justify-between">
-                <span>Rincian Waktu &amp; Hitung Hari Ke-4 Milestone:</span>
-                <span className="text-[11px] font-medium text-slate-500">Klik salah satu tahap di bawah untuk mengirim pesan WA</span>
+            {/* Pilihan Waktu Follow Up (Bisa Dipilih & Diedit) */}
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center space-x-1.5">
+                  <CalendarClock className="w-4 h-4 text-maroon-700" />
+                  <span>Pilihan Waktu Follow-Up Transaksi:</span>
+                </label>
+                <span className="text-[10.5px] text-slate-400">Pilih 1 waktu yang berlaku</span>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {(['1_week', '2_weeks', '1_month', '3_months'] as CRMReminderPeriod[]).map((periodKey) => {
-                  const log = selectedGroup.milestones[periodKey];
-                  const info = periodLabels[periodKey];
-                  const isSelected = selectedMilestonePeriod === periodKey;
-
-                  if (!log) {
-                    return (
-                      <div key={periodKey} className="p-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 text-slate-400 text-xs">
-                        <div className="font-bold">{info?.label}</div>
-                        <div className="text-[11px]">Tidak ada jadwal khusus</div>
-                      </div>
-                    );
-                  }
-
-                  const dueTime = new Date(log.due_date).getTime();
-                  const diffDays = Math.round((dueTime - todayTime) / (1000 * 60 * 60 * 24));
-                  const isDone = log.status === 'contacted' || log.status === 'scheduled';
-                  const isOverdue = diffDays < 0 && log.status === 'pending';
-
-                  return (
-                    <div
-                      key={periodKey}
-                      onClick={() => handleSelectMilestoneTabInModal(periodKey)}
-                      className={`p-3 rounded-xl border transition cursor-pointer ${
-                        isSelected
-                          ? 'border-maroon-600 bg-maroon-50/30 ring-2 ring-maroon-600/20 shadow-xs'
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/70'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className={`text-xs font-black px-2 py-0.5 rounded-md border ${info?.badgeClass}`}>
-                          {info?.label}
-                        </span>
-                        <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full border ${
-                          isDone
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                            : isOverdue
-                            ? 'bg-red-50 text-red-800 border-red-200'
-                            : 'bg-slate-100 text-slate-700 border-slate-200'
-                        }`}>
-                          {isDone ? '✓ ' : ''}{statusMap[log.status]?.label || log.status}
-                        </span>
-                      </div>
-
-                      <div className="mt-2 flex items-center justify-between">
-                        <div>
-                          <div className="text-[11px] text-slate-500 font-medium">Jatuh Tempo:</div>
-                          <div className="text-xs font-bold text-slate-900 font-mono">
-                            {formatDate(log.due_date)}
-                          </div>
-                        </div>
-
-                        {/* HITUNG HARI PER MILESTONE */}
-                        <div className="text-right">
-                          <div className="text-[11px] text-slate-500 font-medium">Hitung Hari:</div>
-                          <div className="text-xs font-black font-mono">
-                            {isDone ? (
-                              <span className="text-emerald-700">Sudah Selesai</span>
-                            ) : diffDays < 0 ? (
-                              <span className="text-red-600">Lewat {Math.abs(diffDays)} hari</span>
-                            ) : diffDays === 0 ? (
-                              <span className="text-amber-700 font-bold">Hari Ini!</span>
-                            ) : (
-                              <span className="text-indigo-700">{diffDays} hari lagi</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {[
+                  { id: '1_week', label: '1 Minggu', desc: 'Kepuasan awal' },
+                  { id: '2_weeks', label: '2 Minggu', desc: 'Mesin & AC' },
+                  { id: '1_month', label: '1 Bulan', desc: 'Garansi servis' },
+                  { id: '3_months', label: '3 Bulan', desc: 'Servis berkala' },
+                  { id: 'none', label: 'Tanpa Follow Up', desc: 'Dilewati' },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => handleModalPeriodChange(opt.id as CRMReminderPeriod)}
+                    className={`p-2 rounded-xl border text-left transition ${
+                      modalPeriod === opt.id
+                        ? 'bg-maroon-700 text-white border-maroon-800 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="font-bold text-xs">{opt.label}</div>
+                    <div className={`text-[9.5px] ${modalPeriod === opt.id ? 'text-maroon-100' : 'text-slate-400'}`}>
+                      {opt.desc}
                     </div>
-                  );
-                })}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* DRAFT PESAN WHATSAPP SESUAI MILESTONE YANG DIPILIH */}
-            <div className="space-y-3 pt-2 border-t border-slate-100 text-xs">
+            {/* BAGIAN 1: PERTANYAAN KITA (DRAFT WA) */}
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="font-black text-slate-800 flex items-center space-x-1.5">
-                  <Share2 className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Draft Pesan WhatsApp ({periodLabels[selectedMilestonePeriod]?.label}):</span>
+                <label className="font-bold text-xs text-slate-800 flex items-center space-x-1.5">
+                  <MessageSquare className="w-4 h-4 text-emerald-600" />
+                  <span>1. Pertanyaan / Pesan yang Dikirimkan ke Customer:</span>
                 </label>
                 <button
                   type="button"
                   onClick={() => {
-                    const car = `${selectedGroup.carBrand} ${selectedGroup.carModel}`.trim() || 'Mobil';
-                    const plate = selectedGroup.licensePlate ? formatPlate(selectedGroup.licensePlate) : '';
-                    setCustomWaMessage(getTemplateForPeriod(selectedMilestonePeriod, selectedGroup.customerName, car, plate, selectedGroup.serviceDate));
-                    showToast('Template pesan WhatsApp di-reset ke default.', 'info');
+                    const car = `${followupModalItem.carBrand} ${followupModalItem.carModel}`.trim() || 'Mobil';
+                    const plate = followupModalItem.licensePlate ? formatPlate(followupModalItem.licensePlate) : '';
+                    setModalQuestion(getQuestionTemplate(modalPeriod, followupModalItem.customerName, car, plate, followupModalItem.service_date));
+                    showToast('Template pesan dikembalikan ke standar.', 'info');
                   }}
                   className="text-[10.5px] text-maroon-700 hover:text-maroon-900 font-bold underline"
                 >
-                  Muat Ulang Template Default
+                  Muat Template Standar
                 </button>
               </div>
 
               <textarea
-                rows={5}
-                value={customWaMessage}
-                onChange={(e) => setCustomWaMessage(e.target.value)}
+                rows={4}
+                value={modalQuestion}
+                onChange={(e) => setModalQuestion(e.target.value)}
                 className="w-full p-3 rounded-xl border border-slate-200 bg-emerald-50/20 focus:border-emerald-600 focus:bg-white outline-none leading-relaxed font-medium text-slate-800 text-[11.5px]"
               />
 
-              {/* Catatan Internal & Booking Date */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={handleOpenWhatsApp}
+                className="w-full inline-flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2 rounded-xl transition shadow-xs cursor-pointer text-xs"
+              >
+                <Share2 className="w-4 h-4" />
+                <span>Kirim Pesan Melalui WhatsApp</span>
+              </button>
+            </div>
+
+            {/* BAGIAN 2: PENCATATAN RESPON CUSTOMER */}
+            <div className="space-y-3 pt-2 border-t border-slate-200">
+              <label className="font-bold text-xs text-slate-800 flex items-center space-x-1.5">
+                <UserCheck className="w-4 h-4 text-blue-600" />
+                <span>2. Keterangan Respon &amp; Hasil Jawaban Customer:</span>
+              </label>
+
+              <div>
+                <textarea
+                  rows={3}
+                  value={modalResponse}
+                  onChange={(e) => setModalResponse(e.target.value)}
+                  placeholder="Tuliskan respon atau jawaban dari customer (misal: 'Customer puas tarikan mesin enteng, AC dingin', atau 'Ada sedikit bunyi saat rem mendadak, minta dicek minggu depan')..."
+                  className="w-full p-3 rounded-xl border border-slate-200 bg-blue-50/20 focus:border-blue-600 focus:bg-white outline-none text-xs leading-relaxed"
+                />
+              </div>
+
+              {/* Sentimen Kepuasan Customer */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
+                  Tingkat Kepuasan / Kategori Respon:
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                  {(['very_satisfied', 'satisfied', 'complaint', 'reschedule', 'unresponsive'] as const).map((sent) => {
+                    const info = sentimentMap[sent];
+                    const isSelected = modalSentiment === sent;
+                    return (
+                      <button
+                        key={sent}
+                        type="button"
+                        onClick={() => setModalSentiment(sent)}
+                        className={`p-2 rounded-xl border text-center text-xs font-bold transition ${
+                          isSelected
+                            ? 'bg-slate-900 text-white border-slate-900 shadow-xs ring-2 ring-slate-400'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="text-base">{info.icon}</div>
+                        <div className="text-[10.5px] mt-0.5">{info.label}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* PIC Petugas & Booking Lanjutan */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Catatan Follow-up Internal:</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Petugas Follow Up (PIC):
+                  </label>
                   <input
                     type="text"
-                    placeholder="Contoh: Sudah ditelepon, pelanggan puas dengan tarikan mesin..."
-                    value={followupNotes}
-                    onChange={(e) => setFollowupNotes(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 outline-none text-xs"
+                    value={modalPic}
+                    onChange={(e) => setModalPic(e.target.value)}
+                    placeholder="Nama PIC (contoh: Mey Wulandari)"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-medium outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Jadwal Booking Servis Baru (Jika Ada):</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Jadwal Booking Servis Baru (Jika Ada):
+                  </label>
                   <input
                     type="date"
-                    value={scheduledBookingDate}
-                    onChange={(e) => setScheduledBookingDate(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 outline-none text-xs"
+                    value={modalScheduledDate}
+                    onChange={(e) => setModalScheduledDate(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-medium outline-none"
                   />
                 </div>
               </div>
+            </div>
 
-              {/* Status Action Buttons */}
-              <div className="pt-2 space-y-2">
-                <button
-                  type="button"
-                  onClick={handleSendWhatsAppAndMarkContacted}
-                  className="w-full inline-flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 rounded-xl transition shadow-xs cursor-pointer text-xs"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>Kirim WhatsApp &amp; Tandai Sudah Dihubungi</span>
-                </button>
+            {/* Modal Actions */}
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setFollowupModalItem(null)}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSaveFollowupResult('contacted')}
+                className="w-full sm:w-auto inline-flex items-center justify-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs px-5 py-2 rounded-xl shadow-xs transition cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Simpan Follow-Up &amp; Tandai Selesai</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateStatus('contacted')}
-                    className="py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl font-bold text-[11px] transition inline-flex items-center justify-center space-x-1"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
-                    <span>✓ Sudah Follow-up</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateStatus('scheduled')}
-                    className="py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl font-bold text-[11px] transition inline-flex items-center justify-center space-x-1"
-                  >
-                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Booking Dibuat</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateStatus('declined')}
-                    className="py-2 bg-red-50 hover:bg-red-100 text-red-800 border border-red-200 rounded-xl font-bold text-[11px] transition inline-flex items-center justify-center space-x-1"
-                  >
-                    <span>Ditolak / Tunda</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateStatus('pending')}
-                    className="py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl font-bold text-[11px] transition inline-flex items-center justify-center space-x-1"
-                  >
-                    <RotateCcw className="w-3 h-3 text-slate-400" />
-                    <span>Reset Pending</span>
-                  </button>
+      {/* MODAL 2: RIWAYAT RESPON CUSTOMER (TERCANTUM DAN BISA DIBUKA) */}
+      {responseDetailItem && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
+            {/* Header Modal */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-slate-900">
+                    Riwayat Follow-Up &amp; Respon Pelanggan
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {responseDetailItem.carBrand} {responseDetailItem.carModel} · <strong className="font-mono">{responseDetailItem.licensePlate ? formatPlate(responseDetailItem.licensePlate) : '-'}</strong>
+                  </p>
                 </div>
               </div>
+              <button
+                onClick={() => setResponseDetailItem(null)}
+                className="text-slate-400 hover:text-slate-700 text-base font-bold p-1 rounded-lg hover:bg-slate-100 transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Indikator Status Sudah Di-follow Up */}
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span className="text-xs font-black text-emerald-950 uppercase tracking-wide">
+                  Indikator: Sudah Melakukan Follow-Up
+                </span>
+              </div>
+              <span className="text-[11px] font-mono font-bold text-emerald-800">
+                {responseDetailItem.contacted_at ? formatDateTime(responseDetailItem.contacted_at) : 'Telah Terhubung'}
+              </span>
+            </div>
+
+            {/* Data Detail Unit & PIC */}
+            <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div>
+                <span className="text-slate-500 text-[10.5px]">Pelanggan:</span>
+                <div className="font-bold text-slate-900">{responseDetailItem.customerName}</div>
+                <div className="text-slate-600 font-mono text-[11px]">{responseDetailItem.phoneNumber || '-'}</div>
+              </div>
+              <div>
+                <span className="text-slate-500 text-[10.5px]">Petugas PIC:</span>
+                <div className="font-bold text-slate-900">{responseDetailItem.contacted_by || 'Admin CRM'}</div>
+                <div className="text-slate-500 text-[11px]">SPK: {responseDetailItem.spk_number} ({responseDetailItem.branch})</div>
+              </div>
+            </div>
+
+            {/* KOTAK 1: PERTANYAAN KITA */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-black text-slate-800 flex items-center space-x-1.5">
+                <MessageSquare className="w-4 h-4 text-emerald-600" />
+                <span>Pertanyaan yang Diajukan Bengkel:</span>
+              </label>
+              <div className="p-3 bg-emerald-50/40 rounded-xl border border-emerald-200 text-xs text-slate-800 whitespace-pre-line leading-relaxed font-medium">
+                {responseDetailItem.question_sent || getQuestionTemplate(
+                  responseDetailItem.reminder_type,
+                  responseDetailItem.customerName,
+                  `${responseDetailItem.carBrand} ${responseDetailItem.carModel}`,
+                  responseDetailItem.licensePlate,
+                  responseDetailItem.service_date
+                )}
+              </div>
+            </div>
+
+            {/* KOTAK 2: KETERANGAN RESPON CUSTOMER */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-slate-800 flex items-center space-x-1.5">
+                  <UserCheck className="w-4 h-4 text-blue-600" />
+                  <span>Keterangan Respon Pelanggan:</span>
+                </label>
+                {responseDetailItem.customer_sentiment && sentimentMap[responseDetailItem.customer_sentiment] && (
+                  <span className={`text-xs font-black px-2 py-0.5 rounded-full border ${sentimentMap[responseDetailItem.customer_sentiment].badgeClass}`}>
+                    {sentimentMap[responseDetailItem.customer_sentiment].icon} {sentimentMap[responseDetailItem.customer_sentiment].label}
+                  </span>
+                )}
+              </div>
+              <div className="p-3.5 bg-blue-50/40 rounded-xl border border-blue-200 text-xs text-slate-900 leading-relaxed font-medium">
+                {responseDetailItem.customer_response ? (
+                  <p className="italic text-slate-800 font-semibold text-[12.5px]">
+                    &ldquo;{responseDetailItem.customer_response}&rdquo;
+                  </p>
+                ) : (
+                  <p className="text-slate-400 italic">
+                    Belum ada catatan detail respon tertulis. Klik tombol &ldquo;Edit Respon&rdquo; di bawah untuk menambahkan.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Info Tambahan Booking */}
+            {responseDetailItem.scheduled_date && (
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 flex items-center justify-between text-xs">
+                <div className="flex items-center space-x-2">
+                  <CalendarClock className="w-4 h-4 text-amber-700" />
+                  <span className="font-bold text-amber-900">Jadwal Booking Servis Lanjutan:</span>
+                </div>
+                <span className="font-black text-amber-900 font-mono">
+                  {formatDate(responseDetailItem.scheduled_date)}
+                </span>
+              </div>
+            )}
+
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  const target = responseDetailItem;
+                  setResponseDetailItem(null);
+                  handleOpenFollowupModal(target);
+                }}
+                className="px-4 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 font-bold text-xs border border-indigo-200 transition cursor-pointer"
+              >
+                ✏️ Edit Respon / Hubungi Ulang
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setResponseDetailItem(null)}
+                className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition cursor-pointer"
+              >
+                Tutup
+              </button>
             </div>
           </div>
         </div>

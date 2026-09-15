@@ -7,12 +7,16 @@ export function printCleanDocument(element: HTMLElement | null, documentTitle: s
   if (!element) return;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
-  // Kumpulkan link stylesheets (Tailwind + Google Fonts)
+  // Kumpulkan link stylesheets (Tailwind + Google Fonts) & style tags
   const linkStyles = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
     .map((el) => {
       const href = (el as HTMLLinkElement).href;
       return `<link rel="stylesheet" href="${href}" />`;
     })
+    .join('\n');
+
+  const styleTags = Array.from(document.querySelectorAll('style'))
+    .map((el) => el.outerHTML)
     .join('\n');
 
   // Ambil HTML murni dari elemen dokumen
@@ -21,20 +25,33 @@ export function printCleanDocument(element: HTMLElement | null, documentTitle: s
   docHtml = docHtml.replace(/href="\/([^"]+)"/g, `href="${origin}/$1"`);
 
   const popupHtml = `<!DOCTYPE html>
-<html lang="id">
+<html lang="id" class="light" style="color-scheme: light; forced-color-adjust: none;">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <meta name="supported-color-schemes" content="light" />
+  <meta name="darkreader-lock" content="true" />
   <title>${documentTitle}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   ${linkStyles}
+  ${styleTags}
   <style>
+    :root, html, body {
+      color-scheme: light !important;
+      forced-color-adjust: none !important;
+      background: #ffffff !important;
+      color: #0f172a !important;
+      -webkit-font-smoothing: antialiased !important;
+    }
     @page {
       size: A4 portrait;
       margin: 4mm 6mm;
     }
     *, *::before, *::after {
+      color-scheme: light !important;
+      forced-color-adjust: none !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
       color-adjust: exact !important;
@@ -44,6 +61,7 @@ export function printCleanDocument(element: HTMLElement | null, documentTitle: s
       margin: 0 !important;
       padding: 0 !important;
       background: #ffffff !important;
+      color: #0f172a !important;
       font-family: 'Montserrat', system-ui, -apple-system, sans-serif !important;
       width: 100% !important;
       height: auto !important;
@@ -69,8 +87,58 @@ export function printCleanDocument(element: HTMLElement | null, documentTitle: s
       border: none !important;
       border-radius: 0 !important;
       background: #ffffff !important;
+      color: #0f172a !important;
       display: block !important;
       height: auto !important;
+    }
+    /* Anti-faded / High-contrast text rules for Windows 7 and all browsers */
+    .doc-sheet, .doc-sheet * {
+      color-scheme: light !important;
+    }
+    .doc-sheet .text-slate-950,
+    .doc-sheet .text-slate-900,
+    .doc-sheet .text-slate-800,
+    .doc-sheet .text-slate-700,
+    .printable-estimation-sheet .text-slate-950,
+    .printable-estimation-sheet .text-slate-900,
+    .printable-estimation-sheet .text-slate-800,
+    .printable-estimation-sheet .text-slate-700 {
+      color: #0f172a !important;
+    }
+    .doc-sheet .text-slate-600,
+    .doc-sheet .text-slate-500,
+    .printable-estimation-sheet .text-slate-600,
+    .printable-estimation-sheet .text-slate-500 {
+      color: #1e293b !important;
+    }
+    .doc-sheet .text-slate-400,
+    .printable-estimation-sheet .text-slate-400 {
+      color: #334155 !important;
+    }
+    .doc-sheet th,
+    .printable-estimation-sheet th {
+      color: #0f172a !important;
+      background-color: #f1f5f9 !important;
+    }
+    .doc-sheet table,
+    .doc-sheet th,
+    .doc-sheet td,
+    .printable-estimation-sheet table,
+    .printable-estimation-sheet th,
+    .printable-estimation-sheet td {
+      border-color: #334155 !important;
+      vertical-align: middle !important;
+    }
+    .official-document-logo {
+      width: 240px !important;
+      min-width: 240px !important;
+      max-width: 240px !important;
+      height: 47px !important;
+      min-height: 47px !important;
+      max-height: 47px !important;
+      object-fit: contain !important;
+      object-position: left center !important;
+      display: block !important;
     }
     .avoid-break, .break-avoid, .page-break-avoid, tr {
       page-break-inside: avoid !important;
@@ -98,12 +166,70 @@ export function printCleanDocument(element: HTMLElement | null, documentTitle: s
         size: A4 portrait;
         margin: 4mm 6mm;
       }
+      *, *::before, *::after {
+        color-scheme: light !important;
+        forced-color-adjust: none !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+      }
       html, body {
+        color-scheme: light !important;
+        forced-color-adjust: none !important;
         margin: 0 !important;
         padding: 0 !important;
         background: #ffffff !important;
+        color: #0f172a !important;
         width: 100% !important;
         height: auto !important;
+      }
+      .doc-sheet, .doc-sheet * {
+        color-scheme: light !important;
+      }
+      .doc-sheet .text-slate-950,
+      .doc-sheet .text-slate-900,
+      .doc-sheet .text-slate-800,
+      .doc-sheet .text-slate-700,
+      .printable-estimation-sheet .text-slate-950,
+      .printable-estimation-sheet .text-slate-900,
+      .printable-estimation-sheet .text-slate-800,
+      .printable-estimation-sheet .text-slate-700 {
+        color: #0f172a !important;
+      }
+      .doc-sheet .text-slate-600,
+      .doc-sheet .text-slate-500,
+      .printable-estimation-sheet .text-slate-600,
+      .printable-estimation-sheet .text-slate-500 {
+        color: #1e293b !important;
+      }
+      .doc-sheet .text-slate-400,
+      .printable-estimation-sheet .text-slate-400 {
+        color: #334155 !important;
+      }
+      .doc-sheet th,
+      .printable-estimation-sheet th {
+        color: #0f172a !important;
+        background-color: #f1f5f9 !important;
+      }
+      .doc-sheet table,
+      .doc-sheet th,
+      .doc-sheet td,
+      .printable-estimation-sheet table,
+      .printable-estimation-sheet th,
+      .printable-estimation-sheet td {
+        border-color: #334155 !important;
+        vertical-align: middle !important;
+      }
+      .official-document-logo {
+        width: 240px !important;
+        min-width: 240px !important;
+        max-width: 240px !important;
+        height: 47px !important;
+        min-height: 47px !important;
+        max-height: 47px !important;
+        object-fit: contain !important;
+        object-position: left center !important;
+        display: block !important;
       }
       .printable-estimation-sheet thead,
       .printable-estimation-sheet .estimation-items-table thead,
