@@ -160,7 +160,7 @@ export function PrintableACCheckup({
 
           {/* Section 1: Pemeriksaan Visual & Fisik (Mesin Mati) - Maroon Red */}
           <div className="border border-slate-800 rounded-xl overflow-hidden text-xs">
-            <div className="bg-[#8B0000] text-white px-3 py-1 font-black text-[11px] tracking-wide">
+            <div className="bg-[#8B0000] text-white px-3 py-1.5 font-black text-[11px] tracking-wide flex items-center min-h-[26px] leading-normal">
               Pemeriksaan Visual & Fisik (Mesin Mati)
             </div>
             <table className="w-full text-left border-collapse text-[11px]">
@@ -191,7 +191,7 @@ export function PrintableACCheckup({
 
           {/* Section 2: Pemeriksaan Operasional (AC & Mesin Menyala) - Maroon Red */}
           <div className="border border-slate-800 rounded-xl overflow-hidden text-xs">
-            <div className="bg-[#8B0000] text-white px-3 py-1 font-black text-[11px] tracking-wide">
+            <div className="bg-[#8B0000] text-white px-3 py-1.5 font-black text-[11px] tracking-wide flex items-center min-h-[26px] leading-normal">
               Pemeriksaan Operasional (AC & Mesin Menyala)
             </div>
             <table className="w-full text-left border-collapse text-[11px]">
@@ -218,7 +218,7 @@ export function PrintableACCheckup({
 
           {/* Section 3: Pengukuran Parameter Teknis - Maroon Red */}
           <div className="border border-slate-800 rounded-xl overflow-hidden text-xs">
-            <div className="bg-[#8B0000] text-white px-3 py-1 font-black text-[11px] tracking-wide">
+            <div className="bg-[#8B0000] text-white px-3 py-1.5 font-black text-[11px] tracking-wide flex items-center min-h-[26px] leading-normal">
               Pengukuran Parameter Teknis
             </div>
             <table className="w-full text-left border-collapse text-[11px]">
@@ -280,7 +280,7 @@ export function PrintableACCheckup({
                 <img
                   src={checkup.technician_signature_url}
                   alt="TTD Teknisi"
-                  className="max-h-12 max-w-full object-contain block mx-auto"
+                  className="max-h-12 max-w-full object-contain inline-block mx-auto"
                 />
               ) : (
                 <span className="text-[10px] text-slate-400 italic">(Tanda Tangan)</span>

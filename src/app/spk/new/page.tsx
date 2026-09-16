@@ -83,20 +83,21 @@ export default function NewSPKPage() {
 
   // When license plate is typed, auto-fill existing vehicle data
   const handlePlateChange = (val: string) => {
-    setLicensePlate(val);
-    const cleaned = val.replace(/\s+/g, '').toUpperCase();
+    const upperPlate = val.toUpperCase();
+    setLicensePlate(upperPlate);
+    const cleaned = upperPlate.replace(/\s+/g, '');
     const existing = vehicles.find(
       (v) => v.license_plate.replace(/\s+/g, '').toUpperCase() === cleaned
     );
     if (existing) {
-      setCustomerName(existing.customer_name);
+      setCustomerName(existing.customer_name?.toUpperCase() || '');
       setPhoneNumber(existing.phone_number);
       if (existing.email) setEmail(existing.email);
-      if (existing.address) setAddress(existing.address);
-      setCarBrand(existing.car_brand || '');
-      setCarModel(existing.car_model || '');
+      if (existing.address) setAddress(existing.address?.toUpperCase() || '');
+      setCarBrand(existing.car_brand?.toUpperCase() || '');
+      setCarModel(existing.car_model?.toUpperCase() || '');
       if (existing.car_year) setCarYear(String(existing.car_year));
-      if (existing.chassis_number) setChassisNumber(existing.chassis_number);
+      if (existing.chassis_number) setChassisNumber(existing.chassis_number?.toUpperCase() || '');
       if (existing.current_mileage) setCurrentMileage(formatKM(existing.current_mileage, false));
     }
   };
@@ -112,17 +113,17 @@ export default function NewSPKPage() {
     showToast('Menyimpan SPK ke database...', 'info');
 
     try {
-      // 1. Save or update vehicle in Supabase
+      // 1. Save or update vehicle in Supabase (semua teks dikapitalisasi otomatis)
       const savedVehicle = await saveVehicleAsync({
-        customer_name: customerName,
-        phone_number: phoneNumber,
-        email,
-        address,
+        customer_name: customerName.trim().toUpperCase(),
+        phone_number: phoneNumber.trim(),
+        email: email.trim(),
+        address: address.trim().toUpperCase(),
         license_plate: formatPlate(licensePlate),
         car_brand: carBrand.trim() ? carBrand.trim().toUpperCase() : 'UMUM',
         car_model: carModel.trim() ? carModel.trim().toUpperCase() : 'STANDAR',
         car_year: carYear ? Number(carYear) : undefined,
-        chassis_number: chassisNumber,
+        chassis_number: chassisNumber.trim().toUpperCase(),
         current_mileage: currentMileage ? parseKM(currentMileage) : 0,
       });
 
@@ -133,18 +134,18 @@ export default function NewSPKPage() {
         entryDate.setHours(Number(hours), Number(minutes), 0);
       }
 
-      // 2. Generate guaranteed unique SPK number and save work order
-      const finalSource = sourceInfo === 'LAINNYA' ? (customSource || 'Lainnya') : sourceInfo;
+      // 2. Generate guaranteed unique SPK number and save work order (kapitalisasi otomatis)
+      const finalSource = (sourceInfo === 'LAINNYA' ? (customSource || 'Lainnya') : sourceInfo).toUpperCase();
       const spkNumber = await generateUniqueSpkNumberAsync(receivedAtBranch);
       const newWorkOrder = await saveWorkOrderAsync({
         spk_number: spkNumber,
         vehicle_id: savedVehicle.id,
-        mechanic_name: mechanicName,
-        complaints,
+        mechanic_name: (mechanicName || '').trim().toUpperCase(),
+        complaints: complaints.trim().toUpperCase(),
         fuel_level: Number(fuelLevel),
-        notes: notes || 'Ganti oli mesin, filter, tune-up berkala, dan uji fungsi sistem.',
+        notes: (notes || 'PEMERIKSAAN MENYELURUH, TUNE-UP, SERVIS BERKALA, DAN UJI FUNGSI SISTEM KENDARAAN.').trim().toUpperCase(),
         source_info: finalSource,
-        vehicle_status: vehicleStatus,
+        vehicle_status: (vehicleStatus || 'Ditunggu').toUpperCase(),
         received_at_branch: receivedAtBranch,
         signature_customer_url: signatureCustomer,
         signature_mechanic_url: signatureMechanic,
@@ -214,8 +215,8 @@ export default function NewSPKPage() {
                   required
                   placeholder="Contoh: Pak Andra / Bpk. Ahmad"
                   value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none font-medium"
+                  onChange={(e) => setCustomerName(e.target.value.toUpperCase())}
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none font-bold uppercase"
                 />
               </div>
 
@@ -239,8 +240,8 @@ export default function NewSPKPage() {
                   type="text"
                   placeholder="Contoh: Menganti resident / Graha Candi, Sidoarjo"
                   value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 outline-none"
+                  onChange={(e) => setAddress(e.target.value.toUpperCase())}
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 outline-none uppercase font-medium"
                 />
               </div>
 
@@ -380,8 +381,8 @@ export default function NewSPKPage() {
                     required
                     placeholder="Ketik nama mekanik yang mengerjakan..."
                     value={mechanicName}
-                    onChange={(e) => setMechanicName(e.target.value)}
-                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none font-medium text-slate-900"
+                    onChange={(e) => setMechanicName(e.target.value.toUpperCase())}
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none font-bold uppercase text-slate-900"
                   />
                 </div>
               </div>
@@ -431,8 +432,8 @@ export default function NewSPKPage() {
                 rows={3}
                 placeholder="Contoh: Perawatan berkala, AC kurang dingin, ada bunyi berdengung saat mesin hidup..."
                 value={complaints}
-                onChange={(e) => setComplaints(e.target.value)}
-                className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none leading-relaxed font-medium"
+                onChange={(e) => setComplaints(e.target.value.toUpperCase())}
+                className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none leading-relaxed font-bold uppercase"
               />
             </div>
 
@@ -445,8 +446,8 @@ export default function NewSPKPage() {
                 rows={3}
                 placeholder="Contoh: Ganti oli mesin sama filter oli, kuras freon AC, flushing oli kompresor..."
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none leading-relaxed font-medium"
+                onChange={(e) => setNotes(e.target.value.toUpperCase())}
+                className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none leading-relaxed font-bold uppercase"
               />
             </div>
           </div>
@@ -479,8 +480,8 @@ export default function NewSPKPage() {
                   type="text"
                   placeholder="Ketik sumber informasi lainnya..."
                   value={customSource}
-                  onChange={(e) => setCustomSource(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 mt-2 font-medium"
+                  onChange={(e) => setCustomSource(e.target.value.toUpperCase())}
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 mt-2 font-bold uppercase"
                 />
               )}
             </div>

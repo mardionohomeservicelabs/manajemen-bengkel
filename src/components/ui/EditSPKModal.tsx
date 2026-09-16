@@ -106,15 +106,15 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
       // 1. Simpan atau perbarui data kendaraan di Supabase
       const savedVehicle = await saveVehicleAsync({
         id: vehicle?.id || workOrder.vehicle_id,
-        customer_name: customerName.trim(),
+        customer_name: customerName.trim().toUpperCase(),
         phone_number: phoneNumber.trim(),
         email: email.trim() || undefined,
-        address: address.trim() || undefined,
+        address: address.trim() ? address.trim().toUpperCase() : undefined,
         license_plate: formatPlate(licensePlate),
         car_brand: carBrand.trim() ? carBrand.trim().toUpperCase() : 'UMUM',
         car_model: carModel.trim() ? carModel.trim().toUpperCase() : 'STANDAR',
         car_year: carYear ? Number(carYear) : undefined,
-        chassis_number: chassisNumber.trim() || undefined,
+        chassis_number: chassisNumber.trim() ? chassisNumber.trim().toUpperCase() : undefined,
         current_mileage: currentMileage ? parseKM(currentMileage) : 0,
       });
 
@@ -128,7 +128,7 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
         }
       }
 
-      const finalSource = sourceInfo === 'LAINNYA' ? (customSource.trim() || 'Lainnya') : sourceInfo;
+      const finalSource = sourceInfo === 'LAINNYA' ? (customSource.trim().toUpperCase() || 'LAINNYA') : sourceInfo;
 
       // 3. Simpan perubahan Work Order
       const updatedWorkOrder = await saveWorkOrderAsync({
@@ -136,10 +136,10 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
         id: workOrder.id,
         spk_number: workOrder.spk_number,
         vehicle_id: savedVehicle.id,
-        mechanic_name: mechanicName.trim() || undefined,
-        complaints: complaints.trim(),
+        mechanic_name: mechanicName.trim() ? mechanicName.trim().toUpperCase() : undefined,
+        complaints: complaints.trim().toUpperCase(),
         fuel_level: Number(fuelLevel),
-        notes: notes.trim() || undefined,
+        notes: notes.trim() ? notes.trim().toUpperCase() : undefined,
         source_info: finalSource,
         vehicle_status: vehicleStatus,
         received_at_branch: receivedAtBranch,
@@ -226,10 +226,10 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
                 <input
                   type="text"
                   required
-                  placeholder="Contoh: Pak Andra / Bpk. Ahmad"
+                  placeholder="CONTOH: PAK ANDRA / BPK. AHMAD"
                   value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white font-medium focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none"
+                  onChange={(e) => setCustomerName(e.target.value.toUpperCase())}
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white font-bold uppercase focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none"
                 />
               </div>
 
@@ -251,10 +251,10 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
                 <label className="block text-xs font-medium text-slate-700 mb-1">Alamat Pemilik Kendaraan</label>
                 <input
                   type="text"
-                  placeholder="Contoh: Menganti resident / Sidoarjo"
+                  placeholder="CONTOH: MENGANTI RESIDENCE / SIDOARJO"
                   value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white outline-none focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600"
+                  onChange={(e) => setAddress(e.target.value.toUpperCase())}
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white uppercase font-medium outline-none focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600"
                 />
               </div>
 
@@ -410,8 +410,8 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
                   rows={3}
                   placeholder="Tulis keluhan utama pemilik kendaraan..."
                   value={complaints}
-                  onChange={(e) => setComplaints(e.target.value)}
-                  className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none leading-relaxed font-medium"
+                  onChange={(e) => setComplaints(e.target.value.toUpperCase())}
+                  className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none leading-relaxed font-bold uppercase"
                 />
               </div>
 
@@ -424,8 +424,8 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
                   rows={3}
                   placeholder="Tulis uraian instruksi pekerjaan teknisi..."
                   value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none leading-relaxed font-medium"
+                  onChange={(e) => setNotes(e.target.value.toUpperCase())}
+                  className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none leading-relaxed font-bold uppercase"
                 />
               </div>
             </div>
@@ -466,8 +466,8 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
                   type="text"
                   placeholder="Ketik nama mekanik PIC..."
                   value={mechanicName}
-                  onChange={(e) => setMechanicName(e.target.value)}
-                  className="w-full text-xs p-2 rounded-xl border border-slate-200 bg-white font-medium outline-none focus:ring-2 focus:ring-maroon-600/20"
+                  onChange={(e) => setMechanicName(e.target.value.toUpperCase())}
+                  className="w-full text-xs p-2 rounded-xl border border-slate-200 bg-white font-bold uppercase outline-none focus:ring-2 focus:ring-maroon-600/20"
                 />
               </div>
 
@@ -545,8 +545,8 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
                     type="text"
                     placeholder="Ketik sumber lainnya..."
                     value={customSource}
-                    onChange={(e) => setCustomSource(e.target.value)}
-                    className="w-full text-xs p-1.5 rounded-lg border border-slate-200 mt-1.5 font-medium"
+                    onChange={(e) => setCustomSource(e.target.value.toUpperCase())}
+                    className="w-full text-xs p-1.5 rounded-lg border border-slate-200 mt-1.5 font-bold uppercase"
                   />
                 )}
               </div>

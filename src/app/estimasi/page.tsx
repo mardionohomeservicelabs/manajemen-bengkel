@@ -3213,9 +3213,9 @@ function EstimationBuilderContent() {
               rows={2}
               disabled={isLocked}
               value={estimationComplaints}
-              onChange={(e) => setEstimationComplaints(e.target.value)}
+              onChange={(e) => setEstimationComplaints(e.target.value.toUpperCase())}
               placeholder="Keluhan customer..."
-              className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-white resize-none outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
+              className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-white resize-none outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-bold uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
             />
             <p className="text-[10.5px] text-slate-500">
               💡 Otomatis menyinkronkan keluhan dari SPK intake. Anda dapat menambahkan catatan keluhan khusus untuk tab estimasi ini bila diperlukan.
@@ -3228,9 +3228,9 @@ function EstimationBuilderContent() {
               rows={2}
               disabled={isLocked}
               value={adminNotes}
-              onChange={(e) => setAdminNotes(e.target.value)}
+              onChange={(e) => setAdminNotes(e.target.value.toUpperCase())}
               placeholder="Catatan khusus teknisi / estimasi ini..."
-              className="w-full text-xs p-3 rounded-xl border border-slate-200 resize-none outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
+              className="w-full text-xs p-3 rounded-xl border border-slate-200 resize-none outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-bold uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
             />
           </div>
 

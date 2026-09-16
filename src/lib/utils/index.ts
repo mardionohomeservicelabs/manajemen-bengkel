@@ -237,21 +237,23 @@ export function formatComplaintsAndDiagnosis(
     } else if (cleanCustom.includes('| Uraian SPK:')) {
       cleanCustom = cleanCustom.split('| Uraian SPK:')[0].replace(/^Keluhan:\s*/i, '').trim();
     }
+    const upperCustom = cleanCustom.toUpperCase();
     return {
-      displayText: cleanCustom,
+      displayText: upperCustom,
       hasBoth: false,
-      complaintPart: cleanCustom,
+      complaintPart: upperCustom,
       diagnosisPart: '',
     };
   }
 
   const isCompBoilerplate = isSPKGenericBoilerplate(comp);
-  const validComp = comp && !isCompBoilerplate ? comp : (comp || 'Perawatan berkala / Servis rutin');
+  const validComp = comp && !isCompBoilerplate ? comp : (comp || 'PERAWATAN BERKALA / SERVIS RUTIN');
+  const upperComp = validComp.toUpperCase();
 
   return {
-    displayText: validComp,
+    displayText: upperComp,
     hasBoth: false,
-    complaintPart: validComp,
+    complaintPart: upperComp,
     diagnosisPart: '',
   };
 }

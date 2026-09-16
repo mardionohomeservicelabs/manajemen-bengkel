@@ -239,21 +239,21 @@ function SPKListContent() {
                       </td>
 
                       <td className="p-3.5 align-top">
-                        <div className="font-bold text-maroon-900">
+                        <div className="font-bold text-maroon-900 uppercase">
                           {vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'}
                         </div>
-                        <div className="text-slate-800 font-medium">
+                        <div className="text-slate-800 font-medium uppercase">
                           {vehicle?.car_brand} {vehicle?.car_model}
                         </div>
-                        <div className="text-[11px] text-slate-500">
+                        <div className="text-[11px] text-slate-500 uppercase">
                           {vehicle?.customer_name} ({vehicle?.phone_number})
                         </div>
                       </td>
 
                       <td className="p-3.5 align-top max-w-xs">
-                        <p className="text-slate-900 font-semibold line-clamp-2">{order.complaints}</p>
+                        <p className="text-slate-900 font-semibold line-clamp-2 uppercase">{order.complaints}</p>
                         {order.notes && (
-                          <p className="text-[10.5px] text-slate-500 line-clamp-1 mt-0.5 italic">
+                          <p className="text-[10.5px] text-slate-500 line-clamp-1 mt-0.5 italic uppercase">
                             Pengerjaan: {order.notes}
                           </p>
                         )}
@@ -261,11 +261,11 @@ function SPKListContent() {
                           <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-mono font-bold">
                             KM: {formatKM(vehicle?.current_mileage, false)}
                           </span>
-                          <span className={`px-1.5 py-0.5 rounded font-bold ${order.vehicle_status === 'Ditinggal' ? 'bg-indigo-50 text-indigo-800' : 'bg-amber-50 text-amber-800'}`}>
+                          <span className={`px-1.5 py-0.5 rounded font-bold uppercase ${order.vehicle_status === 'Ditinggal' ? 'bg-indigo-50 text-indigo-800' : 'bg-amber-50 text-amber-800'}`}>
                             {order.vehicle_status || 'Ditunggu'}
                           </span>
                           {order.source_info && (
-                            <span className="bg-blue-50 text-[#001F7A] px-1.5 py-0.5 rounded font-medium">
+                            <span className="bg-blue-50 text-[#001F7A] px-1.5 py-0.5 rounded font-medium uppercase">
                               Ref: {order.source_info}
                             </span>
                           )}
@@ -273,7 +273,7 @@ function SPKListContent() {
                       </td>
 
                       <td className="p-3.5 align-top">
-                        <div className="font-medium text-slate-800">{order.mechanic_name || '-'}</div>
+                        <div className="font-medium text-slate-800 uppercase">{order.mechanic_name || '-'}</div>
                         <div className="text-[10px] text-slate-400">SA: {order.sa_profile?.full_name || 'SA'}</div>
                       </td>
 

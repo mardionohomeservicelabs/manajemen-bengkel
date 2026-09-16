@@ -30,7 +30,7 @@ export function OfficialDocumentHeader({ settings }: OfficialDocumentHeaderProps
             alt="Mardiono Home Service"
             width={240}
             height={47}
-            className="official-document-logo block"
+            className="official-document-logo inline-block"
             style={{
               width: '240px',
               height: '47px',
@@ -40,7 +40,7 @@ export function OfficialDocumentHeader({ settings }: OfficialDocumentHeaderProps
               maxHeight: '47px',
               objectFit: 'contain',
               objectPosition: 'left center',
-              display: 'block',
+              display: 'inline-block',
             }}
           />
         </div>
@@ -104,31 +104,31 @@ export function OfficialDocumentMetaGrid({
         <div className="flex items-center gap-1.5 border-r border-slate-300 pr-2 min-h-[20px]">
           <span className="w-28 shrink-0 font-bold text-slate-600">Pemilik Kendaraan</span>
           <span className="shrink-0 font-bold text-slate-400">:</span>
-          <span className="font-bold text-slate-950 flex-1 min-w-0 truncate">{customerName || 'Pemilik Kendaraan'}</span>
+          <span className="font-bold text-slate-950 flex-1 min-w-0 truncate uppercase">{customerName?.toUpperCase() || 'PEMILIK KENDARAAN'}</span>
         </div>
         <div className="flex items-center gap-1.5 pl-1 min-h-[20px]">
           <span className="w-16 shrink-0 font-bold text-slate-600">No Pol</span>
           <span className="shrink-0 font-bold text-slate-400">:</span>
-          <span className="font-mono font-black text-[#8B0000] text-xs flex-1 min-w-0">{licensePlate || '-'}</span>
+          <span className="font-mono font-black text-[#8B0000] text-xs flex-1 min-w-0 uppercase">{licensePlate?.toUpperCase() || '-'}</span>
         </div>
 
         {/* Row 2 */}
         <div className="flex items-center gap-1.5 border-r border-slate-300 pr-2 min-h-[20px]">
           <span className="w-28 shrink-0 font-bold text-slate-600">Alamat</span>
           <span className="shrink-0 font-bold text-slate-400">:</span>
-          <span className="font-bold text-slate-950 flex-1 min-w-0 truncate">{address || '-'}</span>
+          <span className="font-bold text-slate-950 flex-1 min-w-0 truncate uppercase">{address?.toUpperCase() || '-'}</span>
         </div>
         <div className="flex items-center gap-1.5 pl-1 min-h-[20px]">
-          <span className="w-16 shrink-0 font-bold text-slate-600">{docLabel}</span>
+          <span className="w-16 shrink-0 font-bold text-slate-600">{docLabel?.toUpperCase() || 'NO PKB'}</span>
           <span className="shrink-0 font-bold text-slate-400">:</span>
-          <span className="font-mono font-bold text-xs flex-1 min-w-0 truncate" style={{ color: docColor }}>{docNumber || '-'}</span>
+          <span className="font-mono font-bold text-xs flex-1 min-w-0 truncate uppercase" style={{ color: docColor }}>{docNumber?.toUpperCase() || '-'}</span>
         </div>
 
         {/* Row 3 */}
         <div className="flex items-center gap-1.5 border-r border-slate-300 pr-2 min-h-[20px]">
           <span className="w-28 shrink-0 font-bold text-slate-600">Unit</span>
           <span className="shrink-0 font-bold text-slate-400">:</span>
-          <span className="font-bold text-slate-950 flex-1 min-w-0 truncate">{unit || '-'}</span>
+          <span className="font-bold text-slate-950 flex-1 min-w-0 truncate uppercase">{unit?.toUpperCase() || '-'}</span>
         </div>
         <div className="flex items-center gap-1.5 pl-1 min-h-[20px]">
           <span className="w-16 shrink-0 font-bold text-slate-600">Tanggal</span>

@@ -45,9 +45,19 @@ export function DocumentImageModal({
     setImageDataUrl(null);
     setCopied(false);
 
+    let tempStyle: HTMLStyleElement | null = null;
     try {
       // Dynamic import agar tidak memengaruhi SSR
       const html2canvas = (await import('html2canvas')).default;
+
+      // Injeksi style sementara ke document.head untuk memperbaiki bug FontMetrics html2canvas
+      // yang disebabkan oleh preflight Tailwind (img { display: block; })
+      tempStyle = document.createElement('style');
+      tempStyle.setAttribute('data-html2canvas-fontmetrics-fix', 'true');
+      tempStyle.textContent = `
+        img { display: inline-block !important; }
+      `;
+      document.head.appendChild(tempStyle);
 
       // Tunggu semua font (termasuk Google Fonts Montserrat) selesai dimuat
       // agar html2canvas tidak merender dengan font fallback yang berbeda metrics
@@ -72,9 +82,11 @@ export function DocumentImageModal({
         windowWidth: 850,
         windowHeight: Math.max(targetHeight + 400, 1600),
         onclone: (clonedDoc, clonedElement) => {
-          // 0. Inject style defaults ke cloned document untuk mencegah font fallback & teks vertikal
+          // 0. Inject style defaults ke cloned document untuk mencegah font fallback, offset baseline, & teks vertikal
           const styleTag = clonedDoc.createElement('style');
           styleTag.textContent = `
+            @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,600;1,700&display=swap');
+
             *, *::before, *::after {
               writing-mode: horizontal-tb !important;
               direction: ltr !important;
@@ -83,17 +95,34 @@ export function DocumentImageModal({
             html, body, * {
               font-family: 'Montserrat', system-ui, -apple-system, sans-serif !important;
             }
+            img {
+              display: inline-block !important;
+              vertical-align: middle !important;
+            }
             .w-3\\.5, .h-3\\.5 { width: 14px !important; height: 14px !important; min-width: 14px !important; min-height: 14px !important; }
             .w-2\\.5, .h-2\\.5 { width: 10px !important; height: 10px !important; }
             .flex { display: flex !important; }
+            .inline-flex { display: inline-flex !important; }
             .items-center { align-items: center !important; }
             .justify-center { justify-content: center !important; }
+            .justify-between { justify-content: space-between !important; }
             .grid-cols-12 { display: flex !important; flex-direction: row !important; width: 100% !important; }
             .col-span-4 { width: 33.333% !important; flex-shrink: 0 !important; }
             .col-span-8 { width: 66.667% !important; flex-grow: 1 !important; }
             .truncate { overflow: visible !important; text-overflow: clip !important; white-space: normal !important; }
             .break-words { word-break: break-word !important; overflow-wrap: break-word !important; }
             .whitespace-nowrap { white-space: nowrap !important; }
+
+            /* Pastikan badge, pill, dan bar judul berada tepat di tengah vertikal */
+            span.rounded, span[class*="rounded"], div[class*="rounded"] {
+              vertical-align: middle !important;
+            }
+            .leading-none, .leading-tight, .leading-snug {
+              line-height: normal !important;
+            }
+            th, td {
+              vertical-align: middle !important;
+            }
           `;
           clonedDoc.head.appendChild(styleTag);
 
@@ -154,12 +183,16 @@ export function DocumentImageModal({
           clonedElement.style.direction = 'ltr';
           clonedElement.style.fontFamily = "'Montserrat', system-ui, -apple-system, sans-serif";
 
-          // 4. Paksa semua elemen turunan untuk text horizontal (cegah teks vertikal)
+          // 4. Paksa semua elemen turunan untuk text horizontal (cegah teks vertikal) & standarisasi img
           const allElements = clonedElement.querySelectorAll('*');
           allElements.forEach((el) => {
             const htmlEl = el as HTMLElement;
             htmlEl.style.writingMode = 'horizontal-tb';
             htmlEl.style.direction = 'ltr';
+            if (htmlEl.tagName === 'IMG') {
+              htmlEl.style.display = 'inline-block';
+              htmlEl.style.verticalAlign = 'middle';
+            }
             // Pastikan font konsisten
             if (!htmlEl.style.fontFamily) {
               htmlEl.style.fontFamily = "'Montserrat', system-ui, -apple-system, sans-serif";
@@ -220,6 +253,9 @@ export function DocumentImageModal({
       console.error('html2canvas error:', err);
       setError('Gagal merender dokumen menjadi gambar. Coba lagi.');
     } finally {
+      if (tempStyle && tempStyle.parentNode) {
+        tempStyle.parentNode.removeChild(tempStyle);
+      }
       setIsRendering(false);
     }
   }, [documentRef]);

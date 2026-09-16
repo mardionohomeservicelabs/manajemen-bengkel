@@ -153,9 +153,9 @@ export function PrintableGeneralCheckup({
 
           {/* 1. Cek Kondisi Aki & Bahan Bakar (BBM) */}
           <div className="border border-slate-800 rounded-xl overflow-hidden text-xs">
-            <div className="bg-[#8B0000] text-white px-3 py-1 font-black text-[11px] uppercase tracking-wide flex justify-between items-center">
-              <span>1. Kondisi Aki &amp; Pengecekan Bahan Bakar (BBM)</span>
-              <span className="text-[10.5px] font-mono bg-white/10 px-2 py-0.5 rounded font-bold">
+            <div className="bg-[#8B0000] text-white px-3 py-1 font-black text-[11px] uppercase tracking-wide flex justify-between items-center min-h-[26px] leading-normal">
+              <span className="flex items-center">1. Kondisi Aki &amp; Pengecekan Bahan Bakar (BBM)</span>
+              <span className="text-[10.5px] font-mono bg-white/10 px-2 py-0.5 rounded font-bold inline-flex items-center justify-center leading-normal">
                 BBM: E [ {checkup.fuel_level_fraction || '3/4'} ] F ⛽
               </span>
             </div>
@@ -163,7 +163,7 @@ export function PrintableGeneralCheckup({
               <div className="col-span-5 flex items-center space-x-2">
                 <span className="font-bold text-slate-700">Kondisi Aki:</span>
                 <span
-                  className={`px-2.5 py-0.5 rounded font-black text-white text-[11px] ${
+                  className={`px-2.5 py-0.5 rounded font-black text-white text-[11px] inline-flex items-center justify-center leading-normal ${
                     checkup.battery_condition === 'baik' ? 'bg-emerald-700' : 'bg-red-700'
                   }`}
                 >
@@ -201,9 +201,9 @@ export function PrintableGeneralCheckup({
             {/* Left Column (50%): Pembersihan Sensor & Quality Note */}
             <div className="flex flex-col justify-between space-y-2.5 h-full">
               <div className="border border-slate-800 rounded-xl overflow-hidden">
-                <div className="bg-[#8B0000] text-white px-3 py-1.5 font-black text-[11px] flex justify-between items-center uppercase">
-                  <span>2. Pembersihan Sensor Mesin</span>
-                  <span className="bg-amber-400 text-slate-950 px-1.5 py-0.5 rounded text-[9px] font-black">
+                <div className="bg-[#8B0000] text-white px-3 py-1.5 font-black text-[11px] flex justify-between items-center uppercase min-h-[26px] leading-normal">
+                  <span className="flex items-center">2. Pembersihan Sensor Mesin</span>
+                  <span className="bg-amber-400 text-slate-950 px-1.5 py-0.5 rounded text-[9px] font-black inline-flex items-center justify-center leading-normal">
                     *CONTACT CLEANER
                   </span>
                 </div>
@@ -253,7 +253,7 @@ export function PrintableGeneralCheckup({
 
             {/* Right Column (50%): Checklist Fisik 16 Titik (No 8-23) */}
             <div className="border border-slate-800 rounded-xl overflow-hidden h-full">
-              <div className="bg-[#8B0000] text-white px-3 py-1.5 font-black text-[11px] uppercase tracking-wide">
+              <div className="bg-[#8B0000] text-white px-3 py-1.5 font-black text-[11px] uppercase tracking-wide flex items-center min-h-[26px] leading-normal">
                 3. Checklist Fisik 16 Titik (No 8–23)
               </div>
               <table className="w-full text-left border-collapse text-[10px]">
@@ -318,7 +318,7 @@ export function PrintableGeneralCheckup({
                   <img
                     src={checkup.technician_signature_url}
                     alt="TTD Teknisi"
-                    className="max-h-12 max-w-full object-contain block mx-auto"
+                    className="max-h-12 max-w-full object-contain inline-block mx-auto"
                   />
                 ) : (
                   <span className="text-[10px] text-slate-400 italic">(Tanda Tangan)</span>

@@ -558,7 +558,7 @@ export default function CustomerSignatureApprovalPage() {
                 <span className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">
                   Keluhan / Diagnosa Awal:
                 </span>
-                <p className="font-bold text-slate-900 mt-0.5 leading-snug">
+                <p className="font-bold text-slate-900 mt-0.5 leading-snug uppercase">
                   {complaintsText}
                 </p>
               </div>

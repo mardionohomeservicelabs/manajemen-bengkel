@@ -164,11 +164,19 @@ export function PrintableSPK({ workOrder, settings, onClose, onEdit }: Printable
           {/* Header */}
           <OfficialDocumentHeader settings={settings} />
 
-          {/* Title Header: PERINTAH KERJA BENGKEL */}
-          <div className="text-center pb-0.5">
-            <h2 className="text-sm font-black tracking-wider uppercase text-slate-900 border-b-2 border-slate-900 inline-block pb-0.5">
-              PERINTAH KERJA BENGKEL — BARU
-            </h2>
+          {/* Title Header: SURAT PERINTAH KERJA BENGKEL */}
+          <div className="flex items-center justify-between pb-1.5 border-b-2 border-slate-900 mt-1">
+            <div>
+              <span className="inline-flex items-center justify-center bg-[#8B0000] text-white px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider leading-normal">
+                SURAT PERINTAH KERJA BENGKEL (SPK / PKB)
+              </span>
+            </div>
+            <div className="text-right inline-flex items-center gap-1">
+              <span className="text-[10px] text-slate-500 font-bold uppercase">No. PKB:</span>
+              <span className="font-mono font-black text-sm text-[#001F7A]">
+                {workOrder.spk_number}
+              </span>
+            </div>
           </div>
 
           {/* Symmetrical Grid: Data Pelanggan & Kendaraan */}
@@ -190,8 +198,8 @@ export function PrintableSPK({ workOrder, settings, onClose, onEdit }: Printable
             <h4 className="font-black text-[#8B0000] uppercase text-[10px]">
               KELUHAN PEMILIK KENDARAAN :
             </h4>
-            <p className="text-slate-900 font-medium text-[10.5px] leading-relaxed min-h-[22px] pl-1 whitespace-pre-wrap break-words">
-              {workOrder.complaints || 'Perawatan berkala / Servis rutin'}
+            <p className="text-slate-900 font-medium text-[10.5px] leading-relaxed min-h-[22px] pl-1 whitespace-pre-wrap break-words uppercase">
+              {workOrder.complaints?.toUpperCase() || 'PERAWATAN BERKALA / SERVIS RUTIN'}
             </p>
           </div>
 
@@ -200,8 +208,8 @@ export function PrintableSPK({ workOrder, settings, onClose, onEdit }: Printable
             <h4 className="font-black text-[#001F7A] uppercase text-[10px]">
               URAIAN PEKERJAAN :
             </h4>
-            <p className="text-slate-900 font-medium text-[10.5px] leading-relaxed min-h-[22px] pl-1 whitespace-pre-wrap break-words">
-              {workOrder.notes || 'Pemeriksaan menyeluruh, tune-up, servis berkala, dan uji fungsi sistem kendaraan.'}
+            <p className="text-slate-900 font-medium text-[10.5px] leading-relaxed min-h-[22px] pl-1 whitespace-pre-wrap break-words uppercase">
+              {workOrder.notes?.toUpperCase() || 'PEMERIKSAAN MENYELURUH, TUNE-UP, SERVIS BERKALA, DAN UJI FUNGSI SISTEM KENDARAAN.'}
             </p>
           </div>
 
@@ -228,15 +236,15 @@ export function PrintableSPK({ workOrder, settings, onClose, onEdit }: Printable
           <div className="grid grid-cols-3 gap-2 text-[11px]">
             <div className="border border-slate-800 rounded-xl p-1.5 bg-white flex items-center justify-between">
               <span className="font-bold text-slate-700">Sumber Info:</span>
-              <span className="font-black text-[#001F7A] uppercase text-[10px]">{workOrder.source_info || 'REFERENSI'}</span>
+              <span className="font-black text-[#001F7A] uppercase text-[10px]">{workOrder.source_info?.toUpperCase() || 'REFERENSI'}</span>
             </div>
             <div className="border border-slate-800 rounded-xl p-1.5 bg-white flex items-center justify-between">
               <span className="font-bold text-slate-700">Status Mobil:</span>
-              <span className="font-black text-[#8B0000] uppercase text-[10px]">{workOrder.vehicle_status || 'Ditunggu'}</span>
+              <span className="font-black text-[#8B0000] uppercase text-[10px]">{workOrder.vehicle_status?.toUpperCase() || 'DITUNGGU'}</span>
             </div>
             <div className="border border-slate-800 rounded-xl p-1.5 bg-white flex items-center justify-between">
               <span className="font-bold text-slate-700">Di Terima Di:</span>
-              <span className="font-black text-emerald-800 uppercase text-[10px]">{workOrder.received_at_branch || '-'}</span>
+              <span className="font-black text-emerald-800 uppercase text-[10px]">{workOrder.received_at_branch?.toUpperCase() || '-'}</span>
             </div>
           </div>
 
@@ -259,14 +267,14 @@ export function PrintableSPK({ workOrder, settings, onClose, onEdit }: Printable
                     <img
                       src={workOrder.signature_sa_url}
                       alt="TTD Petugas"
-                      className="max-h-8 max-w-full object-contain block mx-auto"
+                      className="max-h-8 max-w-full object-contain inline-block mx-auto"
                     />
                   ) : (
                     <span className="text-[8.5px] text-slate-400 italic">(Tanda Tangan)</span>
                   )}
                 </div>
-                <p className="font-bold text-slate-950 text-[9.5px] border-t border-slate-300 pt-0.5 break-words leading-tight">
-                  ({signerSA || 'Petugas Bengkel'})
+                <p className="font-bold text-slate-950 text-[9.5px] border-t border-slate-300 pt-0.5 break-words leading-tight uppercase">
+                  ({(signerSA || 'Petugas Bengkel').toUpperCase()})
                 </p>
               </div>
 
@@ -279,14 +287,14 @@ export function PrintableSPK({ workOrder, settings, onClose, onEdit }: Printable
                     <img
                       src={workOrder.signature_mechanic_url}
                       alt="TTD Mekanik"
-                      className="max-h-8 max-w-full object-contain block mx-auto"
+                      className="max-h-8 max-w-full object-contain inline-block mx-auto"
                     />
                   ) : (
                     <span className="text-[8.5px] text-slate-400 italic">(Tanda Tangan)</span>
                   )}
                 </div>
-                <p className="font-bold text-slate-950 text-[9.5px] border-t border-slate-300 pt-0.5 break-words leading-tight">
-                  ({signerMechanic || 'Teknisi / Mekanik'})
+                <p className="font-bold text-slate-950 text-[9.5px] border-t border-slate-300 pt-0.5 break-words leading-tight uppercase">
+                  ({(signerMechanic || 'Teknisi / Mekanik').toUpperCase()})
                 </p>
               </div>
 
@@ -299,14 +307,14 @@ export function PrintableSPK({ workOrder, settings, onClose, onEdit }: Printable
                     <img
                       src={workOrder.signature_customer_url}
                       alt="TTD Pemilik"
-                      className="max-h-8 max-w-full object-contain block mx-auto"
+                      className="max-h-8 max-w-full object-contain inline-block mx-auto"
                     />
                   ) : (
                     <span className="text-[8.5px] text-slate-400 italic">(Tanda Tangan)</span>
                   )}
                 </div>
-                <p className="font-bold text-slate-950 text-[9.5px] border-t border-slate-300 pt-0.5 break-words leading-tight">
-                  ({vehicle?.customer_name || 'Pemilik Kendaraan'})
+                <p className="font-bold text-slate-950 text-[9.5px] border-t border-slate-300 pt-0.5 break-words leading-tight uppercase">
+                  ({(vehicle?.customer_name || 'Pemilik Kendaraan').toUpperCase()})
                 </p>
               </div>
             </div>

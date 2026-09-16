@@ -189,7 +189,7 @@ export function PrintableInvoice({
             {/* Title Header */}
             <div className="flex items-center justify-between pb-1.5 border-b-2 border-slate-900">
               <div>
-                <span className="inline-flex items-center justify-center bg-[#8B0000] text-white px-3 py-1 rounded text-xs font-black uppercase tracking-wider leading-none">
+                <span className="inline-flex items-center justify-center bg-[#8B0000] text-white px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider leading-normal">
                   FAKTUR / NOTA PEMBAYARAN RESMI
                 </span>
               </div>

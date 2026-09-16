@@ -374,7 +374,7 @@ export function PrintableEstimation({
             {/* Title Header */}
             <div className="flex items-center justify-between pb-1.5 border-b-2 border-slate-900 mt-1">
               <div>
-                <span className="inline-flex items-center justify-center bg-amber-600 text-white px-3 py-1 rounded text-xs font-black uppercase tracking-wider leading-none">
+                <span className="inline-flex items-center justify-center bg-amber-600 text-white px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider leading-normal">
                   SURAT ESTIMASI BIAYA &amp; PERSETUJUAN
                 </span>
               </div>
@@ -406,7 +406,7 @@ export function PrintableEstimation({
                 <span className="font-bold text-slate-500 block text-[10px] uppercase tracking-wider mb-0.5">
                   Keluhan / Diagnosa Awal:
                 </span>
-                <span className="font-bold text-slate-900 text-[11.5px] leading-snug break-words">
+                <span className="font-bold text-slate-900 text-[11.5px] leading-snug break-words uppercase">
                   {complaintsText}
                 </span>
               </div>
