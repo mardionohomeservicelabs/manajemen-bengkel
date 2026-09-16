@@ -401,7 +401,9 @@ export interface Invoice {
 
   // --- Estimator / SA Name & Signature per-estimasi ---
   estimator_name?: string;
-  estimator_signature?: string; // Base64 data URL signature of Estimator/SA
+  estimator_signature?: string; // Base64 data URL signature of Estimator
+  petugas_name?: string; // Nama Petugas Bengkel / Service Advisor yang mengisi SPK
+  sa_name?: string;
 
   // Joined fields
   vehicle?: VehicleCustomer;

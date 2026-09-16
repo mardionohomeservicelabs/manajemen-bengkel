@@ -14,7 +14,7 @@ import {
   WorkOrderStatus,
   UserRole,
 } from '../types/database';
-import { BranchId } from '../auth/users';
+import { BranchId, APP_USERS } from '../auth/users';
 import {
   initialSettingsMHS1,
   initialSettingsMHS2,
@@ -1152,6 +1152,43 @@ export class DBService {
     return this.getAllWorkOrders().find((w) => w.id === id || w.spk_number === id);
   }
 
+  static async getWorkOrderByIdAsync(id: string, branch?: BranchId): Promise<WorkOrder | undefined> {
+    const local = this.getWorkOrderById(id, branch);
+    if (local && (local.petugas_name || (local.checklist_data as any)?.petugas_name)) return local;
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const isUuid = uuidRegex.test(id);
+        let query = supabase.from('work_orders').select('*, vehicle:vehicles_customers(*)');
+        if (isUuid) {
+          query = query.or(`id.eq.${id},spk_number.eq.${id}`);
+        } else {
+          query = query.eq('spk_number', id);
+        }
+        const { data, error } = await query.limit(1);
+        if (!error && data && data.length > 0) {
+          const row = data[0];
+          const checklist = row.checklist_data || {};
+          const resolvedPetugas =
+            checklist.petugas_name ||
+            row.petugas_name ||
+            (row as any).sa_name ||
+            APP_USERS.find((u) => u.id === row.sa_id)?.full_name ||
+            undefined;
+
+          return {
+            ...row,
+            petugas_name: resolvedPetugas,
+          };
+        }
+      } catch (err) {
+        console.warn('getWorkOrderByIdAsync error:', err);
+      }
+    }
+    return local;
+  }
+
   /**
    * Menghasilkan nomor SPK yang dijamin unik di seluruh sistem (Cloud Supabase & Cache Lokal)
    */
@@ -2109,7 +2146,31 @@ export class DBService {
           i.work_order_id === idOrToken
       );
       if (found) {
-        return { estimation: found, branch: b };
+        let wo = found.work_order;
+        if (!wo && (found.work_order_id || (found as any).spk_number || found.vehicle_id)) {
+          wo =
+            this.getWorkOrderById(found.work_order_id || (found as any).spk_number || '') ||
+            this.getAllWorkOrders().find((w) => Boolean(found.vehicle_id && w.vehicle_id === found.vehicle_id));
+        }
+        const resolvedPetugas =
+          (found as any).petugas_name ||
+          (found as any).sa_name ||
+          wo?.petugas_name ||
+          (wo?.checklist_data as any)?.petugas_name ||
+          (wo as any)?.sa_name ||
+          wo?.sa_profile?.full_name ||
+          APP_USERS.find((u) => u.id === wo?.sa_id)?.full_name ||
+          undefined;
+
+        return {
+          estimation: {
+            ...found,
+            work_order: wo || found.work_order,
+            petugas_name: resolvedPetugas,
+            sa_name: resolvedPetugas,
+          },
+          branch: b,
+        };
       }
 
       // Cek juga work_orders di cache lokal jika disimpan dalam checklist_data
@@ -2123,12 +2184,24 @@ export class DBService {
       );
       if (foundWo && foundWo.checklist_data?.estimation) {
         const est = foundWo.checklist_data.estimation;
+        const resolvedPetugas =
+          est.petugas_name ||
+          (est as any).sa_name ||
+          foundWo.petugas_name ||
+          (foundWo.checklist_data as any)?.petugas_name ||
+          (foundWo as any).sa_name ||
+          foundWo.sa_profile?.full_name ||
+          APP_USERS.find((u) => u.id === foundWo.sa_id)?.full_name ||
+          undefined;
+
         return {
           estimation: {
             ...est,
             work_order_id: foundWo.id,
             vehicle: foundWo.vehicle,
             work_order: foundWo,
+            petugas_name: resolvedPetugas,
+            sa_name: resolvedPetugas,
           },
           branch: b,
         };
@@ -2175,8 +2248,12 @@ export class DBService {
 
         if (!invErr && invData && invData.length > 0) {
           const row = invData[0];
-          const branch: BranchId = (row.work_order?.checklist_data?.received_at_branch as BranchId) || 'MHS 1';
-          const checklist = row.work_order?.checklist_data || {};
+          let woRecord = row.work_order;
+          if (!woRecord && (row.work_order_id || (row as any).spk_number)) {
+            woRecord = await this.getWorkOrderByIdAsync(row.work_order_id || (row as any).spk_number);
+          }
+          const checklist = woRecord?.checklist_data || row.work_order?.checklist_data || {};
+          const branch: BranchId = (checklist.received_at_branch as BranchId) || 'MHS 1';
 
           // Cari nested estimation di dalam checklist_data yang paling cocok
           let nestedEst: any = checklist.estimation || null;
@@ -2210,11 +2287,21 @@ export class DBService {
                     it.price_opsi2 !== '0'
                 );
 
+          const resolvedPetugas =
+            nestedEst?.petugas_name ||
+            (nestedEst as any)?.sa_name ||
+            woRecord?.petugas_name ||
+            checklist.petugas_name ||
+            (woRecord as any)?.sa_name ||
+            woRecord?.sa_profile?.full_name ||
+            APP_USERS.find((u) => u.id === woRecord?.sa_id)?.full_name ||
+            undefined;
+
           const inv: Invoice = {
             id: row.id,
             invoice_number: row.invoice_number,
             type: row.type || 'estimation',
-            work_order_id: row.work_order_id || row.work_order?.id || undefined,
+            work_order_id: row.work_order_id || woRecord?.id || row.work_order?.id || undefined,
             vehicle_id: row.vehicle_id,
             items: rawItems,
             subtotal: Number(nestedEst?.subtotal || row.subtotal) || 0,
@@ -2230,6 +2317,7 @@ export class DBService {
             signature_customer_url:
               nestedEst?.signature_customer_url ||
               nestedEst?.customer_signature ||
+              woRecord?.signature_url ||
               row.work_order?.signature_url ||
               undefined,
             signature_admin_url:
@@ -2270,14 +2358,17 @@ export class DBService {
             customer_signature:
               nestedEst?.customer_signature ||
               nestedEst?.signature_customer_url ||
+              woRecord?.signature_url ||
               row.work_order?.signature_url ||
               undefined,
             customer_signed_at: nestedEst?.customer_signed_at || undefined,
             customer_signed_name: nestedEst?.customer_signed_name || undefined,
             customer_approved_option: nestedEst?.customer_approved_option || undefined,
             vehicle: row.vehicle || undefined,
-            work_order: row.work_order || undefined,
-            complaints: row.work_order?.complaints || nestedEst?.complaints || undefined,
+            work_order: woRecord || row.work_order || undefined,
+            complaints: woRecord?.complaints || row.work_order?.complaints || nestedEst?.complaints || undefined,
+            petugas_name: resolvedPetugas,
+            sa_name: resolvedPetugas,
           };
           return { estimation: inv, branch };
         }
@@ -2341,6 +2432,16 @@ export class DBService {
                       it.price_opsi2 !== '0'
                   );
 
+            const resolvedPetugas =
+              estData.petugas_name ||
+              (estData as any).sa_name ||
+              wo.petugas_name ||
+              checklist.petugas_name ||
+              (wo as any).sa_name ||
+              wo.sa_profile?.full_name ||
+              APP_USERS.find((u) => u.id === wo.sa_id)?.full_name ||
+              undefined;
+
             const inv: Invoice = {
               ...estData,
               has_opsi2: hasOpsi2,
@@ -2348,6 +2449,8 @@ export class DBService {
               vehicle: wo.vehicle || undefined,
               work_order: wo,
               complaints: wo.complaints || estData.complaints || undefined,
+              petugas_name: resolvedPetugas,
+              sa_name: resolvedPetugas,
             };
             return { estimation: inv, branch };
           }
@@ -2363,7 +2466,31 @@ export class DBService {
       (i) => i.id === idOrToken || i.invoice_number === idOrToken || (i as any).ttd_token === idOrToken
     );
     if (localInv) {
-      return { estimation: localInv, branch: 'MHS 1' };
+      let wo = localInv.work_order;
+      if (!wo && (localInv.work_order_id || (localInv as any).spk_number || localInv.vehicle_id)) {
+        wo =
+          this.getWorkOrderById(localInv.work_order_id || (localInv as any).spk_number || '') ||
+          this.getAllWorkOrders().find((w) => Boolean(localInv.vehicle_id && w.vehicle_id === localInv.vehicle_id));
+      }
+      const resolvedPetugas =
+        (localInv as any).petugas_name ||
+        (localInv as any).sa_name ||
+        wo?.petugas_name ||
+        (wo?.checklist_data as any)?.petugas_name ||
+        (wo as any)?.sa_name ||
+        wo?.sa_profile?.full_name ||
+        APP_USERS.find((u) => u.id === wo?.sa_id)?.full_name ||
+        undefined;
+
+      return {
+        estimation: {
+          ...localInv,
+          work_order: wo || localInv.work_order,
+          petugas_name: resolvedPetugas,
+          sa_name: resolvedPetugas,
+        },
+        branch: 'MHS 1',
+      };
     }
 
     return null;

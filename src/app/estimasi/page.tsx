@@ -1489,6 +1489,9 @@ function EstimationBuilderContent() {
         estimator_name: estimatorName,
         estimator_signature: estimatorSignature,
         signature_admin_url: estimatorSignature,
+        petugas_name: selectedSpk.petugas_name || (selectedSpk.checklist_data as any)?.petugas_name || selectedSpk.sa_profile?.full_name || undefined,
+        sa_name: selectedSpk.petugas_name || (selectedSpk.checklist_data as any)?.petugas_name || selectedSpk.sa_profile?.full_name || undefined,
+        spk_number: selectedSpk.spk_number,
         estimated_duration: estimatedDuration,
         complaints: estimationComplaints.trim() || formatComplaintsAndDiagnosis(selectedSpk.complaints).displayText,
         customer_response: customerResponse as any,
@@ -3301,10 +3304,15 @@ function EstimationBuilderContent() {
                   const currentTabObj = tabList.find(t => t.id === activeTabId);
                   const activeTabTitle = currentTabObj?.name || estimationType || 'Umum';
 
-                  const livePreview: Invoice = {
+                  const livePreview = {
                     id: currentEstimationRecord?.id || 'live-preview-id',
                     invoice_number: currentEstimationRecord?.invoice_number || 'EST-OFFICIAL',
                     type: 'estimation',
+                    vehicle_id: selectedSpk?.vehicle_id || '',
+                    subtotal: subtotalOpsi1,
+                    down_payment: 0,
+                    balance_due: totalFinalOpsi1,
+                    payment_status: 'pending' as const,
                     has_discount: showDiscount,
                     has_opsi2: showOpsi2,
                     has_tax: showTax,
@@ -3322,6 +3330,9 @@ function EstimationBuilderContent() {
                     updated_at: new Date().toISOString(),
                     vehicle: selectedSpk?.vehicle,
                     work_order: selectedSpk || undefined,
+                    petugas_name: selectedSpk?.petugas_name || (selectedSpk?.checklist_data as any)?.petugas_name || selectedSpk?.sa_profile?.full_name || undefined,
+                    sa_name: selectedSpk?.petugas_name || (selectedSpk?.checklist_data as any)?.petugas_name || selectedSpk?.sa_profile?.full_name || undefined,
+                    spk_number: selectedSpk?.spk_number,
                     estimated_duration: estimatedDuration || currentEstimationRecord?.estimated_duration || '',
                     complaints: estimationComplaints.trim() || formatComplaintsAndDiagnosis(selectedSpk?.complaints).displayText,
                     estimator_name: estimatorName || currentEstimationRecord?.estimator_name,
@@ -3334,7 +3345,7 @@ function EstimationBuilderContent() {
                     customer_approved_option: (customerResponse as any) || currentEstimationRecord?.customer_approved_option,
                     customer_response: (customerResponse as any) || currentEstimationRecord?.customer_response,
                     ttd_status: customerSignature ? (customerResponse === 'batal' ? 'rejected' : 'signed') : (currentEstimationRecord?.ttd_status || 'pending'),
-                  } as Invoice;
+                  } as unknown as Invoice;
                   setSavedEstimation(livePreview);
                 }}
                 className="inline-flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer"

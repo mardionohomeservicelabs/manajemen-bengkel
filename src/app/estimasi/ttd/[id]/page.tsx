@@ -162,7 +162,29 @@ export default function CustomerSignatureApprovalPage() {
         if (!isMounted) return;
 
         if (result && result.estimation) {
-          setEstimation(result.estimation);
+          let currentEst = result.estimation;
+          const targetWoKey =
+            currentEst.work_order_id ||
+            (currentEst as any).spk_number ||
+            currentEst.work_order?.spk_number;
+
+          if ((!currentEst.work_order || !currentEst.petugas_name) && targetWoKey) {
+            try {
+              const fullWo = await DBService.getWorkOrderByIdAsync(targetWoKey);
+              if (fullWo) {
+                currentEst = {
+                  ...currentEst,
+                  work_order: fullWo,
+                  petugas_name:
+                    fullWo.petugas_name ||
+                    (fullWo.checklist_data as any)?.petugas_name ||
+                    currentEst.petugas_name,
+                };
+              }
+            } catch {}
+          }
+
+          setEstimation(currentEst);
           setSettings(DBService.getSettings(result.branch));
           setSignerName(
             result.estimation.customer_signed_name ||
@@ -577,28 +599,53 @@ export default function CustomerSignatureApprovalPage() {
             );
           })()}
 
-          {/* Status Mobil + Estimator */}
-          <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
-            {estimation.vehicle_status && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold border border-slate-200">
-                {estimation.vehicle_status === 'Di Tunggu' ? '⏳' : estimation.vehicle_status === 'Rawat Inap' ? '🏥' : '🚗'} {estimation.vehicle_status}
-              </span>
-            )}
-            {(estimation as any).estimated_duration && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold border border-blue-200">
-                ⏱ Est. {(estimation as any).estimated_duration}
-              </span>
-            )}
-            {(estimation as any).estimator_name && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 font-bold border border-amber-200">
-                👤 SA: {(estimation as any).estimator_name}
-              </span>
-            )}
-          </div>
+          {/* Status Mobil + SA (Petugas Bengkel yang mengisi form SPK) */}
+          {(() => {
+            const saPetugasBengkel =
+              (estimation as any).petugas_name ||
+              (estimation as any).sa_name ||
+              estimation.work_order?.petugas_name ||
+              (estimation.work_order?.checklist_data as any)?.petugas_name ||
+              (estimation as any).checklist_data?.petugas_name ||
+              estimation.work_order?.sa_profile?.full_name ||
+              (estimation.work_order as any)?.sa_name;
+
+            // Resolusi nama SA petugas bengkel dengan fallback cabang jika belum terisi
+            const resolvedSAName =
+              (saPetugasBengkel && String(saPetugasBengkel).trim()) ||
+              (() => {
+                const spkNum =
+                  estimation.work_order?.spk_number || (estimation as any).spk_number || '';
+                const estNum = estimation.invoice_number || '';
+                if (spkNum.includes('-M2-') || estNum.includes('-M2-')) return 'Mey Wulandari';
+                if (spkNum.includes('-M3-') || estNum.includes('-M3-')) return 'Dito Ade';
+                return 'Dito Ade';
+              })();
+
+            return (
+              <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
+                {estimation.vehicle_status && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold border border-slate-200">
+                    {estimation.vehicle_status === 'Di Tunggu' ? '⏳' : estimation.vehicle_status === 'Rawat Inap' ? '🏥' : '🚗'} {estimation.vehicle_status}
+                  </span>
+                )}
+                {(estimation as any).estimated_duration && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                    ⏱ Est. {(estimation as any).estimated_duration}
+                  </span>
+                )}
+                {resolvedSAName && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 font-bold border border-amber-200">
+                    👤 SA: {resolvedSAName}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
 
           {(estimation.estimator_signature || (estimation as any).signature_admin_url) && (
             <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-              <span className="font-semibold">Estimasi ini telah diverifikasi &amp; ditandatangani oleh Estimator: <strong>{(estimation as any).estimator_name || 'SA Bengkel'}</strong></span>
+              <span className="font-semibold">Estimasi ini telah diverifikasi &amp; ditandatangani oleh Estimator: <strong>{(estimation as any).estimator_name || 'Estimator Bengkel'}</strong></span>
               <div className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
