@@ -72,6 +72,12 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
 
   const [entryDate, setEntryDate] = useState(initialDateStr);
   const [entryTime, setEntryTime] = useState(initialTimeStr);
+  const [petugasName, setPetugasName] = useState(
+    workOrder.petugas_name ||
+    (workOrder.checklist_data as any)?.petugas_name ||
+    workOrder.sa_profile?.full_name ||
+    ''
+  );
   const [mechanicName, setMechanicName] = useState(workOrder.mechanic_name || '');
 
   const standardSources = ['REFERENSI', 'GOOGLE', 'INSTAGRAM', 'TIKTOK', 'PELANGGAN LAMA'];
@@ -136,6 +142,7 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
         id: workOrder.id,
         spk_number: workOrder.spk_number,
         vehicle_id: savedVehicle.id,
+        petugas_name: petugasName.trim() ? petugasName.trim().toUpperCase() : undefined,
         mechanic_name: mechanicName.trim() ? mechanicName.trim().toUpperCase() : undefined,
         complaints: complaints.trim().toUpperCase(),
         fuel_level: Number(fuelLevel),
@@ -147,6 +154,7 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
         status: workOrder.status, // Pertahankan status antrean saat ini
         checklist_data: {
           ...(workOrder.checklist_data || {}),
+          petugas_name: petugasName.trim() ? petugasName.trim().toUpperCase() : undefined,
           source_info: finalSource,
           vehicle_status: vehicleStatus,
           received_at_branch: receivedAtBranch,
@@ -430,8 +438,8 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
               </div>
             </div>
 
-            {/* Baris Meta: Cabang, Mekanik, Waktu Masuk, BBM */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-3 border-t border-slate-100">
+            {/* Baris Meta: Cabang, Petugas SA, Mekanik, Waktu Masuk, BBM */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-3 border-t border-slate-100">
               {/* Cabang Penerimaan */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center space-x-1">
@@ -454,6 +462,21 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Nama Petugas Bengkel / SA */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center space-x-1">
+                  <User className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Petugas Bengkel / SA:</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ketik nama petugas / SA..."
+                  value={petugasName}
+                  onChange={(e) => setPetugasName(e.target.value.toUpperCase())}
+                  className="w-full text-xs p-2 rounded-xl border border-slate-200 bg-white font-bold uppercase outline-none focus:ring-2 focus:ring-maroon-600/20"
+                />
               </div>
 
               {/* Nama Mekanik */}

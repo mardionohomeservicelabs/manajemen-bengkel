@@ -57,6 +57,7 @@ export default function NewSPKPage() {
 
   const [receivedAtBranch, setReceivedAtBranch] = useState<BranchId>(activeBranch);
   const [entryTime, setEntryTime] = useState('08:00');
+  const [petugasName, setPetugasName] = useState(currentUser?.full_name || '');
   const [mechanicName, setMechanicName] = useState('');
   const [sourceInfo, setSourceInfo] = useState<SourceInfo>('REFERENSI');
   const [customSource, setCustomSource] = useState('');
@@ -73,13 +74,16 @@ export default function NewSPKPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdOrder, setCreatedOrder] = useState<WorkOrder | null>(null);
 
-  // Set default entry time to current time
+  // Set default entry time to current time and sync petugasName
   useEffect(() => {
     const now = new Date();
     const hh = String(now.getHours()).padStart(2, '0');
     const mm = String(now.getMinutes()).padStart(2, '0');
     setEntryTime(`${hh}:${mm}`);
-  }, []);
+    if (!petugasName && currentUser?.full_name) {
+      setPetugasName(currentUser.full_name);
+    }
+  }, [currentUser]);
 
   // When license plate is typed, auto-fill existing vehicle data
   const handlePlateChange = (val: string) => {
@@ -140,6 +144,7 @@ export default function NewSPKPage() {
       const newWorkOrder = await saveWorkOrderAsync({
         spk_number: spkNumber,
         vehicle_id: savedVehicle.id,
+        petugas_name: (petugasName || '').trim().toUpperCase(),
         mechanic_name: (mechanicName || '').trim().toUpperCase(),
         complaints: complaints.trim().toUpperCase(),
         fuel_level: Number(fuelLevel),
@@ -374,6 +379,19 @@ export default function NewSPKPage() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Nama Petugas Bengkel / SA
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Nama SA / Petugas yang menerima..."
+                    value={petugasName}
+                    onChange={(e) => setPetugasName(e.target.value.toUpperCase())}
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none font-bold uppercase text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     Nama Mekanik / Teknisi <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -575,7 +593,7 @@ export default function NewSPKPage() {
               </span>
               <SignatureCanvas onSave={(url) => setSignatureSA(url)} />
               <p className="text-[10px] text-slate-500 font-medium text-center">
-                Verifikasi penerimaan: Dito Ade Prawira / Petugas
+                Verifikasi penerimaan: {petugasName || 'Petugas Bengkel'}
               </p>
             </div>
 

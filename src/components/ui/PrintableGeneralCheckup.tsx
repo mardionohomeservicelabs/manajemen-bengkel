@@ -132,7 +132,7 @@ export function PrintableGeneralCheckup({
 
           {/* Title Header: QUALITY CONTROL TUNE UP */}
           <div className="text-center pb-1">
-            <h2 className="text-sm sm:text-base font-black tracking-wider uppercase text-slate-900 border-b-2 border-slate-900 inline-block pb-0.5">
+            <h2 className="text-sm sm:text-base font-black tracking-wider uppercase text-black border-b-2 border-black inline-block pb-0.5">
               QUALITY CONTROL TUNE UP
             </h2>
           </div>
@@ -152,7 +152,7 @@ export function PrintableGeneralCheckup({
           />
 
           {/* 1. Cek Kondisi Aki & Bahan Bakar (BBM) */}
-          <div className="border border-slate-800 rounded-xl overflow-hidden text-xs">
+          <div className="border-2 border-black rounded-xl overflow-hidden text-xs">
             <div className="bg-[#8B0000] text-white px-3 py-1 font-black text-[11px] uppercase tracking-wide flex justify-between items-center min-h-[26px] leading-normal">
               <span className="flex items-center">1. Kondisi Aki &amp; Pengecekan Bahan Bakar (BBM)</span>
               <span className="text-[10.5px] font-mono bg-white/10 px-2 py-0.5 rounded font-bold inline-flex items-center justify-center leading-normal">
@@ -161,7 +161,7 @@ export function PrintableGeneralCheckup({
             </div>
             <div className="p-2.5 grid grid-cols-12 gap-2 bg-white items-center text-xs">
               <div className="col-span-5 flex items-center space-x-2">
-                <span className="font-bold text-slate-700">Kondisi Aki:</span>
+                <span className="font-bold text-black">Kondisi Aki:</span>
                 <span
                   className={`px-2.5 py-0.5 rounded font-black text-white text-[11px] inline-flex items-center justify-center leading-normal ${
                     checkup.battery_condition === 'baik' ? 'bg-emerald-700' : 'bg-red-700'
@@ -169,29 +169,29 @@ export function PrintableGeneralCheckup({
                 >
                   {checkup.battery_condition?.toUpperCase() || 'BAIK'}
                 </span>
-                <span className="font-mono font-bold text-slate-800 text-[11px]">
+                <span className="font-mono font-bold text-black text-[11px]">
                   ({checkup.battery_health_percent || 85}%)
                 </span>
               </div>
 
               <div className="col-span-3 flex items-center space-x-1.5">
-                <span className="font-bold text-slate-700">Saran Ganti:</span>
+                <span className="font-bold text-black">Saran Ganti:</span>
                 <div className="inline-flex items-center gap-1 font-bold text-xs">
-                  <div className="w-3.5 h-3.5 border border-slate-900 rounded-[2px] flex items-center justify-center bg-white">
+                  <div className="w-3.5 h-3.5 border-2 border-black rounded-[2px] flex items-center justify-center bg-white">
                     {checkup.battery_suggest_replace ? (
-                      <svg className="w-2.5 h-2.5 text-slate-950" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <svg className="w-2.5 h-2.5 text-black" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="2 6 5 9 10 3" />
                       </svg>
                     ) : null}
                   </div>
-                  <span className={checkup.battery_suggest_replace ? 'text-red-700 font-black' : 'text-slate-700'}>
+                  <span className={checkup.battery_suggest_replace ? 'text-red-700 font-black' : 'text-black font-bold'}>
                     {checkup.battery_suggest_replace ? 'YA' : 'TIDAK'}
                   </span>
                 </div>
               </div>
 
-              <div className="col-span-4 text-slate-800 text-[11px] leading-snug">
-                <strong className="text-slate-600">Catatan:</strong> {checkup.battery_notes || 'Normal'}
+              <div className="col-span-4 text-black text-[11px] leading-snug">
+                <strong className="text-black font-black">Catatan:</strong> {checkup.battery_notes || 'Normal'}
               </div>
             </div>
           </div>
@@ -200,23 +200,23 @@ export function PrintableGeneralCheckup({
           <div className="grid grid-cols-2 gap-3.5 items-stretch text-xs">
             {/* Left Column (50%): Pembersihan Sensor & Quality Note */}
             <div className="flex flex-col justify-between space-y-2.5 h-full">
-              <div className="border border-slate-800 rounded-xl overflow-hidden">
+              <div className="border-2 border-black rounded-xl overflow-hidden">
                 <div className="bg-[#8B0000] text-white px-3 py-1.5 font-black text-[11px] flex justify-between items-center uppercase min-h-[26px] leading-normal">
                   <span className="flex items-center">2. Pembersihan Sensor Mesin</span>
-                  <span className="bg-amber-400 text-slate-950 px-1.5 py-0.5 rounded text-[9px] font-black inline-flex items-center justify-center leading-normal">
+                  <span className="bg-amber-400 text-black px-1.5 py-0.5 rounded text-[9px] font-black inline-flex items-center justify-center leading-normal">
                     *CONTACT CLEANER
                   </span>
                 </div>
                 <table className="w-full text-left border-collapse text-[10.5px]">
                   <thead>
-                    <tr className="bg-slate-100 border-b border-slate-300 font-bold text-slate-900">
-                      <th className="p-1.5 border-r border-slate-300">Sensor / Komponen</th>
-                      <th className="p-1.5 w-14 text-center border-r border-slate-300">Clean</th>
-                      <th className="p-1.5 w-14 text-center border-r border-slate-300">Rusak</th>
+                    <tr className="bg-slate-100 border-b-2 border-black font-black text-black">
+                      <th className="p-1.5 border-r border-black">Sensor / Komponen</th>
+                      <th className="p-1.5 w-14 text-center border-r border-black">Clean</th>
+                      <th className="p-1.5 w-14 text-center border-r border-black">Rusak</th>
                       <th className="p-1.5 w-14 text-center">Ganti</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200">
+                  <tbody className="divide-y divide-black">
                     {[
                       { label: '2. Sensor MAF (Mass Air Flow)', clean: checkup.sensor_maf_cleaned, damaged: checkup.sensor_maf_damaged, repl: checkup.sensor_maf_suggest_replace },
                       { label: '3. Sensor ISC (Idle Speed Control)', clean: checkup.sensor_isc_cleaned, damaged: checkup.sensor_isc_damaged, repl: checkup.sensor_isc_suggest_replace },
@@ -226,11 +226,11 @@ export function PrintableGeneralCheckup({
                       { label: '7. Coil Pengapian Mesin', clean: checkup.ignition_coil_checked, damaged: checkup.ignition_coil_damaged, repl: checkup.ignition_coil_suggest_replace },
                     ].map((row, idx) => (
                       <tr key={idx} className="hover:bg-slate-50">
-                        <td className="p-1.5 font-bold text-slate-900 border-r border-slate-300">{row.label}</td>
-                        <td className="p-1.5 text-center border-r border-slate-300 font-black text-emerald-700">
+                        <td className="p-1.5 font-bold text-black border-r border-black">{row.label}</td>
+                        <td className="p-1.5 text-center border-r border-black font-black text-emerald-700">
                           {row.clean ? 'CLEAN' : '-'}
                         </td>
-                        <td className="p-1.5 text-center border-r border-slate-300 font-black text-red-600">
+                        <td className="p-1.5 text-center border-r border-black font-black text-red-600">
                           {row.damaged ? 'RUSAK' : '-'}
                         </td>
                         <td className="p-1.5 text-center font-black text-amber-700">
@@ -243,45 +243,45 @@ export function PrintableGeneralCheckup({
               </div>
 
               {/* Quality Banner */}
-              <div className="border border-[#8B0000] p-2.5 text-center text-[10px] bg-red-50/60 rounded-xl space-y-0.5">
-                <p className="font-black text-[#8B0000] uppercase tracking-wider">MARDIONO QUALITY ASSURED</p>
-                <p className="text-slate-700 leading-normal font-medium">
+              <div className="border-2 border-black p-2.5 text-center text-[10px] bg-slate-50 rounded-xl space-y-0.5">
+                <p className="font-black text-black uppercase tracking-wider">MARDIONO QUALITY ASSURED</p>
+                <p className="text-black leading-normal font-semibold">
                   Seluruh pembersihan sensor wajib menggunakan contact cleaner resmi bertekanan tinggi untuk mengembalikan performa mesin maksimal.
                 </p>
               </div>
             </div>
 
             {/* Right Column (50%): Checklist Fisik 16 Titik (No 8-23) */}
-            <div className="border border-slate-800 rounded-xl overflow-hidden h-full">
+            <div className="border-2 border-black rounded-xl overflow-hidden h-full">
               <div className="bg-[#8B0000] text-white px-3 py-1.5 font-black text-[11px] uppercase tracking-wide flex items-center min-h-[26px] leading-normal">
                 3. Checklist Fisik 16 Titik (No 8–23)
               </div>
               <table className="w-full text-left border-collapse text-[10px]">
                 <thead>
-                  <tr className="bg-slate-100 border-b border-slate-300 font-bold text-slate-900">
-                    <th className="p-1 w-6 text-center border-r border-slate-300">No</th>
-                    <th className="p-1 border-r border-slate-300">Item Pemeriksaan</th>
-                    <th className="p-1 w-10 text-center border-r border-slate-300">Cek</th>
-                    <th className="p-1 w-12 text-center border-r border-slate-300">Ganti</th>
+                  <tr className="bg-slate-100 border-b-2 border-black font-black text-black">
+                    <th className="p-1 w-6 text-center border-r border-black">No</th>
+                    <th className="p-1 border-r border-black">Item Pemeriksaan</th>
+                    <th className="p-1 w-10 text-center border-r border-black">Cek</th>
+                    <th className="p-1 w-12 text-center border-r border-black">Ganti</th>
                     <th className="p-1 w-24">Keterangan</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200">
+                <tbody className="divide-y divide-black">
                   {checklistRows.map((row) => (
                     <tr key={row.no} className="hover:bg-slate-50">
-                      <td className="p-1 text-center font-bold text-slate-500 border-r border-slate-300">
+                      <td className="p-1 text-center font-bold text-black border-r border-black">
                         {row.no}
                       </td>
-                      <td className="p-1 font-bold text-slate-900 border-r border-slate-300 truncate">
+                      <td className="p-1 font-bold text-black border-r border-black truncate">
                         {row.label}
                       </td>
-                      <td className="p-1 text-center font-black text-emerald-700 border-r border-slate-300">
+                      <td className="p-1 text-center font-black text-emerald-700 border-r border-black">
                         {row.data?.checked ? '✓' : '-'}
                       </td>
-                      <td className="p-1 text-center font-black text-red-700 border-r border-slate-300">
+                      <td className="p-1 text-center font-black text-red-700 border-r border-black">
                         {row.data?.suggest_replace ? 'GANTI' : '-'}
                       </td>
-                      <td className="p-1 text-slate-700 truncate max-w-[100px] font-medium">
+                      <td className="p-1 text-black truncate max-w-[100px] font-semibold">
                         {row.data?.notes || '-'}
                       </td>
                     </tr>
@@ -294,11 +294,11 @@ export function PrintableGeneralCheckup({
           {/* 4. Saran Perbaikan 6 Poin & Tanda Tangan Simetris */}
           <div className="grid grid-cols-12 gap-3.5 items-stretch text-xs pt-0.5">
             {/* Saran 6 Baris (7 / 12) */}
-            <div className="col-span-7 border border-slate-800 rounded-xl p-3 bg-slate-50 space-y-1">
-              <h4 className="font-black text-slate-950 uppercase text-[10.5px]">
+            <div className="col-span-7 border-2 border-black rounded-xl p-3 bg-slate-50 space-y-1">
+              <h4 className="font-black text-black uppercase text-[10.5px]">
                 4. Saran &amp; Rekomendasi Teknisi:
               </h4>
-              <ol className="list-decimal pl-4 text-[9.5px] text-slate-800 space-y-1 font-medium leading-relaxed min-h-[90px]">
+              <ol className="list-decimal pl-4 text-[9.5px] text-black space-y-1 font-semibold leading-relaxed min-h-[90px]">
                 {Array.from({ length: 6 }).map((_, idx) => (
                   <li key={idx} className="min-h-[14px]">
                     {checkup.improvement_suggestions?.[idx] || ''}
@@ -308,11 +308,11 @@ export function PrintableGeneralCheckup({
             </div>
 
             {/* Tanda Tangan Teknisi Pemeriksa (5 / 12) */}
-            <div className="col-span-5 border border-slate-800 rounded-xl p-3 bg-white flex flex-col justify-between text-center">
+            <div className="col-span-5 border-2 border-black rounded-xl p-3 bg-white flex flex-col justify-between text-center">
               <p className="font-black text-[#8B0000] text-[10.5px] uppercase">
                 Teknisi Pemeriksa (QC PIC)
               </p>
-              <div className="h-14 flex items-center justify-center border border-dashed border-slate-300 rounded-lg bg-slate-50 my-1 overflow-hidden">
+              <div className="h-14 flex items-center justify-center border border-dashed border-slate-400 rounded-lg bg-slate-50 my-1 overflow-hidden">
                 {checkup.technician_signature_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -321,10 +321,10 @@ export function PrintableGeneralCheckup({
                     className="max-h-12 max-w-full object-contain inline-block mx-auto"
                   />
                 ) : (
-                  <span className="text-[10px] text-slate-400 italic">(Tanda Tangan)</span>
+                  <span className="text-[10px] text-slate-500 italic">(Tanda Tangan)</span>
                 )}
               </div>
-              <p className="font-bold text-slate-950 text-[11px] border-t border-slate-300 pt-1">
+              <p className="font-black text-black text-[11px] border-t-2 border-black pt-1">
                 ({signerTeknisi || checkup.technician_name || 'Teknisi Pemeriksa'})
               </p>
             </div>

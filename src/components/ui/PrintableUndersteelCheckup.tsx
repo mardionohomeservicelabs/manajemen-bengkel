@@ -139,13 +139,13 @@ export function PrintableUndersteelCheckup({
 
       {/* DYNAMIC AUTO-HEIGHT DOCUMENT PREVIEW CONTAINER */}
       <div className="doc-preview-wrapper rounded-2xl">
-        <div ref={documentRef} className="doc-sheet printable-understeel-sheet space-y-2 text-slate-900 font-sans">
+        <div ref={documentRef} className="doc-sheet printable-understeel-sheet space-y-2 text-black font-sans">
           {/* Header */}
           <OfficialDocumentHeader settings={settings} />
 
           {/* Title Header: FORM KELUHAN UNDERSTEEL */}
-          <div className="border-2 border-slate-900 text-center py-1 bg-white">
-            <h1 className="text-base sm:text-lg font-black tracking-widest uppercase font-serif text-slate-950">
+          <div className="border-2 border-black text-center py-1 bg-white">
+            <h1 className="text-base sm:text-lg font-black tracking-widest uppercase font-serif text-black">
               FORM KELUHAN UNDERSTEEL
             </h1>
           </div>
@@ -165,53 +165,53 @@ export function PrintableUndersteelCheckup({
           />
 
           {/* Main 26-Point Checklist Table */}
-          <div className="border border-slate-900 overflow-hidden text-[10.5px]">
+          <div className="border-2 border-black overflow-hidden text-[10.5px]">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-900 bg-white font-black text-slate-900">
-                  <th className="p-1 pl-2 border-r border-slate-900 w-[42%] text-left">Order:</th>
-                  <th className="p-1 border-r border-slate-900 w-[14%] text-center">DIGANTI</th>
-                  <th className="p-1 border-r border-slate-900 w-[14%] text-center">SERVICE</th>
+                <tr className="border-b-2 border-black bg-slate-100 font-black text-black">
+                  <th className="p-1 pl-2 border-r-2 border-black w-[42%] text-left">Order:</th>
+                  <th className="p-1 border-r-2 border-black w-[14%] text-center">DIGANTI</th>
+                  <th className="p-1 border-r-2 border-black w-[14%] text-center">SERVICE</th>
                   <th className="p-1 pl-2 w-[30%] text-center">KETERANGAN</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800 font-medium">
+              <tbody className="divide-y divide-black font-medium">
                 {items.map((item, idx) => (
                   <tr key={idx} className="h-5">
-                    <td className="p-0.5 pl-2 border-r border-slate-900 font-bold uppercase truncate">
+                    <td className="p-0.5 pl-2 border-r-2 border-black font-bold uppercase truncate text-black">
                       {item.no}. {item.label}
-                      {item.sub_label && <span className="text-slate-500 font-normal"> ({item.sub_label})</span>}
+                      {item.sub_label && <span className="text-black font-normal"> ({item.sub_label})</span>}
                     </td>
-                    <td className="p-0.5 border-r border-slate-900 text-center align-middle">
+                    <td className="p-0.5 border-r-2 border-black text-center align-middle">
                       <div className="flex items-center justify-center">
-                        <div className="w-3.5 h-3.5 border border-slate-900 flex items-center justify-center bg-white rounded-[2px]">
+                        <div className="w-3.5 h-3.5 border border-black flex items-center justify-center bg-white rounded-[2px]">
                           {item.replace ? (
-                            <svg className="w-2.5 h-2.5 text-slate-950" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <svg className="w-2.5 h-2.5 text-black" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="2 6 5 9 10 3" />
                             </svg>
                           ) : null}
                         </div>
                       </div>
                     </td>
-                    <td className="p-0.5 border-r border-slate-900 text-center align-middle">
+                    <td className="p-0.5 border-r-2 border-black text-center align-middle">
                       <div className="flex items-center justify-center">
-                        <div className="w-3.5 h-3.5 border border-slate-900 flex items-center justify-center bg-white rounded-[2px]">
+                        <div className="w-3.5 h-3.5 border border-black flex items-center justify-center bg-white rounded-[2px]">
                           {item.service ? (
-                            <svg className="w-2.5 h-2.5 text-slate-950" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <svg className="w-2.5 h-2.5 text-black" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="2 6 5 9 10 3" />
                             </svg>
                           ) : null}
                         </div>
                       </div>
                     </td>
-                    <td className="p-0.5 pl-2 text-slate-800 font-semibold truncate">
+                    <td className="p-0.5 pl-2 text-black font-bold truncate">
                       {item.notes || ''}
                     </td>
                   </tr>
                 ))}
 
                 {/* Header Keterangan Lain-Lain */}
-                <tr className="bg-slate-100/60 font-black border-t border-b border-slate-900 text-[10px]">
+                <tr className="bg-slate-100 font-black border-t-2 border-b-2 border-black text-[10px] text-black">
                   <td colSpan={4} className="p-0.5 pl-2 uppercase">
                     KETERANGAN LAIN LAIN:
                   </td>
@@ -220,32 +220,32 @@ export function PrintableUndersteelCheckup({
                 {/* 5 Custom Rows */}
                 {customItems.map((c, cIdx) => (
                   <tr key={`custom-${cIdx}`} className="h-5">
-                    <td className="p-0.5 pl-2 border-r border-slate-900 font-bold truncate">
+                    <td className="p-0.5 pl-2 border-r-2 border-black font-bold truncate text-black">
                       {c.label && c.label !== '-' ? c.label : '-'}
                     </td>
-                    <td className="p-0.5 border-r border-slate-900 text-center align-middle">
+                    <td className="p-0.5 border-r-2 border-black text-center align-middle">
                       <div className="flex items-center justify-center">
-                        <div className="w-3.5 h-3.5 border border-slate-900 flex items-center justify-center bg-white rounded-[2px]">
+                        <div className="w-3.5 h-3.5 border border-black flex items-center justify-center bg-white rounded-[2px]">
                           {c.replace ? (
-                            <svg className="w-2.5 h-2.5 text-slate-950" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <svg className="w-2.5 h-2.5 text-black" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="2 6 5 9 10 3" />
                             </svg>
                           ) : null}
                         </div>
                       </div>
                     </td>
-                    <td className="p-0.5 border-r border-slate-900 text-center align-middle">
+                    <td className="p-0.5 border-r-2 border-black text-center align-middle">
                       <div className="flex items-center justify-center">
-                        <div className="w-3.5 h-3.5 border border-slate-900 flex items-center justify-center bg-white rounded-[2px]">
+                        <div className="w-3.5 h-3.5 border border-black flex items-center justify-center bg-white rounded-[2px]">
                           {c.service ? (
-                            <svg className="w-2.5 h-2.5 text-slate-950" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <svg className="w-2.5 h-2.5 text-black" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="2 6 5 9 10 3" />
                             </svg>
                           ) : null}
                         </div>
                       </div>
                     </td>
-                    <td className="p-0.5 pl-2 text-slate-800 font-semibold truncate">
+                    <td className="p-0.5 pl-2 text-black font-bold truncate">
                       {c.notes || ''}
                     </td>
                   </tr>
@@ -255,12 +255,12 @@ export function PrintableUndersteelCheckup({
           </div>
 
           {/* Bottom Box: Teknisi Yang Mengerjakan & TTD Mekanik */}
-          <div className="border border-slate-900 text-xs grid grid-cols-12 bg-white">
-            <div className="col-span-9 p-2 border-r border-slate-900 space-y-1">
-              <div className="font-black text-[10.5px] uppercase">
+          <div className="border-2 border-black text-xs grid grid-cols-12 bg-white text-black">
+            <div className="col-span-9 p-2 border-r-2 border-black space-y-1">
+              <div className="font-black text-[10.5px] uppercase text-black">
                 KETERANGAN YANG MENGERJAKAN:
               </div>
-              <div className="space-y-0.5 text-[11px] font-bold text-slate-800 pl-1">
+              <div className="space-y-0.5 text-[11px] font-bold text-black pl-1">
                 <div>1. {checkup.technicians_assigned?.[0] || signerTeknisi || '..........................................................'}</div>
                 <div>2. {checkup.technicians_assigned?.[1] || '..........................................................'}</div>
                 <div>3. {checkup.technicians_assigned?.[2] || '..........................................................'}</div>
@@ -268,7 +268,7 @@ export function PrintableUndersteelCheckup({
             </div>
 
             <div className="col-span-3 p-2 pb-1.5 flex flex-col justify-between text-center min-h-[78px]">
-              <div className="font-black text-[10px] uppercase">TTD MEKANIK:</div>
+              <div className="font-black text-[10px] uppercase text-black">TTD MEKANIK:</div>
               <div className="h-9 flex items-center justify-center my-0.5">
                 {checkup.mechanic_signature_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -278,23 +278,23 @@ export function PrintableUndersteelCheckup({
                     className="max-h-8 object-contain"
                   />
                 ) : (
-                  <span className="text-[9px] text-slate-400 italic">(Tanda Tangan)</span>
+                  <span className="text-[9px] text-slate-500 italic">(Tanda Tangan)</span>
                 )}
               </div>
-              <div className="text-[10px] font-bold border-t border-slate-300 pt-0.5 break-words leading-tight">
+              <div className="text-[10px] font-bold border-t-2 border-black pt-0.5 break-words leading-tight text-black">
                 {signerTeknisi || 'Mekanik'}
               </div>
             </div>
           </div>
 
           {/* 4-View Car Illustration Diagram */}
-          <div className="border border-slate-900 p-2 bg-white text-center space-y-1">
+          <div className="border-2 border-black p-2 bg-white text-center space-y-1">
             <div className="grid grid-cols-4 gap-2 items-end">
               {/* Kiri */}
               <div className="space-y-0.5">
-                <span className="text-[9px] font-black uppercase text-slate-700 block">KIRI</span>
-                <div className="h-12 border border-slate-300 rounded bg-slate-50 flex items-center justify-center p-1">
-                  <svg className="w-full h-full text-slate-700" viewBox="0 0 160 60" fill="none" stroke="currentColor" strokeWidth="2">
+                <span className="text-[9px] font-black uppercase text-black block">KIRI</span>
+                <div className="h-12 border border-black rounded bg-slate-50 flex items-center justify-center p-1">
+                  <svg className="w-full h-full text-black" viewBox="0 0 160 60" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M10 40 L25 40 L30 25 L65 20 L110 20 L130 30 L150 35 L150 45 L135 45 M35 45 A10 10 0 0 0 55 45 M105 45 A10 10 0 0 0 125 45 M55 45 L105 45 M125 45 L135 45" />
                     <circle cx="45" cy="45" r="7" />
                     <circle cx="115" cy="45" r="7" />
@@ -306,9 +306,9 @@ export function PrintableUndersteelCheckup({
 
               {/* Kanan */}
               <div className="space-y-0.5">
-                <span className="text-[9px] font-black uppercase text-slate-700 block">KANAN</span>
-                <div className="h-12 border border-slate-300 rounded bg-slate-50 flex items-center justify-center p-1">
-                  <svg className="w-full h-full text-slate-700" viewBox="0 0 160 60" fill="none" stroke="currentColor" strokeWidth="2">
+                <span className="text-[9px] font-black uppercase text-black block">KANAN</span>
+                <div className="h-12 border border-black rounded bg-slate-50 flex items-center justify-center p-1">
+                  <svg className="w-full h-full text-black" viewBox="0 0 160 60" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M150 40 L135 40 L130 25 L95 20 L50 20 L30 30 L10 35 L10 45 L25 45 M125 45 A10 10 0 0 1 105 45 M55 45 A10 10 0 0 1 35 45 M105 45 L55 45 M35 45 L25 45" />
                     <circle cx="115" cy="45" r="7" />
                     <circle cx="45" cy="45" r="7" />
@@ -320,9 +320,9 @@ export function PrintableUndersteelCheckup({
 
               {/* Depan */}
               <div className="space-y-0.5">
-                <span className="text-[9px] font-black uppercase text-slate-700 block">DEPAN</span>
-                <div className="h-12 border border-slate-300 rounded bg-slate-50 flex items-center justify-center p-1">
-                  <svg className="w-full h-full text-slate-700" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="2">
+                <span className="text-[9px] font-black uppercase text-black block">DEPAN</span>
+                <div className="h-12 border border-black rounded bg-slate-50 flex items-center justify-center p-1">
+                  <svg className="w-full h-full text-black" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="20" y="15" width="60" height="35" rx="6" />
                     <path d="M25 28 L75 28" />
                     <circle cx="30" cy="38" r="4" />
@@ -336,9 +336,9 @@ export function PrintableUndersteelCheckup({
 
               {/* Belakang */}
               <div className="space-y-0.5">
-                <span className="text-[9px] font-black uppercase text-slate-700 block">BELAKANG</span>
-                <div className="h-12 border border-slate-300 rounded bg-slate-50 flex items-center justify-center p-1">
-                  <svg className="w-full h-full text-slate-700" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="2">
+                <span className="text-[9px] font-black uppercase text-black block">BELAKANG</span>
+                <div className="h-12 border border-black rounded bg-slate-50 flex items-center justify-center p-1">
+                  <svg className="w-full h-full text-black" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="20" y="15" width="60" height="35" rx="6" />
                     <path d="M25 28 L75 28" />
                     <circle cx="30" cy="35" r="3" />
@@ -353,8 +353,8 @@ export function PrintableUndersteelCheckup({
           </div>
 
           {/* Slogan Banner */}
-          <div className="border-2 border-slate-900 p-2 text-center bg-white">
-            <p className="font-black text-[10.5px] sm:text-xs uppercase tracking-wide text-slate-950">
+          <div className="border-2 border-black p-2 text-center bg-white">
+            <p className="font-black text-[10.5px] sm:text-xs uppercase tracking-wide text-black">
               PASTIKAN KONDISI MOBIL CUSTOMER BERSIH, AMAN DAN SELALU UTAMAKAN KESELAMATAN DALAM BEKERJA
             </p>
           </div>

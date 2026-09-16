@@ -187,14 +187,14 @@ export function PrintableInvoice({
             <OfficialDocumentHeader settings={settings} />
 
             {/* Title Header */}
-            <div className="flex items-center justify-between pb-1.5 border-b-2 border-slate-900">
+            <div className="flex items-center justify-between pb-1.5 border-b-2 border-black">
               <div>
                 <span className="inline-flex items-center justify-center bg-[#8B0000] text-white px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider leading-normal">
                   FAKTUR / NOTA PEMBAYARAN RESMI
                 </span>
               </div>
               <div className="text-right inline-flex items-center gap-1">
-                <span className="text-[10px] text-slate-500 font-bold uppercase">No. Nota:</span>
+                <span className="text-[10px] text-black font-bold uppercase">No. Nota:</span>
                 <span className="font-mono font-black text-sm text-[#001F7A]">
                   {invoice.invoice_number}
                 </span>
@@ -202,25 +202,25 @@ export function PrintableInvoice({
             </div>
 
             {/* Meta Info */}
-            <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50 p-2 rounded-xl border border-slate-300">
+            <div className="grid grid-cols-3 gap-2 text-xs bg-white p-2 rounded-xl border-2 border-black">
               <div>
-                <span className="text-slate-500 text-[10px] block">Waktu Terbit:</span>
-                <strong className="text-slate-900">{formatDateTime(invoice.created_at)}</strong>
+                <span className="text-black text-[10px] font-bold block">Waktu Terbit:</span>
+                <strong className="text-black font-black">{formatDateTime(invoice.created_at)}</strong>
               </div>
               {invoice.work_order ? (
                 <div className="text-center">
-                  <span className="text-slate-500 text-[10px] block">Ref SPK:</span>
-                  <strong className="font-mono text-[#001F7A] font-bold">{invoice.work_order.spk_number}</strong>
+                  <span className="text-black text-[10px] font-bold block">Ref SPK:</span>
+                  <strong className="font-mono text-[#001F7A] font-black">{invoice.work_order.spk_number}</strong>
                 </div>
               ) : (
                 <div className="text-center">
-                  <span className="text-slate-500 text-[10px] block">Tipe Nota:</span>
-                  <strong className="text-slate-900">Servis Langsung</strong>
+                  <span className="text-black text-[10px] font-bold block">Tipe Nota:</span>
+                  <strong className="text-black font-black">Servis Langsung</strong>
                 </div>
               )}
               <div className="text-right">
-                <span className="text-slate-500 text-[10px] block">Kasir PIC:</span>
-                <strong className="text-slate-900">Mey Wulandari</strong>
+                <span className="text-black text-[10px] font-bold block">Kasir PIC:</span>
+                <strong className="text-black font-black">Mey Wulandari</strong>
               </div>
             </div>
 
@@ -239,27 +239,27 @@ export function PrintableInvoice({
             />
 
             {/* Items Table */}
-            <div className="border border-slate-800 rounded-xl overflow-hidden text-xs">
+            <div className="border-2 border-black rounded-xl overflow-hidden text-xs">
               <table className="w-full text-left border-collapse text-[11px]">
                 <thead>
-                  <tr className="bg-slate-100 border-b-2 border-slate-800 font-bold text-slate-900">
-                    <th className="p-2 w-8 text-center border-r border-slate-300">No.</th>
-                    <th className="p-2 border-r border-slate-300">Deskripsi Jasa & Sparepart</th>
-                    <th className="p-2 w-16 text-center border-r border-slate-300">Tipe</th>
-                    <th className="p-2 w-12 text-center border-r border-slate-300">Qty</th>
-                    <th className="p-2 w-24 text-right border-r border-slate-300">Harga Satuan</th>
+                  <tr className="bg-slate-100 border-b-2 border-black font-black text-black">
+                    <th className="p-2 w-8 text-center border-r border-black">No.</th>
+                    <th className="p-2 border-r border-black">Deskripsi Jasa &amp; Sparepart</th>
+                    <th className="p-2 w-16 text-center border-r border-black">Tipe</th>
+                    <th className="p-2 w-12 text-center border-r border-black">Qty</th>
+                    <th className="p-2 w-24 text-right border-r border-black">Harga Satuan</th>
                     <th className="p-2 w-28 text-right">Subtotal</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200">
+                <tbody className="divide-y divide-black">
                   {invoice.items.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50">
-                      <td className="p-2 text-center font-bold border-r border-slate-300">{idx + 1}</td>
-                      <td className="p-2 border-r border-slate-300">
-                        <div className="font-bold text-slate-900 uppercase">{(item.name || '').toUpperCase()}</div>
-                        {item.code && <div className="text-[9.5px] text-slate-500 font-mono uppercase">{item.code}</div>}
+                      <td className="p-2 text-center font-bold border-r border-black text-black">{idx + 1}</td>
+                      <td className="p-2 border-r border-black">
+                        <div className="font-bold text-black uppercase">{(item.name || '').toUpperCase()}</div>
+                        {item.code && <div className="text-[9.5px] text-black font-mono font-bold uppercase">{item.code}</div>}
                       </td>
-                      <td className="p-2 text-center border-r border-slate-300">
+                      <td className="p-2 text-center border-r border-black">
                         <span
                           className={`inline-block text-[9.5px] px-2 py-0.5 rounded font-black ${
                             item.is_service ? 'bg-blue-100 text-blue-900' : 'bg-emerald-100 text-emerald-900'
@@ -268,9 +268,9 @@ export function PrintableInvoice({
                           {item.is_service ? 'JASA' : 'PART'}
                         </span>
                       </td>
-                      <td className="p-2 text-center font-mono font-bold border-r border-slate-300">{item.qty}</td>
-                      <td className="p-2 text-right font-mono border-r border-slate-300">{formatCurrency(item.price)}</td>
-                      <td className="p-2 text-right font-mono font-black text-slate-900">
+                      <td className="p-2 text-center font-mono font-bold border-r border-black text-black">{item.qty}</td>
+                      <td className="p-2 text-right font-mono border-r border-black font-bold text-black">{formatCurrency(item.price)}</td>
+                      <td className="p-2 text-right font-mono font-black text-black">
                         {formatCurrency(item.subtotal)}
                       </td>
                     </tr>
@@ -283,21 +283,21 @@ export function PrintableInvoice({
             <div className="grid grid-cols-2 gap-3 text-xs">
               {/* Left: Payment Info & LUNAS Stamp */}
               <div className="space-y-2">
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-300 space-y-1 text-[11px]">
+                <div className="p-3 bg-white rounded-xl border-2 border-black space-y-1 text-[11px]">
                   <h5 className="font-black text-[#8B0000] uppercase text-[10.5px] flex items-center space-x-1">
                     <CreditCard className="w-3.5 h-3.5" />
                     <span>Informasi Pembayaran</span>
                   </h5>
-                  <div>Metode: <strong>{getPaymentMethodLabel(invoice.payment_method)}</strong></div>
-                  {invoice.paid_at && <div>Waktu Bayar: <strong>{formatDateTime(invoice.paid_at)}</strong></div>}
-                  <div className="pt-1 border-t border-slate-300 text-[10px] text-slate-600">
-                    <p className="font-bold text-slate-800">Transfer Rekening Resmi Bengkel:</p>
+                  <div className="text-black">Metode: <strong className="font-black text-black">{getPaymentMethodLabel(invoice.payment_method)}</strong></div>
+                  {invoice.paid_at && <div className="text-black">Waktu Bayar: <strong className="font-black text-black">{formatDateTime(invoice.paid_at)}</strong></div>}
+                  <div className="pt-1 border-t-2 border-black text-[10px] text-black">
+                    <p className="font-black text-black">Transfer Rekening Resmi Bengkel:</p>
                     {invoice.payment_method === 'transfer_bri' ? (
-                      <p className="whitespace-pre-line font-mono font-bold text-slate-900">Bank BRI: 0086-0113-1974-508 a.n ARDIYANTO WIJAYA</p>
+                      <p className="whitespace-pre-line font-mono font-bold text-black">Bank BRI: 0086-0113-1974-508 a.n ARDIYANTO WIJAYA</p>
                     ) : invoice.payment_method === 'transfer_bca' ? (
-                      <p className="whitespace-pre-line font-mono font-bold text-slate-900">Bank BCA: 2711235398 a.n ARDIYANTO WIJAYA</p>
+                      <p className="whitespace-pre-line font-mono font-bold text-black">Bank BCA: 2711235398 a.n ARDIYANTO WIJAYA</p>
                     ) : (
-                      <p className="whitespace-pre-line font-mono font-bold text-slate-900">
+                      <p className="whitespace-pre-line font-mono font-bold text-black">
                         {settings.bank_account_info || 'Bank BCA: 2711235398 a.n ARDIYANTO WIJAYA\nBank BRI: 0086-0113-1974-508 a.n ARDIYANTO WIJAYA'}
                       </p>
                     )}
@@ -318,10 +318,10 @@ export function PrintableInvoice({
               </div>
 
               {/* Right: Calculations Breakdown */}
-              <div className="space-y-1 text-xs bg-slate-50 p-3 rounded-xl border border-slate-300">
-                <div className="flex justify-between text-slate-700 font-semibold text-[11px]">
+              <div className="space-y-1 text-xs bg-white p-3 rounded-xl border-2 border-black">
+                <div className="flex justify-between text-black font-semibold text-[11px]">
                   <span>Subtotal Rincian:</span>
-                  <span className="font-mono font-bold">{formatCurrency(invoice.subtotal)}</span>
+                  <span className="font-mono font-bold text-black">{formatCurrency(invoice.subtotal)}</span>
                 </div>
 
                 {invoice.discount_amount > 0 && (
@@ -332,25 +332,25 @@ export function PrintableInvoice({
                 )}
 
                 {invoice.tax_amount > 0 && (
-                  <div className="flex justify-between text-slate-700 font-semibold text-[11px]">
+                  <div className="flex justify-between text-black font-semibold text-[11px]">
                     <span>PPN ({invoice.tax_percent}%):</span>
-                    <span className="font-mono">{formatCurrency(invoice.tax_amount)}</span>
+                    <span className="font-mono text-black">{formatCurrency(invoice.tax_amount)}</span>
                   </div>
                 )}
 
-                <div className="border-t-2 border-slate-800 pt-1 flex justify-between text-sm font-black text-[#8B0000]">
+                <div className="border-t-2 border-black pt-1 flex justify-between text-sm font-black text-[#8B0000]">
                   <span>Total Tagihan:</span>
                   <span className="font-mono text-base">{formatCurrency(invoice.total_amount)}</span>
                 </div>
 
                 {invoice.down_payment > 0 && (
-                  <div className="flex justify-between text-slate-700 pt-0.5 text-[11px]">
+                  <div className="flex justify-between text-black pt-0.5 text-[11px]">
                     <span>Uang Muka (DP):</span>
-                    <span className="font-mono">{formatCurrency(invoice.down_payment)}</span>
+                    <span className="font-mono text-black">{formatCurrency(invoice.down_payment)}</span>
                   </div>
                 )}
 
-                <div className="flex justify-between text-xs font-black text-slate-900 pt-0.5 border-t border-slate-300">
+                <div className="flex justify-between text-xs font-black text-black pt-0.5 border-t-2 border-black">
                   <span>Sisa Tagihan:</span>
                   <span className="font-mono text-emerald-800">
                     {formatCurrency(invoice.balance_due || 0)}
@@ -360,16 +360,16 @@ export function PrintableInvoice({
             </div>
 
             {/* Symmetrical Dual Digital Signatures */}
-            <div className="border border-slate-900 rounded-xl p-3 bg-white space-y-2">
-              <h4 className="text-center font-black text-xs uppercase tracking-wider text-slate-950 pb-1 border-b border-slate-200">
+            <div className="border-2 border-black rounded-xl p-3 bg-white space-y-2">
+              <h4 className="text-center font-black text-xs uppercase tracking-wider text-black pb-1 border-b-2 border-black">
                 Pengesahan Bukti Pembayaran
               </h4>
 
               <div className="grid grid-cols-2 gap-4 text-center text-xs">
                 {/* TTD Kasir */}
-                <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between min-h-[105px]">
+                <div className="border-2 border-black rounded-lg p-2 bg-slate-50 flex flex-col justify-between min-h-[105px]">
                   <p className="font-black text-[#8B0000] text-[10px] uppercase">Kasir / Admin Penagihan</p>
-                  <div className="h-12 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white overflow-hidden my-0.5">
+                  <div className="h-12 flex items-center justify-center border border-dashed border-slate-400 rounded bg-white overflow-hidden my-0.5">
                     {invoice.signature_admin_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -378,18 +378,18 @@ export function PrintableInvoice({
                         className="max-h-11 max-w-full object-contain block mx-auto"
                       />
                     ) : (
-                      <span className="text-[9px] text-slate-400 italic">Tanda tangan kasir</span>
+                      <span className="text-[9px] text-slate-500 italic">Tanda tangan kasir</span>
                     )}
                   </div>
-                  <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 break-words leading-tight">
+                  <p className="font-black text-black text-[10px] border-t-2 border-black pt-0.5 break-words leading-tight">
                     {signerKasir || 'Kasir / Admin Penagihan'}
                   </p>
                 </div>
 
                 {/* TTD Pemilik Kendaraan */}
-                <div className="border border-slate-300 rounded-lg p-2 bg-slate-50 flex flex-col justify-between min-h-[105px]">
+                <div className="border-2 border-black rounded-lg p-2 bg-slate-50 flex flex-col justify-between min-h-[105px]">
                   <p className="font-black text-[#001F7A] text-[10px] uppercase">Pemilik Kendaraan / Pembayar</p>
-                  <div className="h-12 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white overflow-hidden my-0.5">
+                  <div className="h-12 flex items-center justify-center border border-dashed border-slate-400 rounded bg-white overflow-hidden my-0.5">
                     {invoice.signature_customer_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -398,10 +398,10 @@ export function PrintableInvoice({
                         className="max-h-11 max-w-full object-contain block mx-auto"
                       />
                     ) : (
-                      <span className="text-[9px] text-slate-400 italic">Tanda tangan pemilik kendaraan</span>
+                      <span className="text-[9px] text-slate-500 italic">Tanda tangan pemilik kendaraan</span>
                     )}
                   </div>
-                  <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 break-words leading-tight">
+                  <p className="font-black text-black text-[10px] border-t-2 border-black pt-0.5 break-words leading-tight">
                     {vehicle?.customer_name || 'Pemilik Kendaraan'}
                   </p>
                 </div>

@@ -30,6 +30,8 @@ import { PrintableGeneralCheckup } from '@/components/ui/PrintableGeneralCheckup
 import { PrintableACCheckup } from '@/components/ui/PrintableACCheckup';
 import { PrintableUndersteelCheckup } from '@/components/ui/PrintableUndersteelCheckup';
 import { EditLicensePlateModal } from '@/components/ui/EditLicensePlateModal';
+import { BranchId } from '@/lib/auth/users';
+import { Building2 } from 'lucide-react';
 
 interface VehicleCheckupGroup {
   key: string;
@@ -41,6 +43,7 @@ interface VehicleCheckupGroup {
   car_model: string;
   car_year?: number | string;
   car_color?: string;
+  branch: BranchId;
   latestSpk?: WorkOrder;
   lastDate: string;
   qcGeneralList: CheckupRecord[];
@@ -49,8 +52,27 @@ interface VehicleCheckupGroup {
   allRecords: CheckupRecord[];
 }
 
+// Helper menentukan cabang bengkel mobil
+const resolveGroupBranch = (wo?: WorkOrder, v?: any, rec?: any): BranchId => {
+  const raw = wo?.received_at_branch || 
+              (wo?.checklist_data?.received_at_branch as string) || 
+              rec?.received_at_branch || 
+              rec?.branch || 
+              v?.branch || 
+              v?.received_at_branch || 
+              '';
+  if (raw) {
+    const upper = String(raw).toUpperCase();
+    if (upper.includes('3') || upper.includes('SURABAYA')) return 'MHS 3';
+    if (upper.includes('2') || upper.includes('TROSOBO')) return 'MHS 2';
+    if (upper.includes('1') || upper.includes('RUNGKUT')) return 'MHS 1';
+  }
+  return 'MHS 1';
+};
+
 export default function CheckupPage() {
   const { checkups, workOrders, allWorkOrders, vehicles, settings, deleteCheckupAsync, showToast, currentRole, refreshData, syncWithSupabase } = useApp();
+  const [selectedBranch, setSelectedBranch] = useState<'ALL' | BranchId>('ALL');
   const [filterTab, setFilterTab] = useState<'all' | 'has_checkup' | 'empty'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVehicleGroup, setSelectedVehicleGroup] = useState<VehicleCheckupGroup | null>(null);
@@ -87,6 +109,7 @@ export default function CheckupPage() {
         car_model: v.car_model || '',
         car_year: v.car_year || '',
         car_color: (v as any).color || (v as any).car_color || '',
+        branch: resolveGroupBranch(latestWo, v),
         latestSpk: latestWo,
         lastDate: latestWo?.created_at || latestWo?.entry_date || v.updated_at || v.created_at || '',
         qcGeneralList: [],
@@ -114,6 +137,7 @@ export default function CheckupPage() {
           car_model: v.car_model || '',
           car_year: v.car_year || '',
           car_color: (v as any).color || (v as any).car_color || '',
+          branch: resolveGroupBranch(wo, v),
           latestSpk: wo,
           lastDate: wo.created_at || wo.entry_date || '',
           qcGeneralList: [],
@@ -128,6 +152,7 @@ export default function CheckupPage() {
         if (!existing.latestSpk || woTime > existingTime) {
           existing.latestSpk = wo;
           existing.lastDate = wo.created_at || wo.entry_date || existing.lastDate;
+          existing.branch = resolveGroupBranch(wo, v);
         }
       }
     });
@@ -149,6 +174,7 @@ export default function CheckupPage() {
       }
 
       if (!group) {
+        const latestWo = allWorkOrders.find((w) => w.id === rec.work_order_id || w.spk_number === rec.document_number);
         group = {
           key: matchKey || `rec-${rec.id}`,
           vehicleId: rec.vehicle_id,
@@ -157,7 +183,8 @@ export default function CheckupPage() {
           phone_number: '',
           car_brand: '',
           car_model: rec.car_model || '',
-          latestSpk: allWorkOrders.find((w) => w.id === rec.work_order_id || w.spk_number === rec.document_number),
+          branch: resolveGroupBranch(latestWo, undefined, rec),
+          latestSpk: latestWo,
           lastDate: rec.check_date || rec.created_at || '',
           qcGeneralList: [],
           acList: [],
@@ -297,8 +324,16 @@ export default function CheckupPage() {
     });
   }, [checkups, allWorkOrders, vehicles]);
 
+  // Hitung jumlah kendaraan per cabang
+  const countMhs1 = vehicleGroups.filter((g) => g.branch === 'MHS 1').length;
+  const countMhs2 = vehicleGroups.filter((g) => g.branch === 'MHS 2').length;
+  const countMhs3 = vehicleGroups.filter((g) => g.branch === 'MHS 3').length;
+
   // Filter & Search
   const filteredVehicleGroups = vehicleGroups.filter((g) => {
+    // Branch filter (MHS 1, MHS 2, MHS 3, atau Semua)
+    if (selectedBranch !== 'ALL' && g.branch !== selectedBranch) return false;
+
     // Tab filter
     if (filterTab === 'has_checkup' && g.allRecords.length === 0) return false;
     if (filterTab === 'empty' && g.allRecords.length > 0) return false;
@@ -311,7 +346,8 @@ export default function CheckupPage() {
       const car = `${g.car_brand} ${g.car_model}`.toLowerCase();
       const spk = (g.latestSpk?.spk_number || '').toLowerCase();
       const phone = (g.phone_number || '').toLowerCase();
-      return plate.includes(q) || cust.includes(q) || car.includes(q) || spk.includes(q) || phone.includes(q);
+      const branch = g.branch.toLowerCase();
+      return plate.includes(q) || cust.includes(q) || car.includes(q) || spk.includes(q) || phone.includes(q) || branch.includes(q);
     }
 
     return true;
@@ -340,8 +376,11 @@ export default function CheckupPage() {
     }
   };
 
-  const countHasCheckup = vehicleGroups.filter((g) => g.allRecords.length > 0).length;
-  const countEmpty = vehicleGroups.filter((g) => g.allRecords.length === 0).length;
+  const currentBranchGroups = selectedBranch === 'ALL'
+    ? vehicleGroups
+    : vehicleGroups.filter((g) => g.branch === selectedBranch);
+  const countHasCheckup = currentBranchGroups.filter((g) => g.allRecords.length > 0).length;
+  const countEmpty = currentBranchGroups.filter((g) => g.allRecords.length === 0).length;
 
   return (
     <div className="space-y-6">
@@ -367,50 +406,109 @@ export default function CheckupPage() {
           </Link>
         </div>
 
-        {/* Filter Tabs & Search Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="flex flex-wrap gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold w-full sm:w-fit">
-            <button
-              onClick={() => setFilterTab('all')}
-              className={`px-3.5 py-2 rounded-lg transition ${
-                filterTab === 'all'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Semua Mobil ({vehicleGroups.length})
-            </button>
-            <button
-              onClick={() => setFilterTab('has_checkup')}
-              className={`px-3.5 py-2 rounded-lg transition ${
-                filterTab === 'has_checkup'
-                  ? 'bg-white text-emerald-800 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Sudah Ada Checklist ({countHasCheckup})
-            </button>
-            <button
-              onClick={() => setFilterTab('empty')}
-              className={`px-3.5 py-2 rounded-lg transition ${
-                filterTab === 'empty'
-                  ? 'bg-white text-amber-800 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Belum Diisi ({countEmpty})
-            </button>
+        {/* Filter Cabang & Filter Status Checklist */}
+        <div className="space-y-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+          {/* Baris 1: Filter Cabang (Semua, MHS 1, MHS 2, MHS 3) */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100">
+            <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+              <div className="flex items-center space-x-1.5 text-xs font-black uppercase tracking-wider text-slate-700">
+                <Building2 className="w-4 h-4 text-maroon-700" />
+                <span>Cabang:</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setSelectedBranch('ALL')}
+                  className={`px-3 py-1.5 rounded-lg transition font-black cursor-pointer ${
+                    selectedBranch === 'ALL'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Semua Cabang ({vehicleGroups.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBranch('MHS 1')}
+                  className={`px-3 py-1.5 rounded-lg transition font-black cursor-pointer ${
+                    selectedBranch === 'MHS 1'
+                      ? 'bg-[#8B0000] text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  MHS 1 ({countMhs1})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBranch('MHS 2')}
+                  className={`px-3 py-1.5 rounded-lg transition font-black cursor-pointer ${
+                    selectedBranch === 'MHS 2'
+                      ? 'bg-[#001F7A] text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  MHS 2 ({countMhs2})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBranch('MHS 3')}
+                  className={`px-3 py-1.5 rounded-lg transition font-black cursor-pointer ${
+                    selectedBranch === 'MHS 3'
+                      ? 'bg-emerald-700 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  MHS 3 ({countMhs3})
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Cari Plat / Mobil / Customer / SPK..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 outline-none focus:border-maroon-600 focus:bg-white transition font-medium"
-            />
+          {/* Baris 2: Filter Status Checklist & Pencarian */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold w-full sm:w-fit">
+              <button
+                onClick={() => setFilterTab('all')}
+                className={`px-3.5 py-2 rounded-lg transition cursor-pointer ${
+                  filterTab === 'all'
+                    ? 'bg-white text-slate-900 shadow-xs font-black'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Semua Mobil ({currentBranchGroups.length})
+              </button>
+              <button
+                onClick={() => setFilterTab('has_checkup')}
+                className={`px-3.5 py-2 rounded-lg transition cursor-pointer ${
+                  filterTab === 'has_checkup'
+                    ? 'bg-white text-emerald-800 shadow-xs font-black'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Sudah Ada Checklist ({countHasCheckup})
+              </button>
+              <button
+                onClick={() => setFilterTab('empty')}
+                className={`px-3.5 py-2 rounded-lg transition cursor-pointer ${
+                  filterTab === 'empty'
+                    ? 'bg-white text-amber-800 shadow-xs font-black'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Belum Diisi ({countEmpty})
+              </button>
+            </div>
+
+            <div className="relative w-full sm:w-72">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari Plat / Mobil / Customer / SPK..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 outline-none focus:border-maroon-600 focus:bg-white transition font-medium"
+              />
+            </div>
           </div>
         </div>
 
@@ -449,10 +547,19 @@ export default function CheckupPage() {
                       >
                         {/* 1. Plat & Kendaraan */}
                         <td className="p-3.5">
-                          <div className="font-mono font-black text-maroon-900 text-sm tracking-wide">
-                            {formatPlate(group.license_plate)}
+                          <div className="flex items-center space-x-2">
+                            <div className="font-mono font-black text-maroon-900 text-sm tracking-wide">
+                              {formatPlate(group.license_plate)}
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
+                              group.branch === 'MHS 2' ? 'bg-[#001F7A] text-white' :
+                              group.branch === 'MHS 3' ? 'bg-emerald-700 text-white' :
+                              'bg-[#8B0000] text-white'
+                            }`}>
+                              {group.branch}
+                            </span>
                           </div>
-                          <div className="font-bold text-slate-900">
+                          <div className="font-bold text-slate-900 mt-0.5">
                             {group.car_brand} {group.car_model} {group.car_year ? `(${group.car_year})` : ''}
                           </div>
                           {group.car_color && (
@@ -599,8 +706,17 @@ export default function CheckupPage() {
                   <Car className="w-6 h-6" />
                 </div>
                 <div>
-                  <div className="font-black text-lg text-maroon-900 font-mono tracking-wide">
-                    {formatPlate(selectedVehicleGroup.license_plate)}
+                  <div className="flex items-center space-x-2">
+                    <span className="font-black text-lg text-maroon-900 font-mono tracking-wide">
+                      {formatPlate(selectedVehicleGroup.license_plate)}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
+                      selectedVehicleGroup.branch === 'MHS 2' ? 'bg-[#001F7A] text-white' :
+                      selectedVehicleGroup.branch === 'MHS 3' ? 'bg-emerald-700 text-white' :
+                      'bg-[#8B0000] text-white'
+                    }`}>
+                      {selectedVehicleGroup.branch}
+                    </span>
                   </div>
                   <div className="text-xs font-bold text-slate-800">
                     {selectedVehicleGroup.car_brand} {selectedVehicleGroup.car_model} • {selectedVehicleGroup.customer_name}

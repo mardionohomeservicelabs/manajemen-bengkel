@@ -726,8 +726,9 @@ function EstimationBuilderContent() {
                 currentEstimationRecord?.updated_at &&
                 new Date(latestEst.updated_at).getTime() > new Date(currentEstimationRecord.updated_at).getTime();
 
-              if (latestEst.customer_signature && latestEst.customer_signature !== customerSignature) {
-                setCustomerSignature(latestEst.customer_signature);
+              const customerSig = latestEst.customer_signature || latestEst.signature_customer_url;
+              if (customerSig && customerSig !== customerSignature) {
+                setCustomerSignature(customerSig);
                 setCustomerSignedName(latestEst.customer_signed_name || found.vehicle?.customer_name || '');
                 if (latestEst.customer_response) setCustomerResponse(latestEst.customer_response);
                 if (latestEst.customer_approved_option) setCustomerResponse(latestEst.customer_approved_option);
@@ -735,6 +736,12 @@ function EstimationBuilderContent() {
               } else if (latestEst.customer_response && latestEst.customer_response !== customerResponse) {
                 setCustomerResponse(latestEst.customer_response);
                 setCurrentEstimationRecord(latestEst);
+              }
+
+              const estSig = latestEst.estimator_signature || (latestEst as any).signature_admin_url;
+              if (estSig && estSig !== estimatorSignature) {
+                setEstimatorSignature(estSig);
+                if (latestEst.estimator_name) setEstimatorName(latestEst.estimator_name);
               }
 
               // Jika ada pembaruan data eksternal dari perangkat lain dan pengguna tidak sedang mengetik aktif di form
@@ -765,7 +772,7 @@ function EstimationBuilderContent() {
     }
   }, [selectedSpkId, spkIdParam, availableOrders, invoices, activeTabId, customerSignature, customerResponse, tabList, currentEstimationRecord, loadEstimationForSpk]);
 
-  // Polling sync real-time saat menunggu TTD customer dari link
+  // Polling sync real-time saat menunggu TTD customer dari link & instant cross-tab sync
   useEffect(() => {
     if (!selectedSpkId) return;
     // Jika belum ada TTD customer, lakukan sync cepat setiap 4 detik agar update langsung masuk
@@ -782,15 +789,29 @@ function EstimationBuilderContent() {
 
     // Listener jika TTD disimpan dari tab browser lain
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key?.startsWith('acwms_invoices') || e.key?.startsWith('acwms_work_orders')) {
+      if (e.key?.startsWith('acwms_invoices') || e.key?.startsWith('acwms_work_orders') || e.key === 'mhs_last_signed_est') {
         refreshData();
+        syncWithSupabase();
       }
     };
     window.addEventListener('storage', handleStorageChange);
 
+    // BroadcastChannel support untuk notifikasi instan 0-delay antar-tab
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      bc = new BroadcastChannel('mhs_estimation_channel');
+      bc.onmessage = (ev) => {
+        if (ev.data?.type === 'ESTIMATION_APPROVED' || ev.data?.type === 'SIGNATURE_UPDATED') {
+          refreshData();
+          syncWithSupabase();
+        }
+      };
+    }
+
     return () => {
       if (interval) clearInterval(interval);
       window.removeEventListener('storage', handleStorageChange);
+      if (bc) bc.close();
     };
   }, [selectedSpkId, customerSignature, currentEstimationRecord, syncWithSupabase, refreshData]);
 
@@ -1541,6 +1562,7 @@ function EstimationBuilderContent() {
       const timeNow = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB';
       setLastSavedTime(timeNow);
       setCurrentEstimationRecord(savedInvoice);
+      setSavedEstimation((prev) => (prev ? savedInvoice : null));
 
       showToast(`Tersimpan! Estimasi "${activeName}" (${savedInvoice.invoice_number}) berhasil disimpan ke database cloud.`, 'success');
 
@@ -3302,6 +3324,16 @@ function EstimationBuilderContent() {
                     work_order: selectedSpk || undefined,
                     estimated_duration: estimatedDuration || currentEstimationRecord?.estimated_duration || '',
                     complaints: estimationComplaints.trim() || formatComplaintsAndDiagnosis(selectedSpk?.complaints).displayText,
+                    estimator_name: estimatorName || currentEstimationRecord?.estimator_name,
+                    estimator_signature: estimatorSignature || currentEstimationRecord?.estimator_signature || (currentEstimationRecord as any)?.signature_admin_url,
+                    signature_admin_url: estimatorSignature || (currentEstimationRecord as any)?.signature_admin_url || currentEstimationRecord?.estimator_signature,
+                    customer_signature: customerSignature || currentEstimationRecord?.customer_signature || currentEstimationRecord?.signature_customer_url,
+                    signature_customer_url: customerSignature || currentEstimationRecord?.signature_customer_url || currentEstimationRecord?.customer_signature,
+                    customer_signed_name: customerSignedName || currentEstimationRecord?.customer_signed_name || selectedSpk?.vehicle?.customer_name,
+                    customer_signed_at: currentEstimationRecord?.customer_signed_at || (customerSignature ? new Date().toISOString() : undefined),
+                    customer_approved_option: (customerResponse as any) || currentEstimationRecord?.customer_approved_option,
+                    customer_response: (customerResponse as any) || currentEstimationRecord?.customer_response,
+                    ttd_status: customerSignature ? (customerResponse === 'batal' ? 'rejected' : 'signed') : (currentEstimationRecord?.ttd_status || 'pending'),
                   } as Invoice;
                   setSavedEstimation(livePreview);
                 }}

@@ -89,9 +89,7 @@ body {
   /* Reset body */
   html, body {
     background: #FFFFFF !important;
-    color: #0f172a !important;
-    color-scheme: light !important;
-    forced-color-adjust: none !important;
+    color: #000000 !important;
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
@@ -104,41 +102,79 @@ body {
   }
 
   *, *::before, *::after {
-    color-scheme: light !important;
-    forced-color-adjust: none !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     color-adjust: exact !important;
   }
 
-  /* Force high contrast text on printed documents to prevent faded/white text on Windows 7 & legacy Chromium */
+  /* Force pure black (#000000) high-contrast text on printed documents for Windows 7 & EPSON printer compatibility */
   .doc-sheet, .printable-estimation-sheet, .printable-qc-sheet, .thermal-receipt-print {
-    color-scheme: light !important;
-    forced-color-adjust: none !important;
     background-color: #ffffff !important;
-    color: #0f172a !important;
+    color: #000000 !important;
   }
 
+  .doc-sheet,
+  .doc-sheet p,
+  .doc-sheet td,
+  .doc-sheet th,
+  .doc-sheet li,
+  .doc-sheet label,
+  .doc-sheet strong,
+  .doc-sheet b,
+  .doc-sheet h1,
+  .doc-sheet h2,
+  .doc-sheet h3,
+  .doc-sheet h4,
+  .doc-sheet h5,
+  .doc-sheet h6,
   .doc-sheet .text-slate-950, .doc-sheet .text-slate-900, .doc-sheet .text-slate-800, .doc-sheet .text-slate-700,
+  .doc-sheet .text-slate-600, .doc-sheet .text-slate-500, .doc-sheet .text-slate-400,
+  .doc-sheet .text-gray-900, .doc-sheet .text-gray-800, .doc-sheet .text-gray-700,
+  .doc-sheet .text-gray-600, .doc-sheet .text-gray-500, .doc-sheet .text-gray-400,
   .printable-estimation-sheet .text-slate-950, .printable-estimation-sheet .text-slate-900, .printable-estimation-sheet .text-slate-800, .printable-estimation-sheet .text-slate-700,
-  .printable-qc-sheet .text-slate-950, .printable-qc-sheet .text-slate-900, .printable-qc-sheet .text-slate-800, .printable-qc-sheet .text-slate-700 {
-    color: #0f172a !important;
+  .printable-estimation-sheet .text-slate-600, .printable-estimation-sheet .text-slate-500, .printable-estimation-sheet .text-slate-400,
+  .printable-qc-sheet .text-slate-950, .printable-qc-sheet .text-slate-900, .printable-qc-sheet .text-slate-800, .printable-qc-sheet .text-slate-700,
+  .printable-qc-sheet .text-slate-600, .printable-qc-sheet .text-slate-500, .printable-qc-sheet .text-slate-400 {
+    color: #000000 !important;
   }
 
-  .doc-sheet .text-slate-600, .doc-sheet .text-slate-500,
-  .printable-estimation-sheet .text-slate-600, .printable-estimation-sheet .text-slate-500,
-  .printable-qc-sheet .text-slate-600, .printable-qc-sheet .text-slate-500 {
-    color: #1e293b !important;
+  /* Pelestarian teks putih pada badge */
+  .doc-sheet .text-white,
+  .doc-sheet [class*="text-white"],
+  .printable-estimation-sheet .text-white,
+  .printable-estimation-sheet [class*="text-white"] {
+    color: #ffffff !important;
   }
 
-  .doc-sheet .text-slate-400,
-  .printable-estimation-sheet .text-slate-400,
-  .printable-qc-sheet .text-slate-400 {
-    color: #334155 !important;
+  /* Pelestarian warna aksen resmi */
+  .doc-sheet .text-\\[\\#8B0000\\],
+  .doc-sheet [class*="text-[#8B0000]"],
+  .doc-sheet .text-maroon-700,
+  .doc-sheet .text-maroon-800,
+  .doc-sheet .text-maroon-900 {
+    color: #8B0000 !important;
+  }
+  .doc-sheet .text-\\[\\#001F7A\\],
+  .doc-sheet [class*="text-[#001F7A]"],
+  .doc-sheet .text-blue-950,
+  .doc-sheet [class*="text-blue-950"] {
+    color: #001F7A !important;
+  }
+  .doc-sheet .text-emerald-900,
+  .doc-sheet [class*="text-emerald-900"] {
+    color: #065f46 !important;
   }
 
   .doc-sheet th, .printable-estimation-sheet th, .printable-qc-sheet th {
-    color: #0f172a !important;
+    color: #000000 !important;
+    background-color: #f1f5f9 !important;
+  }
+
+  .doc-sheet [class*="border-slate-"],
+  .doc-sheet [class*="border-gray-"],
+  .printable-estimation-sheet [class*="border-slate-"],
+  .printable-estimation-sheet [class*="border-gray-"] {
+    border-color: #000000 !important;
   }
 
   /* Sembunyikan elemen navigasi, sidebar, header, dan UI non-cetak */
@@ -280,7 +316,7 @@ body {
   .doc-sheet table,
   .doc-sheet th,
   .doc-sheet td {
-    border-color: #1e293b !important;
+    border-color: #000000 !important;
     vertical-align: middle !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
@@ -453,7 +489,7 @@ body {
     padding: 4px 6px !important;
     font-size: 8.5pt !important;
     line-height: 1.25 !important;
-    border-color: #cbd5e1 !important;
+    border-color: #000000 !important;
     vertical-align: middle !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;

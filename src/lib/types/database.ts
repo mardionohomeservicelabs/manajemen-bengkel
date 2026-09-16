@@ -256,6 +256,7 @@ export interface WorkOrder {
   spk_number: string;
   vehicle_id: string;
   sa_id?: string;
+  petugas_name?: string; // Nama Petugas Bengkel / Service Advisor
   mechanic_name?: string;
   entry_date: string;
   finish_date?: string;

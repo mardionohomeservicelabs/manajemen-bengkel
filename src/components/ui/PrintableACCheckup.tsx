@@ -139,7 +139,7 @@ export function PrintableACCheckup({
 
           {/* Title Header: QUALITY CONTROL AC */}
           <div className="text-center pb-1">
-            <h2 className="text-sm font-black tracking-wider uppercase text-slate-900 border-b-2 border-slate-900 inline-block pb-0.5">
+            <h2 className="text-sm font-black tracking-wider uppercase text-black border-b-2 border-black inline-block pb-0.5">
               QUALITY CONTROL AC
             </h2>
           </div>
@@ -159,30 +159,30 @@ export function PrintableACCheckup({
           />
 
           {/* Section 1: Pemeriksaan Visual & Fisik (Mesin Mati) - Maroon Red */}
-          <div className="border border-slate-800 rounded-xl overflow-hidden text-xs">
+          <div className="border-2 border-black rounded-xl overflow-hidden text-xs">
             <div className="bg-[#8B0000] text-white px-3 py-1.5 font-black text-[11px] tracking-wide flex items-center min-h-[26px] leading-normal">
-              Pemeriksaan Visual & Fisik (Mesin Mati)
+              Pemeriksaan Visual &amp; Fisik (Mesin Mati)
             </div>
             <table className="w-full text-left border-collapse text-[11px]">
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-black">
                 <tr className="hover:bg-slate-50">
-                  <td className="p-2 font-medium text-slate-900 border-r border-slate-300">Kompresor & Clutch</td>
+                  <td className="p-2 font-bold text-black border-r border-black">Kompresor &amp; Clutch</td>
                   <td className="p-2 w-32 text-center">{formatStatusBadge(checkup.compressor_clutch)}</td>
                 </tr>
                 <tr className="hover:bg-slate-50">
-                  <td className="p-2 font-medium text-slate-900 border-r border-slate-300">Drive Belt (Tali Kipas)</td>
+                  <td className="p-2 font-bold text-black border-r border-black">Drive Belt (Tali Kipas)</td>
                   <td className="p-2 w-32 text-center">{formatStatusBadge(checkup.drive_belt)}</td>
                 </tr>
                 <tr className="hover:bg-slate-50">
-                  <td className="p-2 font-medium text-slate-900 border-r border-slate-300">Kondensor AC & Radiator</td>
+                  <td className="p-2 font-bold text-black border-r border-black">Kondensor AC &amp; Radiator</td>
                   <td className="p-2 w-32 text-center">{formatStatusBadge(checkup.condenser_radiator)}</td>
                 </tr>
                 <tr className="hover:bg-slate-50">
-                  <td className="p-2 font-medium text-slate-900 border-r border-slate-300">Selang & Pipa AC</td>
+                  <td className="p-2 font-bold text-black border-r border-black">Selang &amp; Pipa AC</td>
                   <td className="p-2 w-32 text-center">{formatStatusBadge(checkup.hoses_pipes)}</td>
                 </tr>
                 <tr className="hover:bg-slate-50">
-                  <td className="p-2 font-medium text-slate-900 border-r border-slate-300">Air Coolant (Air Radiator)</td>
+                  <td className="p-2 font-bold text-black border-r border-black">Air Coolant (Air Radiator)</td>
                   <td className="p-2 w-32 text-center">{formatStatusBadge(checkup.air_coolant)}</td>
                 </tr>
               </tbody>
@@ -190,26 +190,26 @@ export function PrintableACCheckup({
           </div>
 
           {/* Section 2: Pemeriksaan Operasional (AC & Mesin Menyala) - Maroon Red */}
-          <div className="border border-slate-800 rounded-xl overflow-hidden text-xs">
+          <div className="border-2 border-black rounded-xl overflow-hidden text-xs">
             <div className="bg-[#8B0000] text-white px-3 py-1.5 font-black text-[11px] tracking-wide flex items-center min-h-[26px] leading-normal">
-              Pemeriksaan Operasional (AC & Mesin Menyala)
+              Pemeriksaan Operasional (AC &amp; Mesin Menyala)
             </div>
             <table className="w-full text-left border-collapse text-[11px]">
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-black">
                 <tr className="hover:bg-slate-50">
-                  <td className="p-2 font-medium text-slate-900 border-r border-slate-300">Fungsi Magnetic Clutch</td>
+                  <td className="p-2 font-bold text-black border-r border-black">Fungsi Magnetic Clutch</td>
                   <td className="p-2 w-32 text-center">{formatStatusBadge(checkup.func_magnetic_clutch)}</td>
                 </tr>
                 <tr className="hover:bg-slate-50">
-                  <td className="p-2 font-medium text-slate-900 border-r border-slate-300">Kipas Radiator & Kondensor</td>
+                  <td className="p-2 font-bold text-black border-r border-black">Kipas Radiator &amp; Kondensor</td>
                   <td className="p-2 w-32 text-center">{formatStatusBadge(checkup.radiator_condenser_fan)}</td>
                 </tr>
                 <tr className="hover:bg-slate-50">
-                  <td className="p-2 font-medium text-slate-900 border-r border-slate-300">Blower & Aliran Udara</td>
+                  <td className="p-2 font-bold text-black border-r border-black">Blower &amp; Aliran Udara</td>
                   <td className="p-2 w-32 text-center">{formatStatusBadge(checkup.blower_airflow)}</td>
                 </tr>
                 <tr className="hover:bg-slate-50">
-                  <td className="p-2 font-medium text-slate-900 border-r border-slate-300">Sight Glass & Aroma Kabin</td>
+                  <td className="p-2 font-bold text-black border-r border-black">Sight Glass &amp; Aroma Kabin</td>
                   <td className="p-2 w-32 text-center">{formatStatusBadge(checkup.sight_glass_odour)}</td>
                 </tr>
               </tbody>
@@ -217,41 +217,41 @@ export function PrintableACCheckup({
           </div>
 
           {/* Section 3: Pengukuran Parameter Teknis - Maroon Red */}
-          <div className="border border-slate-800 rounded-xl overflow-hidden text-xs">
+          <div className="border-2 border-black rounded-xl overflow-hidden text-xs">
             <div className="bg-[#8B0000] text-white px-3 py-1.5 font-black text-[11px] tracking-wide flex items-center min-h-[26px] leading-normal">
               Pengukuran Parameter Teknis
             </div>
             <table className="w-full text-left border-collapse text-[11px]">
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-black">
                 <tr className="hover:bg-slate-50">
-                  <td className="p-2 font-medium text-slate-900 border-r border-slate-300">Filter Kabin (Filter AC)</td>
+                  <td className="p-2 font-bold text-black border-r border-black">Filter Kabin (Filter AC)</td>
                   <td className="p-2 w-32 text-center">{formatStatusBadge(checkup.cabin_filter_condition)}</td>
                 </tr>
                 <tr className="hover:bg-slate-50">
-                  <td className="p-2 font-medium text-slate-900 border-r border-slate-300">Pembuangan Air Evaporator</td>
+                  <td className="p-2 font-bold text-black border-r border-black">Pembuangan Air Evaporator</td>
                   <td className="p-2 w-32 text-center">{formatStatusBadge(checkup.evaporator_drain_condition)}</td>
                 </tr>
                 <tr className="hover:bg-slate-50">
-                  <td className="p-2 font-medium text-slate-900 border-r border-slate-300">
-                    Suhu Embusan Kisi AC <span className="text-slate-500 font-normal">(Target 4–8°C)</span>
+                  <td className="p-2 font-bold text-black border-r border-black">
+                    Suhu Embusan Kisi AC <span className="text-black font-semibold">(Target 4–8°C)</span>
                   </td>
-                  <td className="p-2 w-32 text-center font-bold text-slate-900 font-mono">
+                  <td className="p-2 w-32 text-center font-black text-black font-mono">
                     {checkup.air_vent_temperature || '7 °C'}
                   </td>
                 </tr>
                 <tr className="hover:bg-slate-50">
-                  <td className="p-2 font-medium text-slate-900 border-r border-slate-300">
-                    Tekanan Rendah (Low Pressure) <span className="text-slate-500 font-normal">(Normal 20–35 Psi)</span>
+                  <td className="p-2 font-bold text-black border-r border-black">
+                    Tekanan Rendah (Low Pressure) <span className="text-black font-semibold">(Normal 20–35 Psi)</span>
                   </td>
-                  <td className="p-2 w-32 text-center font-bold text-slate-900 font-mono">
+                  <td className="p-2 w-32 text-center font-black text-black font-mono">
                     {checkup.low_pressure_psi || '25 Psi'}
                   </td>
                 </tr>
                 <tr className="hover:bg-slate-50">
-                  <td className="p-2 font-medium text-slate-900 border-r border-slate-300">
-                    Tekanan Tinggi (High Pressure) <span className="text-slate-500 font-normal">(Normal 150–250 Psi)</span>
+                  <td className="p-2 font-bold text-black border-r border-black">
+                    Tekanan Tinggi (High Pressure) <span className="text-black font-semibold">(Normal 150–250 Psi)</span>
                   </td>
-                  <td className="p-2 w-32 text-center font-bold text-slate-900 font-mono">
+                  <td className="p-2 w-32 text-center font-black text-black font-mono">
                     {checkup.high_pressure_psi || '160 Psi'}
                   </td>
                 </tr>
@@ -260,17 +260,17 @@ export function PrintableACCheckup({
           </div>
 
           {/* Catatan Box */}
-          <div className="text-xs p-2.5 bg-slate-50 rounded-xl border border-slate-300 space-y-1">
-            <span className="font-black text-slate-900 block text-[10.5px] uppercase">
+          <div className="text-xs p-2.5 bg-slate-50 rounded-xl border-2 border-black space-y-1">
+            <span className="font-black text-black block text-[10.5px] uppercase">
               Catatan / Rekomendasi Teknisi:
             </span>
-            <p className="text-slate-900 font-medium text-[11px] leading-relaxed min-h-[28px] whitespace-pre-wrap break-words">
+            <p className="text-black font-semibold text-[11px] leading-relaxed min-h-[28px] whitespace-pre-wrap break-words">
               {checkup.recommendations || '-'}
             </p>
           </div>
 
           {/* Tanda Tangan Teknisi / Mekanik AC */}
-          <div className="border border-slate-800 rounded-xl p-3 bg-white max-w-xs mx-auto text-center space-y-1">
+          <div className="border-2 border-black rounded-xl p-3 bg-white max-w-xs mx-auto text-center space-y-1">
             <p className="font-black text-[#8B0000] text-[10.5px] uppercase">
               Teknisi Pemeriksa (AC Specialist)
             </p>
@@ -283,10 +283,10 @@ export function PrintableACCheckup({
                   className="max-h-12 max-w-full object-contain inline-block mx-auto"
                 />
               ) : (
-                <span className="text-[10px] text-slate-400 italic">(Tanda Tangan)</span>
+                <span className="text-[10px] text-slate-500 italic">(Tanda Tangan)</span>
               )}
             </div>
-            <p className="font-bold text-slate-950 text-[11px] border-t border-slate-300 pt-1">
+            <p className="font-black text-black text-[11px] border-t-2 border-black pt-1">
               ({signerTeknisi || checkup.technician_name || 'Teknisi AC'})
             </p>
           </div>

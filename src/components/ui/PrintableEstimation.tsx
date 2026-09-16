@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Invoice, InvoiceItem, WorkshopSettings } from '@/lib/types/database';
 import {
   formatCurrency,
@@ -51,6 +51,12 @@ export function PrintableEstimation({
   const [signerEstimator, setSignerEstimator] = useState<string>(
     estimation.estimator_name || (estimation as any).estimator_name || ''
   );
+
+  useEffect(() => {
+    if (estimation.estimator_name) {
+      setSignerEstimator(estimation.estimator_name);
+    }
+  }, [estimation.estimator_name]);
 
   const handlePrint = () => {
     printCleanDocument(documentRef.current, `Estimasi Biaya - ${estimation.invoice_number}`);
@@ -372,14 +378,14 @@ export function PrintableEstimation({
             <OfficialDocumentHeader settings={settings} />
 
             {/* Title Header */}
-            <div className="flex items-center justify-between pb-1.5 border-b-2 border-slate-900 mt-1">
+            <div className="flex items-center justify-between pb-1.5 border-b-2 border-black mt-1">
               <div>
                 <span className="inline-flex items-center justify-center bg-amber-600 text-white px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider leading-normal">
                   SURAT ESTIMASI BIAYA &amp; PERSETUJUAN
                 </span>
               </div>
               <div className="text-right inline-flex items-center gap-1">
-                <span className="text-[10px] text-slate-500 font-bold uppercase">No. Estimasi:</span>
+                <span className="text-[10px] text-black font-bold uppercase">No. Estimasi:</span>
                 <span className="font-mono font-black text-sm text-[#001F7A]">
                   {estimation.invoice_number}
                 </span>
@@ -402,11 +408,11 @@ export function PrintableEstimation({
 
             {/* Section: Keluhan / Diagnosa Awal (Hanya menampilkan keluhan saja, tanpa uraian pekerjaan) */}
             {complaintsText ? (
-              <div className="border border-slate-800 rounded-xl p-2.5 bg-white text-xs text-slate-900 font-medium">
-                <span className="font-bold text-slate-500 block text-[10px] uppercase tracking-wider mb-0.5">
+              <div className="border-2 border-black rounded-xl p-2.5 bg-white text-xs text-black font-medium">
+                <span className="font-black text-black block text-[10px] uppercase tracking-wider mb-0.5">
                   Keluhan / Diagnosa Awal:
                 </span>
-                <span className="font-bold text-slate-900 text-[11.5px] leading-snug break-words uppercase">
+                <span className="font-black text-black text-[11.5px] leading-snug break-words uppercase">
                   {complaintsText}
                 </span>
               </div>
@@ -414,32 +420,32 @@ export function PrintableEstimation({
           </div>
 
           {/* Items Table — Exact format from user reference screenshot */}
-          <div className="border-2 border-slate-900 rounded-xl overflow-hidden text-xs my-2 estimation-table-wrapper">
+          <div className="border-2 border-black rounded-xl overflow-hidden text-xs my-2 estimation-table-wrapper">
             <table className="w-full text-left border-collapse text-[10.5px] estimation-items-table">
               <thead className="estimation-items-thead" style={{ display: 'table-row-group' }}>
-                <tr className="bg-slate-100 border-b-2 border-slate-900 font-black text-slate-900 uppercase text-[10px]">
-                  <th className="p-1.5 w-7 text-center border-r border-slate-300">No</th>
-                  <th className="p-1.5 border-r border-slate-300">Saran/Perbaikan/Ganti Sparepart</th>
-                  <th className="p-1.5 w-9 text-center border-r border-slate-300">QTY</th>
-                  <th className="p-1.5 w-11 text-center border-r border-slate-300">Satuan</th>
-                  <th className="p-1.5 w-[92px] text-right border-r border-slate-300">Hrg Satuan</th>
-                  <th className={`p-1.5 ${hasOpsi2 ? 'w-[98px]' : 'w-[110px]'} text-right border-r border-slate-300`}>
+                <tr className="bg-slate-100 border-b-2 border-black font-black text-black uppercase text-[10px]">
+                  <th className="p-1.5 w-7 text-center border-r border-black">No</th>
+                  <th className="p-1.5 border-r border-black">Saran/Perbaikan/Ganti Sparepart</th>
+                  <th className="p-1.5 w-9 text-center border-r border-black">QTY</th>
+                  <th className="p-1.5 w-11 text-center border-r border-black">Satuan</th>
+                  <th className="p-1.5 w-[92px] text-right border-r border-black">Hrg Satuan</th>
+                  <th className={`p-1.5 ${hasOpsi2 ? 'w-[98px]' : 'w-[110px]'} text-right border-r border-black`}>
                     {hasOpsi2 ? 'Total Opsi 1' : 'Total Harga'}
                   </th>
                   {hasOpsi2 && (
-                    <th className="p-1.5 w-[98px] text-right bg-blue-50/40 text-blue-950">
+                    <th className="p-1.5 w-[98px] text-right bg-blue-50/40 text-blue-950 font-black">
                       Total Opsi 2
                     </th>
                   )}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-300">
+              <tbody className="divide-y divide-black">
                 {/* Table 1 Slice Divider (Rendered when Double Table is enabled) */}
                 {isDoubleTable && (
-                  <tr className="bg-slate-200/90 border-b border-slate-300">
+                  <tr className="bg-slate-200/90 border-b-2 border-black">
                     <td
                       colSpan={hasOpsi2 ? 7 : 6}
-                      className="py-1 px-4 text-center font-extrabold text-slate-800 uppercase tracking-wider text-[11px]"
+                      className="py-1 px-4 text-center font-black text-black uppercase tracking-wider text-[11px]"
                     >
                       {table1Title}
                     </td>
@@ -465,24 +471,24 @@ export function PrintableEstimation({
 
                   return (
                     <tr key={`t1-${idx}`} className="hover:bg-slate-50 estimation-item-row">
-                      <td className="p-1.5 text-center font-bold border-r border-slate-300 align-middle">
+                      <td className="p-1.5 text-center font-bold border-r border-black align-middle text-black">
                         {idx + 1}
                       </td>
-                      <td className="p-1.5 border-r border-slate-300 align-middle">
-                        <div className="font-bold text-slate-900 uppercase break-words whitespace-normal leading-snug">
+                      <td className="p-1.5 border-r border-black align-middle">
+                        <div className="font-bold text-black uppercase break-words whitespace-normal leading-snug">
                           {item.name}
                         </div>
                       </td>
-                      <td className="p-1.5 text-center font-mono font-bold border-r border-slate-300 align-middle">
+                      <td className="p-1.5 text-center font-mono font-bold border-r border-black align-middle text-black">
                         {qty}
                       </td>
-                      <td className="p-1.5 text-center text-[10px] font-black uppercase text-slate-700 border-r border-slate-300 align-middle">
+                      <td className="p-1.5 text-center text-[10px] font-black uppercase text-black border-r border-black align-middle">
                         {item.unit || 'PCS'}
                       </td>
-                      <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold text-slate-800">
+                      <td className="p-1.5 text-right border-r border-black align-middle font-mono font-bold text-black">
                         {renderCompactPrice(p1Info.priceDisplay)}
                       </td>
-                      <td className="p-1.5 text-right font-mono font-black text-slate-900 border-r border-slate-300 align-middle">
+                      <td className="p-1.5 text-right font-mono font-black text-black border-r border-black align-middle">
                         {renderCompactPrice(p1Info.totalDisplay)}
                       </td>
                       {hasOpsi2 && (
@@ -498,25 +504,25 @@ export function PrintableEstimation({
                 {isDoubleTable && (
                   <>
                     {/* Subtotal Row Table 1 */}
-                    <tr className="bg-slate-100/90 text-slate-800 font-bold border-y border-slate-300 text-xs">
-                      <td colSpan={5} className="p-1.5 text-center uppercase tracking-wider font-extrabold text-slate-700 text-[10.5px]">
+                    <tr className="bg-slate-100/90 text-black font-bold border-y-2 border-black text-xs">
+                      <td colSpan={5} className="p-1.5 text-center uppercase tracking-wider font-black text-black text-[10.5px]">
                         TOTAL {table1Title ? `(${table1Title.toUpperCase()})` : 'TABEL 1'}
                       </td>
-                      <td className="p-1.5 text-right font-mono font-extrabold text-slate-950 border-r border-slate-300">
+                      <td className="p-1.5 text-right font-mono font-black text-black border-r border-black">
                         {renderTotalCellCompact(t1Totals.tot1Min, t1Totals.tot1Max)}
                       </td>
                       {hasOpsi2 && (
-                        <td className="p-1.5 text-right font-mono font-extrabold text-blue-950 bg-blue-50/30">
+                        <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/30">
                           {renderTotalCellCompact(t1Totals.tot2Min, t1Totals.tot2Max, 'text-blue-950')}
                         </td>
                       )}
                     </tr>
 
                     {/* Slice Divider */}
-                    <tr className="bg-slate-200/90 border-y border-slate-300">
+                    <tr className="bg-slate-200/90 border-y-2 border-black">
                       <td
                         colSpan={hasOpsi2 ? 7 : 6}
-                        className="py-1 px-4 text-center font-extrabold text-slate-800 uppercase tracking-wider text-[11px]"
+                        className="py-1 px-4 text-center font-black text-black uppercase tracking-wider text-[11px]"
                       >
                         {table2Title}
                       </td>
@@ -542,24 +548,24 @@ export function PrintableEstimation({
 
                       return (
                         <tr key={`t2-${idx}`} className="hover:bg-slate-50 estimation-item-row">
-                          <td className="p-1.5 text-center font-bold border-r border-slate-300 align-middle">
+                          <td className="p-1.5 text-center font-bold border-r border-black align-middle text-black">
                             {displayNum}
                           </td>
-                          <td className="p-1.5 border-r border-slate-300 align-middle">
-                            <div className="font-bold text-slate-900 uppercase break-words whitespace-normal leading-snug">
+                          <td className="p-1.5 border-r border-black align-middle">
+                            <div className="font-bold text-black uppercase break-words whitespace-normal leading-snug">
                               {item.name}
                             </div>
                           </td>
-                          <td className="p-1.5 text-center font-mono font-bold border-r border-slate-300 align-middle">
+                          <td className="p-1.5 text-center font-mono font-bold border-r border-black align-middle text-black">
                             {qty}
                           </td>
-                          <td className="p-1.5 text-center text-[10px] font-black uppercase text-slate-700 border-r border-slate-300 align-middle">
+                          <td className="p-1.5 text-center text-[10px] font-black uppercase text-black border-r border-black align-middle">
                             {item.unit || 'PCS'}
                           </td>
-                          <td className="p-1.5 text-right border-r border-slate-300 align-middle font-mono font-bold text-slate-800">
+                          <td className="p-1.5 text-right border-r border-black align-middle font-mono font-bold text-black">
                             {renderCompactPrice(p1Info.priceDisplay)}
                           </td>
-                          <td className="p-1.5 text-right font-mono font-black text-slate-900 border-r border-slate-300 align-middle">
+                          <td className="p-1.5 text-right font-mono font-black text-black border-r border-black align-middle">
                             {renderCompactPrice(p1Info.totalDisplay)}
                           </td>
                           {hasOpsi2 && (
@@ -572,15 +578,15 @@ export function PrintableEstimation({
                     })}
 
                     {/* Subtotal Row Table 2 */}
-                    <tr className="bg-slate-100/90 text-slate-800 font-bold border-y border-slate-300 text-xs">
-                      <td colSpan={5} className="p-1.5 text-center uppercase tracking-wider font-extrabold text-slate-700 text-[10.5px]">
+                    <tr className="bg-slate-100/90 text-black font-bold border-y-2 border-black text-xs">
+                      <td colSpan={5} className="p-1.5 text-center uppercase tracking-wider font-black text-black text-[10.5px]">
                         TOTAL {table2Title ? `(${table2Title.toUpperCase()})` : 'TABEL 2'}
                       </td>
-                      <td className="p-1.5 text-right font-mono font-extrabold text-slate-950 border-r border-slate-300">
+                      <td className="p-1.5 text-right font-mono font-black text-black border-r border-black">
                         {renderTotalCellCompact(t2Totals.tot1Min, t2Totals.tot1Max)}
                       </td>
                       {hasOpsi2 && (
-                        <td className="p-1.5 text-right font-mono font-extrabold text-blue-950 bg-blue-50/30">
+                        <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/30">
                           {renderTotalCellCompact(t2Totals.tot2Min, t2Totals.tot2Max, 'text-blue-950')}
                         </td>
                       )}
@@ -589,12 +595,12 @@ export function PrintableEstimation({
                 )}
               </tbody>
               {/* Grand Total Row: JUMLAH KESELURUHAN (Rendered as separate tbody to ensure it only appears once at the very end of items, never at page 1 bottom) */}
-              <tbody className="border-t-2 border-slate-900 estimation-grand-total-tbody">
+              <tbody className="border-t-2 border-black estimation-grand-total-tbody">
                 <tr className="bg-slate-100 font-black text-xs estimation-grand-total-row avoid-break">
-                  <td colSpan={5} className="p-2 text-center uppercase tracking-wider text-slate-900 font-black">
+                  <td colSpan={5} className="p-2 text-center uppercase tracking-wider text-black font-black">
                     JUMLAH KESELURUHAN
                   </td>
-                  <td className="p-2 text-right font-mono font-black text-slate-950 border-r border-slate-300 text-xs">
+                  <td className="p-2 text-right font-mono font-black text-black border-r border-black text-xs">
                     {renderTotalCellCompact(grandTot1Min, grandTot1Max)}
                   </td>
                   {hasOpsi2 && (
@@ -608,38 +614,38 @@ export function PrintableEstimation({
           </div>
 
           {/* KETERANGAN BOX (Matching screenshot) */}
-          <div className="border-2 border-slate-900 rounded-xl p-3 bg-white text-xs space-y-1">
-            <h5 className="font-black text-slate-950 uppercase text-[11px]">
+          <div className="border-2 border-black rounded-xl p-3 bg-white text-xs space-y-1">
+            <h5 className="font-black text-black uppercase text-[11px]">
               KETERANGAN:
             </h5>
-            <p className="text-slate-700 leading-relaxed font-medium text-[10.5px]">
+            <p className="text-black leading-relaxed font-semibold text-[10.5px]">
               {estimation.admin_notes || 'Harga di atas merupakan estimasi perkiraan awal. Apabila ditemukan komponen lain yang perlu diganti selama proses pembongkaran, teknisi kami akan segera mengonfirmasi terlebih dahulu kepada pemilik kendaraan.'}
             </p>
           </div>
 
           {/* Ketentuan Estimasi Berbutir */}
-          <div className="estimation-terms-box avoid-break border border-slate-800 rounded-xl p-3 bg-amber-50/30 text-slate-900 text-[10px] space-y-1 leading-relaxed">
+          <div className="estimation-terms-box avoid-break border-2 border-black rounded-xl p-3 bg-amber-50/30 text-black text-[10px] space-y-1 leading-relaxed">
             <h5 className="font-black text-[#8B0000] uppercase text-[10.5px]">
               KETENTUAN ESTIMASI:
             </h5>
-            <ol className="space-y-0.5 pl-1 font-medium list-none">
-              <li><strong>1.</strong> Pemilik kendaraan tidak diperkenankan membawa sparepart sendiri pada pekerjaan Overhaul Mesin/Transmisi.</li>
-              <li><strong>2.</strong> Segala risiko akibat part bawaan sendiri tidak menjadi tanggung jawab/garansi kami.</li>
-              <li><strong>3.</strong> Apabila membawa part sendiri, batas maksimal pengadaan part adalah 2 hari. Selebihnya dikenakan biaya parkir <strong>Rp25.000/hari</strong>.</li>
-              <li><strong>4.</strong> Harga estimasi yang muncul berlaku selama <strong>1 minggu</strong> dari tanggal estimasi dikeluarkan.</li>
+            <ol className="space-y-0.5 pl-1 font-semibold list-none text-black">
+              <li><strong className="font-black text-black">1.</strong> Pemilik kendaraan tidak diperkenankan membawa sparepart sendiri pada pekerjaan Overhaul Mesin/Transmisi.</li>
+              <li><strong className="font-black text-black">2.</strong> Segala risiko akibat part bawaan sendiri tidak menjadi tanggung jawab/garansi kami.</li>
+              <li><strong className="font-black text-black">3.</strong> Apabila membawa part sendiri, batas maksimal pengadaan part adalah 2 hari. Selebihnya dikenakan biaya parkir <strong className="font-black text-black">Rp25.000/hari</strong>.</li>
+              <li><strong className="font-black text-black">4.</strong> Harga estimasi yang muncul berlaku selama <strong className="font-black text-black">1 minggu</strong> dari tanggal estimasi dikeluarkan.</li>
             </ol>
           </div>
 
           {/* Symmetrical Dual Signatures */}
-          <div className="estimation-signatures-box avoid-break border border-slate-900 rounded-xl p-3 bg-white space-y-2 my-2">
-            <h4 className="text-center font-black text-xs uppercase tracking-wider text-slate-950 pb-1 border-b border-slate-200">
+          <div className="estimation-signatures-box avoid-break border-2 border-black rounded-xl p-3 bg-white space-y-2 my-2">
+            <h4 className="text-center font-black text-xs uppercase tracking-wider text-black pb-1 border-b-2 border-black">
               Persetujuan Estimasi Biaya
             </h4>
 
             <div className="grid grid-cols-2 gap-4 text-center text-xs">
-              <div className="border border-slate-300 rounded-lg p-2 pb-1.5 bg-slate-50 flex flex-col justify-between min-h-[110px]">
+              <div className="border-2 border-black rounded-lg p-2 pb-1.5 bg-slate-50 flex flex-col justify-between min-h-[110px]">
                 <p className="font-black text-[#001F7A] text-[10px] uppercase">Estimator</p>
-                <div className="h-11 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white my-0.5 overflow-hidden">
+                <div className="h-11 flex items-center justify-center border border-dashed border-slate-400 rounded bg-white my-0.5 overflow-hidden">
                   {estimation.estimator_signature || (estimation as any).signature_admin_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -648,17 +654,17 @@ export function PrintableEstimation({
                       className="max-h-10 object-contain"
                     />
                   ) : (
-                    <span className="text-[9px] text-slate-400 italic">Tanda tangan Estimator</span>
+                    <span className="text-[9px] text-slate-500 italic">Tanda tangan Estimator</span>
                   )}
                 </div>
-                <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 break-words leading-tight">
+                <p className="font-black text-black text-[10px] border-t-2 border-black pt-0.5 break-words leading-tight">
                   {signerEstimator || estimation.estimator_name || 'Via Rizkiana'}
                 </p>
               </div>
 
-              <div className="border border-slate-300 rounded-lg p-2 pb-1.5 bg-slate-50 flex flex-col justify-between min-h-[110px]">
+              <div className="border-2 border-black rounded-lg p-2 pb-1.5 bg-slate-50 flex flex-col justify-between min-h-[110px]">
                 <p className="font-black text-[#8B0000] text-[10px] uppercase">Persetujuan Pemilik Kendaraan</p>
-                <div className="h-11 flex items-center justify-center border border-dashed border-slate-300 rounded bg-white my-0.5 overflow-hidden">
+                <div className="h-11 flex items-center justify-center border border-dashed border-slate-400 rounded bg-white my-0.5 overflow-hidden">
                   {estimation.customer_signature || estimation.signature_customer_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -667,10 +673,10 @@ export function PrintableEstimation({
                       className="max-h-10 object-contain"
                     />
                   ) : (
-                    <span className="text-[9px] text-slate-400 italic">Tanda tangan persetujuan</span>
+                    <span className="text-[9px] text-slate-500 italic">Tanda tangan persetujuan</span>
                   )}
                 </div>
-                <p className="font-bold text-slate-950 text-[10px] border-t border-slate-300 pt-0.5 break-words leading-tight">
+                <p className="font-black text-black text-[10px] border-t-2 border-black pt-0.5 break-words leading-tight">
                   {estimation.customer_signed_name || vehicle?.customer_name || 'Pemilik Kendaraan'}
                 </p>
               </div>

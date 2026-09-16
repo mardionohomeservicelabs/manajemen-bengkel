@@ -231,6 +231,18 @@ export default function CustomerSignatureApprovalPage() {
         setEstimation(finalUpdated);
         setIsSubmittedSuccess(true);
 
+        // Notifikasi instan 0-delay ke komputer/tab estimator
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('mhs_last_signed_est', JSON.stringify({ id: cleanId, timestamp: Date.now() }));
+            if ('BroadcastChannel' in window) {
+              const bc = new BroadcastChannel('mhs_estimation_channel');
+              bc.postMessage({ type: 'ESTIMATION_APPROVED', id: cleanId, timestamp: Date.now() });
+              bc.close();
+            }
+          } catch { /* ignore */ }
+        }
+
         if (selectedOption !== 'batal') {
           try {
             confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });

@@ -1321,6 +1321,7 @@ export class DBService {
           signature_customer_url: workOrder.signature_customer_url || (localSaved as any).signature_customer_url || null,
           signature_mechanic_url: workOrder.signature_mechanic_url || (localSaved as any).signature_mechanic_url || null,
           signature_sa_url: workOrder.signature_sa_url || (localSaved as any).signature_sa_url || null,
+          petugas_name: workOrder.petugas_name || (workOrder.checklist_data as any)?.petugas_name || (localSaved as any).petugas_name || null,
         });
 
         const payload: Record<string, any> = {
@@ -1382,6 +1383,8 @@ export class DBService {
             id: remoteSaved.id,
             spk_number: remoteSaved.spk_number,
             vehicle_id: remoteSaved.vehicle_id,
+            sa_id: remoteSaved.sa_id,
+            petugas_name: remoteSaved.checklist_data?.petugas_name || (workOrder as any).petugas_name || (localSaved as any).petugas_name,
             mechanic_name: remoteSaved.mechanic_name,
             entry_date: remoteSaved.entry_date,
             finish_date: remoteSaved.finish_date,
@@ -3235,6 +3238,7 @@ export class DBService {
               spk_number: row.spk_number,
               vehicle_id: row.vehicle_id,
               sa_id: row.sa_id || undefined,
+              petugas_name: checklist.petugas_name || row.petugas_name || (row as any).sa_name || undefined,
               mechanic_name: row.mechanic_name || undefined,
               entry_date: row.entry_date,
               finish_date: row.finish_date || undefined,
