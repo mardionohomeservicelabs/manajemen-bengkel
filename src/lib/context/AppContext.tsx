@@ -55,6 +55,15 @@ interface AppContextType {
   ) => Promise<Invoice | null>;
   updateWorkOrderStatusAsync: (id: string, status: WorkOrderStatus) => Promise<boolean>;
   unlockWorkOrderAsync: (id: string, targetStatus?: WorkOrderStatus) => Promise<boolean>;
+  deleteWorkOrderAsync: (id: string) => Promise<boolean>;
+  deleteInvoiceAsync: (invoiceId: string) => Promise<boolean>;
+  deleteVehicleArchiveAsync: (params: {
+    workOrderId?: string;
+    invoiceId?: string;
+    spkNumber?: string;
+    licensePlate?: string;
+    customerName?: string;
+  }) => Promise<boolean>;
   updateVehiclePlateAsync: (vehicleId: string, newPlate: string) => Promise<boolean>;
   deleteInventoryItem: (id: string) => boolean;
   clearBranchInventory: () => boolean;
@@ -397,6 +406,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return ok;
   };
 
+  const deleteWorkOrderAsync = async (id: string): Promise<boolean> => {
+    const ok = await DBService.deleteWorkOrderAsync(id, currentRole, activeBranch);
+    refreshData();
+    if (ok) {
+      showToast('SPK berhasil dihapus dari sistem oleh Owner!', 'success');
+    }
+    return ok;
+  };
+
+  const deleteInvoiceAsync = async (invoiceId: string): Promise<boolean> => {
+    if (currentRole !== 'owner') {
+      showToast('Akses ditolak: Hanya peran Owner yang berhak menghapus nota/invoice.', 'error');
+      return false;
+    }
+    const ok = await DBService.deleteInvoiceAsync(invoiceId, currentRole, activeBranch);
+    refreshData();
+    if (ok) {
+      showToast('Nota transaksi berhasil dihapus oleh Owner!', 'success');
+    }
+    return ok;
+  };
+
+  const deleteVehicleArchiveAsync = async (params: {
+    workOrderId?: string;
+    invoiceId?: string;
+    spkNumber?: string;
+    licensePlate?: string;
+    customerName?: string;
+  }): Promise<boolean> => {
+    if (currentRole !== 'owner') {
+      showToast('Akses ditolak: Hanya peran Owner yang berhak menghapus data dari arsip.', 'error');
+      return false;
+    }
+    const ok = await DBService.deleteVehicleArchiveAsync({
+      ...params,
+      userRole: currentRole,
+      branch: activeBranch,
+    });
+    refreshData();
+    if (ok) {
+      showToast('Data mobil dan seluruh berkas arsip berhasil dihapus permanen oleh Owner!', 'success');
+    } else {
+      showToast('Gagal menghapus data arsip mobil.', 'error');
+    }
+    return ok;
+  };
+
   const updateVehiclePlateAsync = async (vehicleId: string, newPlate: string): Promise<boolean> => {
     const ok = await DBService.updateVehiclePlateAsync(vehicleId, newPlate, activeBranch);
     refreshData();
@@ -475,6 +531,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         approveEstimationSignatureAsync,
         updateWorkOrderStatusAsync,
         unlockWorkOrderAsync,
+        deleteWorkOrderAsync,
+        deleteInvoiceAsync,
+        deleteVehicleArchiveAsync,
         updateVehiclePlateAsync,
         deleteInventoryItem,
         clearBranchInventory,

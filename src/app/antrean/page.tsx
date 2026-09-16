@@ -34,6 +34,10 @@ import {
   FolderCheck,
   Building2,
   FileEdit,
+  Trash2,
+  Unlock,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PrintableSPK } from '@/components/ui/PrintableSPK';
@@ -93,7 +97,18 @@ const ACTIVE_COLUMNS: { id: WorkOrderStatus; title: string; color: string; borde
 ];
 
 function QueueBoardContent() {
-  const { workOrders, allWorkOrders, showToast, settings, currentRole, updateWorkOrderStatusAsync, refreshData, syncWithSupabase } = useApp();
+  const {
+    workOrders,
+    allWorkOrders,
+    showToast,
+    settings,
+    currentRole,
+    updateWorkOrderStatusAsync,
+    unlockWorkOrderAsync,
+    deleteWorkOrderAsync,
+    refreshData,
+    syncWithSupabase,
+  } = useApp();
   const { activeBranch, setActiveBranch, currentUser } = useAuth();
   const searchParams = useSearchParams();
   const branchParam = searchParams.get('branch');
@@ -106,6 +121,8 @@ function QueueBoardContent() {
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
   const [editingPlateOrder, setEditingPlateOrder] = useState<WorkOrder | null>(null);
   const [editingSpkOrder, setEditingSpkOrder] = useState<WorkOrder | null>(null);
+  const [deletingOrder, setDeletingOrder] = useState<WorkOrder | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [dbSearchQuery, setDbSearchQuery] = useState('');
 
   // Sinkronkan data saat halaman dibuka
@@ -126,10 +143,10 @@ function QueueBoardContent() {
     ? allWorkOrders
     : allWorkOrders.filter((w) => (w.received_at_branch || 'MHS 1') === selectedBranch);
 
-  // Pisahkan antrean aktif dan pekerjaan selesai
+  // Pisahkan antrean aktif dan pekerjaan selesai / arsip
   const activeOrders = sourceOrders.filter((w) => w.status !== 'completed' && w.status !== 'cancelled');
   const completedOrders = sourceOrders
-    .filter((w) => w.status === 'completed')
+    .filter((w) => w.status === 'completed' || w.status === 'cancelled')
     .filter((w) => {
       if (!dbSearchQuery.trim()) return true;
       const q = dbSearchQuery.toLowerCase();
@@ -168,6 +185,23 @@ function QueueBoardContent() {
     const success = await updateWorkOrderStatusAsync(order.id, 'completed');
     if (success) {
       showToast(`Pekerjaan ${order.vehicle?.license_plate ? formatPlate(order.vehicle.license_plate) : order.spk_number} selesai & dipindahkan ke Database!`, 'success');
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingOrder) return;
+    setIsDeleting(true);
+    try {
+      const ok = await deleteWorkOrderAsync(deletingOrder.id);
+      if (ok) {
+        setDeletingOrder(null);
+      } else {
+        showToast('Gagal menghapus SPK. Hanya Owner yang berwenang.', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Terjadi kesalahan saat menghapus SPK.', 'error');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -464,6 +498,32 @@ function QueueBoardContent() {
                                     )}
                                   </div>
 
+                                  {/* Baris Khusus Owner: Buka Kunci & Hapus SPK */}
+                                  {currentRole === 'owner' && (
+                                    <div className="flex items-center gap-1.5 pt-0.5">
+                                      {order.status === 'paid' && (
+                                        <button
+                                          type="button"
+                                          onClick={() => unlockWorkOrderAsync(order.id, 'servicing')}
+                                          className="flex-1 inline-flex items-center justify-center space-x-1 text-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 py-1 px-1.5 rounded-lg font-bold border border-emerald-300 transition cursor-pointer"
+                                          title="Buka Kunci: Kembalikan mobil ke tahap pengerjaan"
+                                        >
+                                          <Unlock className="w-3 h-3 text-emerald-700" />
+                                          <span>Buka Kunci</span>
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => setDeletingOrder(order)}
+                                        className="flex-1 inline-flex items-center justify-center space-x-1 text-[10px] bg-red-50 hover:bg-red-100 text-red-700 py-1 px-1.5 rounded-lg font-bold border border-red-200 transition cursor-pointer"
+                                        title="Hapus SPK Antrean jika terjadi double data atau kesalahan input (Khusus Owner)"
+                                      >
+                                        <Trash2 className="w-3 h-3 text-red-600" />
+                                        <span>Hapus SPK</span>
+                                      </button>
+                                    </div>
+                                  )}
+
                                   {/* Status Specific Action Cards & Buttons */}
                                   {order.status === 'completed_service' && (
                                     <div className="space-y-1 pt-0.5">
@@ -682,6 +742,30 @@ function QueueBoardContent() {
                                 >
                                   Estimasi
                                 </Link>
+                                {currentRole === 'owner' && (
+                                  <>
+                                    {order.status === 'paid' && (
+                                      <button
+                                        type="button"
+                                        onClick={() => unlockWorkOrderAsync(order.id, 'servicing')}
+                                        className="px-2.5 py-1.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs inline-flex items-center space-x-1 cursor-pointer"
+                                        title="Buka Kunci Mobil"
+                                      >
+                                        <Unlock className="w-3 h-3 text-emerald-700" />
+                                        <span>Buka Kunci</span>
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => setDeletingOrder(order)}
+                                      className="px-2.5 py-1.5 rounded bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs inline-flex items-center space-x-1 cursor-pointer"
+                                      title="Hapus SPK Antrean jika duplikat atau kesalahan input (Khusus Owner)"
+                                    >
+                                      <Trash2 className="w-3 h-3 text-red-600" />
+                                      <span>Hapus</span>
+                                    </button>
+                                  </>
+                                )}
                               </td>
                             </tr>
                           );
@@ -783,10 +867,17 @@ function QueueBoardContent() {
                               </div>
                             </td>
                             <td className="p-3.5">
-                              <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10.5px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300">
-                                <CheckCircle className="w-3 h-3 text-emerald-700" />
-                                <span>SELESAI (DATABASE)</span>
-                              </span>
+                              {order.status === 'cancelled' ? (
+                                <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10.5px] font-black bg-rose-100 text-rose-900 border border-rose-300">
+                                  <X className="w-3 h-3 text-rose-700" />
+                                  <span>BATAL (ARSIP)</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10.5px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                  <CheckCircle className="w-3 h-3 text-emerald-700" />
+                                  <span>SELESAI (DATABASE)</span>
+                                </span>
+                              )}
                             </td>
                             <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
                               <button
@@ -808,15 +899,38 @@ function QueueBoardContent() {
                               >
                                 Kasir / Invoice
                               </Link>
-                              <button
-                                type="button"
-                                onClick={() => handleStatusChange(order.id, 'servicing')}
-                                className="px-2.5 py-1.5 rounded bg-slate-50 hover:bg-slate-100 text-slate-600 font-medium text-[11px] border border-slate-200 transition"
-                                title="Kembalikan kendaraan ke antrean pengerjaan jika ada pengerjaan tambahan"
-                              >
-                                <RotateCcw className="w-3 h-3 inline mr-1" />
-                                <span>Kembalikan</span>
-                              </button>
+                              {currentRole === 'owner' ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => unlockWorkOrderAsync(order.id, 'servicing')}
+                                    className="px-2.5 py-1.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-300 transition inline-flex items-center space-x-1 cursor-pointer"
+                                    title="Buka Kunci Mobil: Kembalikan mobil ini ke antrean pengerjaan aktif"
+                                  >
+                                    <Unlock className="w-3.5 h-3.5 text-emerald-700" />
+                                    <span>Buka Kunci Mobil</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeletingOrder(order)}
+                                    className="px-2.5 py-1.5 rounded bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs border border-red-200 transition inline-flex items-center space-x-1 cursor-pointer"
+                                    title="Hapus data mobil ini secara permanen dari database/arsip (Khusus Owner)"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                                    <span>Hapus</span>
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleStatusChange(order.id, 'servicing')}
+                                  className="px-2.5 py-1.5 rounded bg-slate-50 hover:bg-slate-100 text-slate-600 font-medium text-[11px] border border-slate-200 transition"
+                                  title="Kembalikan kendaraan ke antrean pengerjaan jika ada pengerjaan tambahan"
+                                >
+                                  <RotateCcw className="w-3 h-3 inline mr-1" />
+                                  <span>Kembalikan</span>
+                                </button>
+                              )}
                             </td>
                           </tr>
                         );
@@ -873,6 +987,88 @@ function QueueBoardContent() {
             }
           }}
         />
+      )}
+
+      {/* Modal Konfirmasi Hapus SPK (Khusus Owner) */}
+      {deletingOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-slate-200 shadow-2xl space-y-4">
+            <div className="flex items-center space-x-3 text-red-600 pb-3 border-b border-slate-100">
+              <div className="p-2.5 rounded-2xl bg-red-50 border border-red-200 shrink-0">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900">Hapus Data Mobil / SPK</h3>
+                <p className="text-xs text-red-600 font-bold">Wewenang Khusus Peran Owner</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Anda akan menghapus data mobil ini dari sistem/arsip. Seluruh data SPK dan dokumen terkait akan dihapus secara permanen.
+            </p>
+
+            {/* Rincian SPK yang akan dihapus */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs space-y-2">
+              <div className="flex justify-between">
+                <span className="text-slate-400 font-medium">No. SPK:</span>
+                <span className="font-mono font-black text-slate-900">{deletingOrder.spk_number}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400 font-medium">Plat Nomor:</span>
+                <span className="font-mono font-black text-maroon-900">
+                  {deletingOrder.vehicle?.license_plate ? formatPlate(deletingOrder.vehicle.license_plate) : '-'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400 font-medium">Kendaraan:</span>
+                <span className="font-bold text-slate-800">
+                  {deletingOrder.vehicle?.car_brand} {deletingOrder.vehicle?.car_model}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400 font-medium">Pelanggan:</span>
+                <span className="font-bold text-slate-800">
+                  {deletingOrder.vehicle?.customer_name || '-'}
+                </span>
+              </div>
+              {deletingOrder.complaints && (
+                <div className="pt-1.5 border-t border-slate-200/60 text-[11px] text-slate-500">
+                  <span className="font-medium text-slate-400">Keluhan: </span>
+                  {deletingOrder.complaints}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setDeletingOrder(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 rounded-xl text-xs font-black bg-red-600 hover:bg-red-700 text-white shadow-md shadow-red-600/20 transition cursor-pointer flex items-center space-x-1.5"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Menghapus...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Hapus SPK Permanen</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -21,6 +21,7 @@ import {
   ExternalLink,
   Wallet,
   ArrowUpRight,
+  RotateCcw,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -652,7 +653,17 @@ export default function ReportsPage() {
                         </td>
 
                         {/* Aksi */}
-                        <td className="p-3.5 text-right whitespace-nowrap">
+                        <td className="p-3.5 text-right whitespace-nowrap space-x-1.5">
+                          {currentRole === 'owner' && (
+                            <Link
+                              href={`/kasir?invoiceId=${inv.id}&mode=owner_edit`}
+                              className="inline-flex items-center space-x-1 text-[11px] font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2.5 py-1.5 rounded-lg transition shadow-2xs"
+                              title="Koreksi Nota & Pembayaran Ulang Kasir (Khusus Owner)"
+                            >
+                              <RotateCcw className="w-3 h-3 text-amber-700" />
+                              <span>Koreksi / Ulang Bayar</span>
+                            </Link>
+                          )}
                           <Link
                             href={`/riwayat?search=${vehicle?.license_plate || inv.invoice_number || ''}`}
                             className="inline-flex items-center space-x-1 text-[11px] font-bold text-slate-700 hover:text-maroon-700 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg transition"

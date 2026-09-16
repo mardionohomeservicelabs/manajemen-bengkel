@@ -44,6 +44,7 @@ import {
   X,
   FileCheck,
   MessageSquare,
+  RotateCcw,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { PrintableInvoice } from '@/components/ui/PrintableInvoice';
@@ -52,11 +53,15 @@ import { SignatureCanvas } from '@/components/ui/SignatureCanvas';
 function CashierContent() {
   const searchParams = useSearchParams();
   const spkIdParam = searchParams.get('spkId');
+  const invoiceIdParam = searchParams.get('invoiceId');
+  const modeParam = searchParams.get('mode');
 
   const {
     workOrders,
+    allWorkOrders,
     inventory,
     invoices,
+    allInvoices,
     refreshData,
     syncWithSupabase,
     showToast,
@@ -69,6 +74,9 @@ function CashierContent() {
 
   const [selectedSpkId, setSelectedSpkId] = useState<string>(spkIdParam || '');
   const [selectedSpk, setSelectedSpk] = useState<WorkOrder | null>(null);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>(invoiceIdParam || '');
+  const [isOwnerEditMode, setIsOwnerEditMode] = useState<boolean>(Boolean(invoiceIdParam || modeParam === 'owner_edit'));
+  const [targetPaidInvoice, setTargetPaidInvoice] = useState<Invoice | null>(null);
 
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [discountAmount, setDiscountAmount] = useState<number>(0);
@@ -195,6 +203,10 @@ function CashierContent() {
 
   // Load from SPK or Estimation
   useEffect(() => {
+    if (isOwnerEditMode && selectedInvoiceId) {
+      // Jangan timpa item jika sedang dalam Mode Koreksi Nota Owner
+      return;
+    }
     if (selectedSpkId && workOrders.length > 0) {
       const found = workOrders.find((w) => w.id === selectedSpkId);
       if (found) {
@@ -207,7 +219,7 @@ function CashierContent() {
           setCrmFollowupPeriod((found.crm_followup_period as CRMReminderPeriod) || 'none');
         }
       }
-    } else {
+    } else if (!isOwnerEditMode) {
       setSelectedSpk(null);
       loadedSpkIdRef.current = '';
       setItems([]);
@@ -215,7 +227,55 @@ function CashierContent() {
       setTaxPercent(0);
       setDownPayment(0);
     }
-  }, [selectedSpkId, workOrders, loadEstimationItems]);
+  }, [selectedSpkId, workOrders, loadEstimationItems, isOwnerEditMode, selectedInvoiceId]);
+
+  // Load nota tersimpan untuk Mode Koreksi Nota Owner
+  useEffect(() => {
+    if (selectedInvoiceId) {
+      const allInvs = [...invoices, ...allInvoices];
+      const foundInv = allInvs.find(
+        (i) => i.id === selectedInvoiceId || i.invoice_number === selectedInvoiceId
+      );
+      if (foundInv) {
+        setTargetPaidInvoice(foundInv);
+        setIsOwnerEditMode(true);
+
+        const allWos = [...workOrders, ...allWorkOrders];
+        const matchingWo =
+          allWos.find(
+            (w) => w.id === foundInv.work_order_id || w.spk_number === foundInv.work_order_id
+          ) || foundInv.work_order;
+
+        if (matchingWo) {
+          setSelectedSpk(matchingWo);
+          setSelectedSpkId(matchingWo.id);
+          loadedSpkIdRef.current = matchingWo.id;
+        }
+
+        // Muat seluruh item dari nota yang telah tersimpan
+        const mappedItems: InvoiceItem[] = (foundInv.items || []).map((it) => ({
+          ...it,
+          name: (it.name || '').toUpperCase(),
+          price: parseNumericPrice(it.price),
+          subtotal: parseNumericPrice(it.subtotal) || parseNumericPrice(it.price) * (it.qty || 1),
+        }));
+
+        setItems(mappedItems);
+        setDiscountAmount(foundInv.discount_amount || 0);
+        setTaxPercent(foundInv.tax_percent || 0);
+        setDownPayment(foundInv.down_payment || 0);
+        if (foundInv.payment_method) {
+          setPaymentMethod(foundInv.payment_method);
+        }
+        setAdminNotes(foundInv.admin_notes || '');
+        setSignatureCustomer(foundInv.signature_customer_url || '');
+        setSignatureAdmin(foundInv.signature_admin_url || '');
+        if (foundInv.crm_followup_period) {
+          setCrmFollowupPeriod(foundInv.crm_followup_period as CRMReminderPeriod);
+        }
+      }
+    }
+  }, [selectedInvoiceId, invoices, allInvoices, workOrders, allWorkOrders]);
 
   // Tombol aksi manual untuk memuat ulang rincian item persis seperti estimasi awal
   const handleResetFromEstimation = () => {
@@ -264,6 +324,9 @@ function CashierContent() {
     selectedSpk?.status === 'paid' ||
     existingPaidInvoice
   );
+
+  // Khusus Owner dalam Mode Koreksi Nota: Buka kunci nota agar dapat diubah & dibayar ulang
+  const isLockedForRole = isAlreadyFinished && !(currentRole === 'owner' && isOwnerEditMode);
 
   // Calculations
   const subtotal = items.reduce((sum, item) => sum + parseNumericPrice(item.subtotal), 0);
@@ -371,11 +434,11 @@ function CashierContent() {
       showToast('Pilih SPK kendaraan terlebih dahulu.', 'error');
       return;
     }
-    if (isAlreadyFinished) {
+    if (isLockedForRole) {
       showToast('Mobil ini telah selesai & lunas. Transaksi nota terkunci dan tidak dapat diubah.', 'error');
       return;
     }
-    if (existingEstimation && !isEstimationApproved) {
+    if (existingEstimation && !isEstimationApproved && !isOwnerEditMode) {
       showToast('Estimasi belum disetujui pelanggan. Sesuai ketentuan, estimasi yang belum disetujui tidak dapat dijadikan nota.', 'error');
       return;
     }
@@ -393,12 +456,12 @@ function CashierContent() {
       return;
     }
 
-    if (isAlreadyFinished) {
+    if (isLockedForRole) {
       showToast('Transaksi ditolak: Mobil ini sudah selesai & lunas. Nota telah diarsipkan.', 'error');
       return;
     }
 
-    if (existingEstimation && !isEstimationApproved) {
+    if (existingEstimation && !isEstimationApproved && !isOwnerEditMode) {
       showToast('Gagal disimpan: Estimasi belum disetujui pelanggan. Tidak dapat memproses nota.', 'error');
       return;
     }
@@ -409,11 +472,14 @@ function CashierContent() {
     }
 
     setIsProcessing(true);
-    showToast('Menyimpan nota & pembayaran ke database cloud...', 'info');
+    showToast(isOwnerEditMode ? 'Memperbarui nota & database laporan...' : 'Menyimpan nota & pembayaran ke database cloud...', 'info');
 
     try {
       const branch = selectedSpk.received_at_branch;
-      const invoiceNumber = await generateUniqueInvoiceNumberAsync('invoice', branch);
+      const invoiceNumber = (isOwnerEditMode && targetPaidInvoice?.invoice_number)
+        ? targetPaidInvoice.invoice_number
+        : await generateUniqueInvoiceNumberAsync('invoice', branch);
+
       const uppercaseItems = items.map((it) => ({
         ...it,
         name: (it.name || '').toUpperCase(),
@@ -432,7 +498,8 @@ function CashierContent() {
         calculatedTotalAmount - (status === 'paid' ? calculatedTotalAmount : downPayment)
       );
 
-      const newInvoice = await saveInvoiceAsync({
+      const invoicePayload: Omit<Invoice, 'id'> & { id?: string } = {
+        id: (isOwnerEditMode && targetPaidInvoice?.id) ? targetPaidInvoice.id : undefined,
         invoice_number: invoiceNumber,
         type: 'invoice',
         work_order_id: selectedSpk.id,
@@ -449,11 +516,14 @@ function CashierContent() {
         payment_method: paymentMethod,
         paid_at: status === 'paid' ? new Date().toISOString() : undefined,
         admin_notes: adminNotes,
-        signature_customer_url: signatureCustomer,
-        signature_admin_url: signatureAdmin,
-        created_at: new Date().toISOString(),
+        signature_customer_url: signatureCustomer || targetPaidInvoice?.signature_customer_url,
+        signature_admin_url: signatureAdmin || targetPaidInvoice?.signature_admin_url,
+        created_at: targetPaidInvoice?.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         crm_followup_period: crmFollowupPeriod,
-      });
+      };
+
+      const newInvoice = await saveInvoiceAsync(invoicePayload);
 
       // Simpan jadwal follow up CRM ke WorkOrder & CRMLog (1 jadwal terpilih per mobil)
       DBService.setTransactionFollowupPeriod(selectedSpk.id, crmFollowupPeriod);
@@ -461,6 +531,24 @@ function CashierContent() {
       // Update status SPK ke 'paid' di Supabase & local jika lunas
       if (status === 'paid' && selectedSpk.id) {
         await updateWorkOrderStatusAsync(selectedSpk.id, 'paid');
+      }
+
+      if (isOwnerEditMode && targetPaidInvoice) {
+        DBService.logAudit(
+          'Owner',
+          'owner',
+          'KOREKSI_NOTA_PEMBAYARAN_ULANG',
+          'invoices',
+          targetPaidInvoice.id,
+          {
+            invoice_number: invoiceNumber,
+            old_total: targetPaidInvoice.total_amount,
+            new_total: calculatedTotalAmount,
+            old_payment_method: targetPaidInvoice.payment_method,
+            new_payment_method: paymentMethod,
+          },
+          selectedSpk.received_at_branch as any
+        );
       }
 
       // Objek nota lengkap untuk pratinjau & cetak resmi langsung
@@ -492,7 +580,9 @@ function CashierContent() {
 
       setIsSignModalOpen(false);
       showToast(
-        status === 'paid'
+        isOwnerEditMode
+          ? `Tersimpan! Koreksi Nota ${invoiceForPreview.invoice_number} berhasil disimpan & omzet laporan telah diperbarui.`
+          : status === 'paid'
           ? `Tersimpan! Pembayaran Nota ${invoiceForPreview.invoice_number} LUNAS berhasil disimpan ke database cloud.`
           : `Tersimpan! Nota ${invoiceForPreview.invoice_number} berhasil disimpan (Pending) ke database cloud.`,
         'success'
@@ -535,62 +625,112 @@ function CashierContent() {
           Pilih SPK Kendaraan untuk Ditagih:
         </label>
         <select
-          value={selectedSpkId}
-          onChange={(e) => setSelectedSpkId(e.target.value)}
+          value={isOwnerEditMode && targetPaidInvoice ? `inv:${targetPaidInvoice.id}` : selectedSpkId}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val.startsWith('inv:')) {
+              const invId = val.slice(4);
+              setSelectedInvoiceId(invId);
+              setIsOwnerEditMode(true);
+            } else {
+              setSelectedInvoiceId('');
+              setIsOwnerEditMode(false);
+              setTargetPaidInvoice(null);
+              setSelectedSpkId(val);
+            }
+          }}
           className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none font-bold"
         >
           <option value="">-- Pilih SPK / Kendaraan --</option>
-          {[...workOrders]
-            .filter((wo) => {
-              // Sembunyikan yang dibatalkan, sudah selesai (completed), atau sudah lunas (paid)
-              if (wo.status === 'cancelled' || wo.status === 'completed' || wo.status === 'paid') {
-                return false;
-              }
-              // Cek juga apakah sudah ada invoice lunas
-              const hasPaid = invoices.some(
-                (inv) =>
-                  inv.type === 'invoice' &&
-                  inv.payment_status === 'paid' &&
-                  (inv.work_order_id === wo.id || (wo.spk_number && inv.work_order_id === wo.spk_number))
-              );
-              return !hasPaid;
-            })
-            .sort((a, b) => {
-              const priority = (s: string) => (s === 'completed_service' ? 0 : s === 'servicing' ? 1 : 2);
-              return priority(a.status) - priority(b.status);
-            })
-            .map((wo) => {
-              const isReadyToPay = wo.status === 'completed_service';
-              const woEsts = invoices.filter(
-                (inv) =>
-                  inv.type === 'estimation' &&
-                  (inv.work_order_id === wo.id || (wo.spk_number && inv.work_order_id === wo.spk_number))
-              );
-              const hasApprovedEst = woEsts.some(
-                (inv) =>
-                  inv.customer_approved_option === 'opsi1' ||
-                  inv.customer_approved_option === 'opsi2' ||
-                  inv.customer_response === 'opsi1' ||
-                  inv.customer_response === 'opsi2' ||
-                  inv.ttd_status === 'signed'
-              );
-              const isUnapproved =
-                woEsts.length > 0 &&
-                !hasApprovedEst &&
-                !['approved', 'servicing', 'waiting_parts', 'completed_service'].includes(wo.status);
-
-              return (
-                <option key={wo.id} value={wo.id}>
-                  {isUnapproved ? '⚠️ [BELUM DISETUJUI PELANGGAN] ' : isReadyToPay ? '⭐ [SELESAI SERVIS - SIAP BAYAR] ' : ''}
-                  {wo.spk_number} • {wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''} •{' '}
-                  {wo.vehicle?.customer_name} ({wo.vehicle?.car_brand} {wo.vehicle?.car_model}) - Status: {wo.status}
-                </option>
-              );
-            })}
+          <optgroup label="Antrean Kendaraan Siap Ditagih">
+            {[...workOrders]
+              .filter((wo) => {
+                // Sembunyikan yang dibatalkan, sudah selesai (completed), atau sudah lunas (paid)
+                if (wo.status === 'cancelled' || wo.status === 'completed' || wo.status === 'paid') {
+                  return false;
+                }
+                // Cek juga apakah sudah ada invoice lunas
+                const hasPaid = invoices.some(
+                  (inv) =>
+                    inv.type === 'invoice' &&
+                    inv.payment_status === 'paid' &&
+                    (inv.work_order_id === wo.id || (wo.spk_number && inv.work_order_id === wo.spk_number))
+                );
+                return !hasPaid;
+              })
+              .sort((a, b) => {
+                const priority = (s: string) => (s === 'completed_service' ? 0 : s === 'servicing' ? 1 : 2);
+                return priority(a.status) - priority(b.status);
+              })
+              .map((wo) => {
+                const isReadyToPay = wo.status === 'completed_service';
+                return (
+                  <option key={wo.id} value={wo.id}>
+                    {isReadyToPay ? '⭐ [SELESAI SERVIS - SIAP BAYAR] ' : ''}
+                    {wo.spk_number} • {wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''} •{' '}
+                    {wo.vehicle?.customer_name} ({wo.vehicle?.car_brand} {wo.vehicle?.car_model}) - Status: {wo.status}
+                  </option>
+                );
+              })}
+          </optgroup>
+          {currentRole === 'owner' && (
+            <optgroup label="🔧 Koreksi Nota Laporan (Mobil Selesai / Lunas - Khusus Owner)">
+              {[...invoices, ...allInvoices]
+                .filter(
+                  (inv, index, self) =>
+                    inv.type === 'invoice' &&
+                    inv.payment_status === 'paid' &&
+                    self.findIndex((i) => i.id === inv.id || i.invoice_number === inv.invoice_number) === index
+                )
+                .map((inv) => (
+                  <option key={inv.id} value={`inv:${inv.id}`}>
+                    [KOREKSI NOTA] {inv.invoice_number} • {inv.vehicle?.license_plate ? formatPlate(inv.vehicle.license_plate) : '-'} • {inv.vehicle?.customer_name || 'Pelanggan'} • {formatCurrency(inv.total_amount)}
+                  </option>
+                ))}
+            </optgroup>
+          )}
         </select>
 
-        {/* Locked Banner: Mobil Sudah Selesai / Lunas */}
-        {selectedSpk && isAlreadyFinished && (
+        {/* Banner Khusus Mode Koreksi Nota Owner */}
+        {selectedSpk && isOwnerEditMode && (
+          <div className="bg-amber-50 border-2 border-amber-400 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-950 shadow-sm mt-3 animate-in fade-in duration-200">
+            <div className="flex items-start space-x-3">
+              <RotateCcw className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h4 className="text-xs font-black uppercase tracking-wide text-amber-950">
+                    Mode Koreksi Nota &amp; Pembayaran Ulang (Khusus Owner)
+                  </h4>
+                  {targetPaidInvoice && (
+                    <span className="text-[10px] font-mono font-black bg-amber-200 text-amber-950 px-2 py-0.5 rounded-md border border-amber-300">
+                      {targetPaidInvoice.invoice_number}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-amber-900 mt-0.5 leading-relaxed">
+                  Nota ini telah masuk ke database laporan omzet. Sebagai Owner, Anda memiliki wewenang penuh untuk mengubah rincian barang/jasa, harga, diskon, atau metode pembayaran (misal ganti dari Cash ke Transfer BCA/BRI). Pembayaran ulang akan langsung memperbarui database laporan omzet secara valid.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOwnerEditMode(false);
+                  setSelectedInvoiceId('');
+                  setSelectedSpkId('');
+                  setTargetPaidInvoice(null);
+                }}
+                className="px-3 py-1.5 rounded-xl border border-amber-300 bg-white hover:bg-amber-100 text-amber-900 font-bold text-xs shadow-2xs transition cursor-pointer"
+              >
+                Batal Koreksi
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Locked Banner: Mobil Sudah Selesai / Lunas (Hanya jika BUKAN dalam mode koreksi) */}
+        {selectedSpk && isAlreadyFinished && !isOwnerEditMode && (
           <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-emerald-950 shadow-sm mt-3 animate-in fade-in duration-200">
             <div className="flex items-start space-x-3">
               <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
@@ -599,17 +739,44 @@ function CashierContent() {
                   Mobil Sudah Selesai &amp; Lunas (Nota Terkunci)
                 </h4>
                 <p className="text-xs text-emerald-800 mt-0.5 leading-relaxed">
-                  Pekerjaan dan pembayaran untuk kendaraan <strong>{selectedSpk.vehicle?.license_plate ? formatPlate(selectedSpk.vehicle.license_plate) : ''} ({selectedSpk.vehicle?.customer_name})</strong> telah berstatus Selesai/Lunas. Transaksi nota kasir telah ditutup dan tidak dapat dibuka atau diubah kembali.
+                  Pekerjaan dan pembayaran untuk kendaraan <strong>{selectedSpk.vehicle?.license_plate ? formatPlate(selectedSpk.vehicle.license_plate) : ''} ({selectedSpk.vehicle?.customer_name})</strong> telah berstatus Selesai/Lunas.
+                  {currentRole === 'owner' ? ' Sebagai Owner, Anda dapat membuka kunci nota ini untuk melakukan koreksi dan pembayaran ulang apabila terjadi kesalahan nota.' : ' Transaksi nota kasir telah ditutup dan tidak dapat dibuka atau diubah kembali.'}
                 </p>
               </div>
             </div>
-            <Link
-              href={`/riwayat?search=${encodeURIComponent(selectedSpk.vehicle?.license_plate || selectedSpk.spk_number)}`}
-              className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs rounded-xl shadow-xs transition flex-shrink-0"
-            >
-              <span>Buka Nota di Arsip</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </Link>
+            <div className="flex items-center space-x-2 shrink-0">
+              {currentRole === 'owner' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const existingInv = invoices.find(
+                      (inv) =>
+                        inv.type === 'invoice' &&
+                        (inv.work_order_id === selectedSpk.id || (selectedSpk.spk_number && inv.work_order_id === selectedSpk.spk_number))
+                    ) || allInvoices.find(
+                      (inv) =>
+                        inv.type === 'invoice' &&
+                        (inv.work_order_id === selectedSpk.id || (selectedSpk.spk_number && inv.work_order_id === selectedSpk.spk_number))
+                    );
+                    if (existingInv) {
+                      setSelectedInvoiceId(existingInv.id);
+                    }
+                    setIsOwnerEditMode(true);
+                  }}
+                  className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-xs transition cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Koreksi Nota &amp; Bayar Ulang</span>
+                </button>
+              )}
+              <Link
+                href={`/riwayat?search=${encodeURIComponent(selectedSpk.vehicle?.license_plate || selectedSpk.spk_number)}`}
+                className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs rounded-xl shadow-xs transition flex-shrink-0"
+              >
+                <span>Buka Nota di Arsip</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           </div>
         )}
 

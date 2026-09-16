@@ -1535,7 +1535,7 @@ export class DBService {
   }
 
   /**
-   * Buka kunci pekerjaan / SPK yang telah berstatus completed (Khusus Owner)
+   * Buka kunci pekerjaan / SPK yang telah berstatus completed atau paid (Khusus Owner)
    */
   static async unlockWorkOrderAsync(
     id: string,
@@ -1547,14 +1547,33 @@ export class DBService {
       console.warn('Akses ditolak: Hanya peran Owner yang berwenang membuka kunci data SPK.');
       return false;
     }
-    const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, branch);
-    const orders = getLocal<WorkOrder[]>(key, []);
-    const idx = orders.findIndex((o) => o.id === id);
+
+    const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+    let targetKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, branch);
+    let orders = getLocal<WorkOrder[]>(targetKey, []);
+    let idx = orders.findIndex((o) => o.id === id);
+
+    if (idx === -1) {
+      for (const b of allBranches) {
+        if (b === branch) continue;
+        const bKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b);
+        const bOrders = getLocal<WorkOrder[]>(bKey, []);
+        const bIdx = bOrders.findIndex((o) => o.id === id);
+        if (bIdx !== -1) {
+          targetKey = bKey;
+          orders = bOrders;
+          idx = bIdx;
+          break;
+        }
+      }
+    }
+
     if (idx === -1) return false;
 
+    const oldStatus = orders[idx].status;
     orders[idx].status = targetStatus;
     orders[idx].updated_at = new Date().toISOString();
-    setLocal(key, orders);
+    setLocal(targetKey, orders);
 
     this.logAudit(
       'Owner',
@@ -1562,7 +1581,7 @@ export class DBService {
       'UPDATE_STATUS',
       'work_orders',
       id,
-      { action: 'UNLOCK_WORK_ORDER', new_status: targetStatus },
+      { action: 'UNLOCK_WORK_ORDER', old_status: oldStatus, new_status: targetStatus },
       branch
     );
 
@@ -1581,6 +1600,254 @@ export class DBService {
     }
 
     return true;
+  }
+
+  /**
+   * Hapus SPK di antrean bila terjadi double data atau kesalahan input,
+   * atau hapus mobil dari arsip (Khusus Owner).
+   */
+  static async deleteWorkOrderAsync(
+    id: string,
+    userRole: UserRole = 'owner',
+    branch?: BranchId,
+    options?: { deleteInvoices?: boolean }
+  ): Promise<boolean> {
+    if (userRole !== 'owner') {
+      console.warn('Akses ditolak: Hanya peran Owner yang berwenang menghapus data SPK.');
+      return false;
+    }
+
+    const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+    let deletedOrder: WorkOrder | null = null;
+    let targetBranch: BranchId = branch || 'MHS 1';
+
+    const branchList = branch ? [branch, ...allBranches.filter((b) => b !== branch)] : allBranches;
+    for (const b of branchList) {
+      const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b);
+      const orders = getLocal<WorkOrder[]>(key, []);
+      const found = orders.find((o) => o.id === id);
+      if (found) {
+        deletedOrder = found;
+        targetBranch = b;
+        const remaining = orders.filter((o) => o.id !== id);
+        setLocal(key, remaining);
+        break;
+      }
+    }
+
+    if (!deletedOrder) return false;
+
+    // Bersihkan juga relasi invoice & estimasi terkait untuk SPK ini
+    const shouldDeleteInvoices = options?.deleteInvoices ?? true;
+    for (const b of allBranches) {
+      const invKey = getBranchKey(BASE_STORAGE_KEYS.INVOICES, b);
+      const invs = getLocal<Invoice[]>(invKey, []);
+      const filteredInvs = invs.filter((inv) => {
+        const isLinkedToThisWo =
+          inv.work_order_id === id ||
+          inv.work_order_id === deletedOrder?.spk_number ||
+          inv.work_order?.id === id ||
+          inv.work_order?.spk_number === deletedOrder?.spk_number;
+        if (!isLinkedToThisWo) return true;
+        // Jika shouldDeleteInvoices aktif, hapus semua (termasuk invoice berbayar di arsip)
+        return !shouldDeleteInvoices;
+      });
+      if (filteredInvs.length !== invs.length) {
+        setLocal(invKey, filteredInvs);
+      }
+
+      // Bersihkan checklist checkup terkait jika ada
+      const chkKey = getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, b);
+      const chks = getLocal<CheckupRecord[]>(chkKey, []);
+      const filteredChks = chks.filter(
+        (c) => c.work_order_id !== id && c.work_order_id !== deletedOrder?.spk_number
+      );
+      if (filteredChks.length !== chks.length) {
+        setLocal(chkKey, filteredChks);
+      }
+    }
+
+    this.logAudit(
+      'Owner',
+      userRole,
+      'DELETE_WORK_ORDER',
+      'work_orders',
+      id,
+      {
+        spk_number: deletedOrder.spk_number,
+        license_plate: deletedOrder.vehicle?.license_plate,
+        customer_name: deletedOrder.vehicle?.customer_name,
+        branch: targetBranch,
+        status: deletedOrder.status,
+      },
+      targetBranch
+    );
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase.from('work_orders').delete().eq('id', id);
+        if (shouldDeleteInvoices) {
+          if (deletedOrder.spk_number) {
+            await supabase
+              .from('invoices')
+              .delete()
+              .or(`work_order_id.eq.${id},work_order_id.eq.${deletedOrder.spk_number}`);
+          } else {
+            await supabase.from('invoices').delete().eq('work_order_id', id);
+          }
+        }
+      } catch (err) {
+        console.warn('Supabase deleteWorkOrderAsync exception:', err);
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Hapus invoice / nota tertentu (Khusus Owner)
+   */
+  static async deleteInvoiceAsync(
+    invoiceId: string,
+    userRole: UserRole = 'owner',
+    branch?: BranchId
+  ): Promise<boolean> {
+    if (userRole !== 'owner') {
+      console.warn('Akses ditolak: Hanya peran Owner yang berwenang menghapus nota/invoice.');
+      return false;
+    }
+
+    const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+    let targetBranch: BranchId = branch || 'MHS 1';
+    let found = false;
+
+    for (const b of allBranches) {
+      const invKey = getBranchKey(BASE_STORAGE_KEYS.INVOICES, b);
+      const invs = getLocal<Invoice[]>(invKey, []);
+      const match = invs.find((i) => i.id === invoiceId);
+      if (match) {
+        found = true;
+        targetBranch = b;
+        setLocal(invKey, invs.filter((i) => i.id !== invoiceId));
+        this.logAudit(
+          'Owner',
+          userRole,
+          'DELETE_INVOICE',
+          'invoices',
+          invoiceId,
+          {
+            invoice_number: match.invoice_number,
+            license_plate: match.vehicle?.license_plate,
+            customer_name: match.vehicle?.customer_name,
+            total_amount: match.total_amount,
+            branch: targetBranch,
+          },
+          targetBranch
+        );
+        break;
+      }
+    }
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase.from('invoices').delete().eq('id', invoiceId);
+      } catch (err) {
+        console.warn('Supabase deleteInvoiceAsync exception:', err);
+      }
+    }
+
+    return found;
+  }
+
+  /**
+   * Hapus data mobil yang sudah masuk arsip (status selesai servis maupun batal)
+   * secara menyeluruh (Khusus Owner).
+   */
+  static async deleteVehicleArchiveAsync(params: {
+    workOrderId?: string;
+    invoiceId?: string;
+    spkNumber?: string;
+    licensePlate?: string;
+    customerName?: string;
+    userRole?: UserRole;
+    branch?: BranchId;
+  }): Promise<boolean> {
+    const role = params.userRole || 'owner';
+    if (role !== 'owner') {
+      console.warn('Akses ditolak: Hanya peran Owner yang berwenang menghapus data mobil dari arsip.');
+      return false;
+    }
+
+    let deletedAny = false;
+    const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+    const targetBranch = params.branch || 'MHS 1';
+
+    // 1. Hapus Work Order bila ada workOrderId
+    if (params.workOrderId) {
+      const woDeleted = await this.deleteWorkOrderAsync(params.workOrderId, role, params.branch, {
+        deleteInvoices: true,
+      });
+      if (woDeleted) deletedAny = true;
+    }
+
+    // 2. Hapus Invoice bila ada invoiceId spesifik
+    if (params.invoiceId) {
+      const invDeleted = await this.deleteInvoiceAsync(params.invoiceId, role, params.branch);
+      if (invDeleted) deletedAny = true;
+    }
+
+    // 3. Bersihkan sisa-sisa entri berdasarkan no SPK bila ada
+    if (params.spkNumber && params.spkNumber !== '-') {
+      for (const b of allBranches) {
+        // Work Orders
+        const woKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b);
+        const wos = getLocal<WorkOrder[]>(woKey, []);
+        const filteredWos = wos.filter((w) => w.spk_number !== params.spkNumber);
+        if (filteredWos.length !== wos.length) {
+          setLocal(woKey, filteredWos);
+          deletedAny = true;
+        }
+
+        // Invoices
+        const invKey = getBranchKey(BASE_STORAGE_KEYS.INVOICES, b);
+        const invs = getLocal<Invoice[]>(invKey, []);
+        const filteredInvs = invs.filter(
+          (i) => i.work_order_id !== params.spkNumber && i.work_order?.spk_number !== params.spkNumber
+        );
+        if (filteredInvs.length !== invs.length) {
+          setLocal(invKey, filteredInvs);
+          deletedAny = true;
+        }
+      }
+
+      if (supabase && isSupabaseConfigured) {
+        try {
+          await supabase.from('work_orders').delete().eq('spk_number', params.spkNumber);
+          await supabase.from('invoices').delete().eq('work_order_id', params.spkNumber);
+        } catch (err) {
+          console.warn('Supabase delete by spkNumber exception:', err);
+        }
+      }
+    }
+
+    this.logAudit(
+      'Owner',
+      role,
+      'DELETE_VEHICLE_ARCHIVE',
+      'archive',
+      params.workOrderId || params.invoiceId || params.spkNumber || 'unknown',
+      {
+        spk_number: params.spkNumber,
+        license_plate: params.licensePlate,
+        customer_name: params.customerName,
+        work_order_id: params.workOrderId,
+        invoice_id: params.invoiceId,
+        branch: targetBranch,
+      },
+      targetBranch
+    );
+
+    return deletedAny || true;
   }
 
   // --- GENERAL CHECKUPS (PER CABANG) ---
@@ -1882,10 +2149,12 @@ export class DBService {
     const key = getBranchKey(BASE_STORAGE_KEYS.INVOICES, branch);
     const invoices = getLocal<Invoice[]>(key, []);
     let saved: Invoice;
+    let wasAlreadyPaid = false;
 
     if (invoice.id) {
       const idx = invoices.findIndex((i) => i.id === invoice.id);
       if (idx !== -1) {
+        wasAlreadyPaid = invoices[idx].payment_status === 'paid';
         saved = { ...invoices[idx], ...invoice, updated_at: new Date().toISOString() };
         invoices[idx] = saved;
       } else {
@@ -1906,20 +2175,22 @@ export class DBService {
     setLocal(key, invoices);
 
     if (saved.type === 'invoice' && saved.payment_status === 'paid') {
-      saved.items.forEach((item) => {
-        if (!item.is_service && item.item_id) {
-          const numericQty = typeof item.qty === 'number' ? item.qty : 1;
-          this.adjustStock(
-            item.item_id,
-            -numericQty,
-            'out_work_order',
-            saved.invoice_number,
-            `Penjualan via ${saved.invoice_number}`,
-            'owner',
-            branch
-          );
-        }
-      });
+      if (!wasAlreadyPaid) {
+        saved.items.forEach((item) => {
+          if (!item.is_service && item.item_id) {
+            const numericQty = typeof item.qty === 'number' ? item.qty : 1;
+            this.adjustStock(
+              item.item_id,
+              -numericQty,
+              'out_work_order',
+              saved.invoice_number,
+              `Penjualan via ${saved.invoice_number}`,
+              'owner',
+              branch
+            );
+          }
+        });
+      }
 
       if (saved.work_order_id) {
         this.updateWorkOrderStatus(saved.work_order_id, 'paid', 'admin', branch);

@@ -31,6 +31,8 @@ import {
   Unlock,
   Building2,
   FileEdit,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PrintableSPK } from '@/components/ui/PrintableSPK';
@@ -47,6 +49,7 @@ function SPKListContent() {
     currentRole,
     updateWorkOrderStatusAsync,
     unlockWorkOrderAsync,
+    deleteWorkOrderAsync,
   } = useApp();
   const searchParams = useSearchParams();
   const targetId = searchParams.get('id');
@@ -58,6 +61,8 @@ function SPKListContent() {
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
   const [editingPlateOrder, setEditingPlateOrder] = useState<WorkOrder | null>(null);
   const [editingSpkOrder, setEditingSpkOrder] = useState<WorkOrder | null>(null);
+  const [deletingOrder, setDeletingOrder] = useState<WorkOrder | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const baseOrders = selectedBranch === 'ALL'
     ? allWorkOrders
@@ -98,6 +103,23 @@ function SPKListContent() {
       if (selectedOrder && selectedOrder.id === id) {
         setSelectedOrder({ ...selectedOrder, status: newStatus });
       }
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingOrder) return;
+    setIsDeleting(true);
+    try {
+      const ok = await deleteWorkOrderAsync(deletingOrder.id);
+      if (ok) {
+        setDeletingOrder(null);
+      } else {
+        showToast('Gagal menghapus SPK. Hanya Owner yang berwenang.', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Terjadi kesalahan saat menghapus SPK.', 'error');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -280,12 +302,12 @@ function SPKListContent() {
                       <td className="p-3.5 align-top text-center">
                         <select
                           value={order.status}
-                          disabled={order.status === 'completed' && currentRole !== 'owner'}
+                          disabled={(order.status === 'completed' || order.status === 'paid') && currentRole !== 'owner'}
                           onChange={(e) => handleUpdateStatus(order.id, e.target.value as WorkOrderStatus)}
                           className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
-                            order.status === 'completed' && currentRole !== 'owner' ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'
+                            (order.status === 'completed' || order.status === 'paid') && currentRole !== 'owner' ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'
                           } ${badge.class}`}
-                          title={order.status === 'completed' && currentRole !== 'owner' ? 'Pekerjaan Selesai (Hanya Owner yang dapat mengubah status)' : 'Ubah Status'}
+                          title={(order.status === 'completed' || order.status === 'paid') && currentRole !== 'owner' ? 'Pekerjaan Selesai / Terkunci (Hanya Owner yang dapat mengubah status)' : 'Ubah Status'}
                         >
                           <option value="queue">Antrean Masuk</option>
                           <option value="estimating">Estimasi</option>
@@ -311,15 +333,26 @@ function SPKListContent() {
                             <span>Edit SPK</span>
                           </button>
                         )}
-                        {order.status === 'completed' && currentRole === 'owner' && (
+                        {(order.status === 'completed' || order.status === 'paid') && currentRole === 'owner' && (
                           <button
                             type="button"
                             onClick={() => unlockWorkOrderAsync(order.id, 'servicing')}
-                            className="inline-flex items-center space-x-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1.5 rounded-lg text-xs transition border border-emerald-300 shadow-xs"
+                            className="inline-flex items-center space-x-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1.5 rounded-lg text-xs transition border border-emerald-300 shadow-xs cursor-pointer"
                             title="Buka Kunci SPK (Pindah kembali ke Sedang Dikerjakan)"
                           >
                             <Unlock className="w-3.5 h-3.5 text-emerald-700" />
                             <span>Buka Kunci</span>
+                          </button>
+                        )}
+                        {currentRole === 'owner' && (
+                          <button
+                            type="button"
+                            onClick={() => setDeletingOrder(order)}
+                            className="inline-flex items-center space-x-1 bg-red-50 hover:bg-red-100 text-red-700 font-bold px-2 py-1.5 rounded-lg text-xs transition border border-red-200 cursor-pointer"
+                            title="Hapus SPK jika duplikat atau salah input (Khusus Owner)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                            <span>Hapus</span>
                           </button>
                         )}
                         {order.vehicle && (
@@ -395,6 +428,90 @@ function SPKListContent() {
             }
           }}
         />
+      )}
+
+      {/* Modal Konfirmasi Hapus SPK (Khusus Owner) */}
+      {deletingOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-slate-200 shadow-2xl space-y-4">
+            <div className="flex items-center space-x-3 text-red-600 pb-3 border-b border-slate-100">
+              <div className="p-2.5 rounded-2xl bg-red-50 border border-red-200 shrink-0">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900">Hapus SPK Antrean</h3>
+                <p className="text-xs text-red-600 font-bold">Wewenang Khusus Peran Owner</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Anda akan menghapus SPK ini dari antrean sistem. Gunakan fitur ini apabila terdapat{' '}
+              <strong className="text-slate-800">double data kendaraan</strong> atau{' '}
+              <strong className="text-slate-800">kesalahan input antrean</strong>.
+            </p>
+
+            {/* Rincian SPK yang akan dihapus */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs space-y-2">
+              <div className="flex justify-between">
+                <span className="text-slate-400 font-medium">No. SPK:</span>
+                <span className="font-mono font-black text-slate-900">{deletingOrder.spk_number}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400 font-medium">Plat Nomor:</span>
+                <span className="font-mono font-black text-maroon-900">
+                  {deletingOrder.vehicle?.license_plate ? formatPlate(deletingOrder.vehicle.license_plate) : '-'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400 font-medium">Kendaraan:</span>
+                <span className="font-bold text-slate-800">
+                  {deletingOrder.vehicle?.car_brand} {deletingOrder.vehicle?.car_model}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400 font-medium">Pelanggan:</span>
+                <span className="font-bold text-slate-800">
+                  {deletingOrder.vehicle?.customer_name || '-'}
+                </span>
+              </div>
+              {deletingOrder.complaints && (
+                <div className="pt-1.5 border-t border-slate-200/60 text-[11px] text-slate-500">
+                  <span className="font-medium text-slate-400">Keluhan: </span>
+                  {deletingOrder.complaints}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setDeletingOrder(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 rounded-xl text-xs font-black bg-red-600 hover:bg-red-700 text-white shadow-md shadow-red-600/20 transition cursor-pointer flex items-center space-x-1.5"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Menghapus...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Hapus SPK Permanen</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
