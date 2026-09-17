@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useApp } from '@/lib/context/AppContext';
+import { useAuth } from '@/lib/context/AuthContext';
 import { DBService } from '@/lib/services/db-service';
 import {
   Invoice,
@@ -71,12 +72,24 @@ function CashierContent() {
     updateWorkOrderStatusAsync,
     generateUniqueInvoiceNumberAsync,
   } = useApp();
+  const { currentUser, activeBranch } = useAuth();
 
   const [selectedSpkId, setSelectedSpkId] = useState<string>(spkIdParam || '');
   const [selectedSpk, setSelectedSpk] = useState<WorkOrder | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>(invoiceIdParam || '');
   const [isOwnerEditMode, setIsOwnerEditMode] = useState<boolean>(Boolean(invoiceIdParam || modeParam === 'owner_edit'));
   const [targetPaidInvoice, setTargetPaidInvoice] = useState<Invoice | null>(null);
+
+  // Jika cabang berganti (misal oleh Via atau Owner), reset pilihan nota / SPK cabang sebelumnya
+  useEffect(() => {
+    if (selectedSpk && (selectedSpk.received_at_branch || 'MHS 1') !== activeBranch) {
+      setSelectedSpkId('');
+      setSelectedSpk(null);
+      setSelectedInvoiceId('');
+      setIsOwnerEditMode(false);
+      setTargetPaidInvoice(null);
+    }
+  }, [activeBranch, selectedSpk]);
 
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [discountAmount, setDiscountAmount] = useState<number>(0);
@@ -604,7 +617,10 @@ function CashierContent() {
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center space-x-2">
             <Receipt className="w-6 h-6 text-maroon-700" />
-            <span>Kasir & Pembuatan Nota Servis (Invoicing)</span>
+            <span>Kasir &amp; Pembuatan Nota Servis (Invoicing)</span>
+            <span className="ml-2 px-2.5 py-0.5 rounded-lg text-xs font-black bg-maroon-100 text-maroon-900 border border-maroon-200">
+              {activeBranch}
+            </span>
           </h1>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
             Penyelesaian transaksi pengerjaan, verifikasi nota + tanda tangan digital (Customer & Admin), dan cetak nota resmi.
@@ -674,12 +690,13 @@ function CashierContent() {
               })}
           </optgroup>
           {currentRole === 'owner' && (
-            <optgroup label="🔧 Koreksi Nota Laporan (Mobil Selesai / Lunas - Khusus Owner)">
+            <optgroup label={`🔧 Koreksi Nota Laporan (${activeBranch} - Khusus Owner)`}>
               {[...invoices, ...allInvoices]
                 .filter(
                   (inv, index, self) =>
                     inv.type === 'invoice' &&
                     inv.payment_status === 'paid' &&
+                    (inv.work_order?.received_at_branch || 'MHS 1') === activeBranch &&
                     self.findIndex((i) => i.id === inv.id || i.invoice_number === inv.invoice_number) === index
                 )
                 .map((inv) => (

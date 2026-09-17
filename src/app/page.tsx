@@ -31,8 +31,7 @@ import {
 import Link from 'next/link';
 
 export default function DashboardPage() {
-  const { currentRole, workOrders, inventory, invoices, crmLogs, settings } = useApp();
-  const checkups = DBService.getCheckups();
+  const { currentRole, workOrders, inventory, invoices, crmLogs, settings, checkups } = useApp();
 
   // Metrics
   const activeQueues = workOrders.filter(
@@ -206,14 +205,14 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Owner Specific Financial Summary (If Owner) */}
-      {currentRole === 'owner' && (
+      {/* Ringkasan Finansial (Owner, Estimator, Admin) */}
+      {(currentRole === 'owner' || currentRole === 'admin' || currentRole === 'estimator') && (
         <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-card">
           <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
             <div className="flex items-center space-x-2">
               <Shield className="w-4 h-4 text-maroon-700" />
               <h3 className="font-black text-sm text-slate-900">
-                Ringkasan Laba & Performa Keuangan (Khusus Owner)
+                Ringkasan Laba &amp; Performa Keuangan
               </h3>
             </div>
             <Link

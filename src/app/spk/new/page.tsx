@@ -56,6 +56,13 @@ export default function NewSPKPage() {
   const [currentMileage, setCurrentMileage] = useState('');
 
   const [receivedAtBranch, setReceivedAtBranch] = useState<BranchId>(activeBranch);
+
+  useEffect(() => {
+    if (activeBranch) {
+      setReceivedAtBranch(activeBranch);
+    }
+  }, [activeBranch]);
+
   const [entryTime, setEntryTime] = useState('08:00');
   const [petugasName, setPetugasName] = useState(currentUser?.full_name || '');
   const [mechanicName, setMechanicName] = useState('');
@@ -510,25 +517,32 @@ export default function NewSPKPage() {
                 Di Terima Di :
               </label>
               <div className="grid grid-cols-3 gap-2">
-                {BRANCHES.map((branch) => (
-                  <button
-                    key={branch}
-                    type="button"
-                    onClick={() => setReceivedAtBranch(branch)}
-                    className={`py-2.5 px-3 rounded-xl border text-xs font-black transition text-center flex flex-col items-center space-y-0.5 ${
-                      receivedAtBranch === branch
-                        ? 'bg-maroon-50 border-maroon-600 text-maroon-900 shadow-xs'
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span className="text-base">{branch === 'MHS 1' ? '🏠' : branch === 'MHS 2' ? '🏡' : '🏘️'}</span>
-                    <span>{branch}</span>
-                  </button>
-                ))}
+                {BRANCHES.map((branch) => {
+                  const isLockedOther = !currentUser?.canAccessAllBranches && branch !== activeBranch;
+                  return (
+                    <button
+                      key={branch}
+                      type="button"
+                      disabled={isLockedOther}
+                      onClick={() => !isLockedOther && setReceivedAtBranch(branch)}
+                      className={`py-2.5 px-3 rounded-xl border text-xs font-black transition text-center flex flex-col items-center space-y-0.5 ${
+                        isLockedOther
+                          ? 'opacity-40 bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
+                          : receivedAtBranch === branch
+                          ? 'bg-maroon-50 border-maroon-600 text-maroon-900 shadow-xs cursor-pointer'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 cursor-pointer'
+                      }`}
+                    >
+                      <span className="text-base">{branch === 'MHS 1' ? '🏠' : branch === 'MHS 2' ? '🏡' : '🏘️'}</span>
+                      <span>{branch}</span>
+                      {isLockedOther && <span className="text-[9px] text-slate-400 font-normal">Terkunci</span>}
+                    </button>
+                  );
+                })}
               </div>
               {!currentUser?.canAccessAllBranches && (
-                <p className="text-[10px] text-slate-400 italic">
-                  Otomatis sesuai cabang login Anda
+                <p className="text-[10px] text-slate-500 font-semibold italic">
+                  Cabang terkunci sesuai penugasan akun Anda ({activeBranch})
                 </p>
               )}
             </div>

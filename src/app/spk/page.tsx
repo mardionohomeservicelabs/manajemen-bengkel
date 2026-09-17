@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useApp } from '@/lib/context/AppContext';
+import { useAuth } from '@/lib/context/AuthContext';
 import { BranchId } from '@/lib/auth/users';
 import { DBService } from '@/lib/services/db-service';
 import { WorkOrder, WorkOrderStatus } from '@/lib/types/database';
@@ -51,20 +52,35 @@ function SPKListContent() {
     unlockWorkOrderAsync,
     deleteWorkOrderAsync,
   } = useApp();
+  const { currentUser, activeBranch } = useAuth();
   const searchParams = useSearchParams();
   const targetId = searchParams.get('id');
   const branchParam = searchParams.get('branch');
 
+  const canAccessAll = !!currentUser?.canAccessAllBranches;
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [selectedBranch, setSelectedBranch] = useState<'ALL' | BranchId>((branchParam as BranchId) || 'ALL');
+  const [selectedBranch, setSelectedBranch] = useState<'ALL' | BranchId>(
+    canAccessAll ? ((branchParam as BranchId) || activeBranch || 'ALL') : activeBranch
+  );
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
   const [editingPlateOrder, setEditingPlateOrder] = useState<WorkOrder | null>(null);
   const [editingSpkOrder, setEditingSpkOrder] = useState<WorkOrder | null>(null);
   const [deletingOrder, setDeletingOrder] = useState<WorkOrder | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const baseOrders = selectedBranch === 'ALL'
+  // Sinkronkan selectedBranch saat activeBranch berganti (misal via switcher sidebar)
+  useEffect(() => {
+    if (!canAccessAll) {
+      setSelectedBranch(activeBranch);
+    } else if (activeBranch) {
+      setSelectedBranch(activeBranch);
+    }
+  }, [activeBranch, canAccessAll]);
+
+  const baseOrders = !canAccessAll
+    ? allWorkOrders.filter((w) => (w.received_at_branch || 'MHS 1') === activeBranch)
+    : selectedBranch === 'ALL'
     ? allWorkOrders
     : allWorkOrders.filter((w) => (w.received_at_branch || 'MHS 1') === selectedBranch);
 
@@ -174,20 +190,28 @@ function SPKListContent() {
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           {/* Filter Cabang */}
-          <div className="flex items-center space-x-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200 text-xs">
-            <Building2 className="w-3.5 h-3.5 text-maroon-700 ml-1.5" />
-            <span className="text-[11px] font-bold text-slate-500">Cabang:</span>
-            <select
-              value={selectedBranch}
-              onChange={(e) => setSelectedBranch(e.target.value as any)}
-              className="text-xs px-2 py-1 rounded-lg bg-white border border-slate-200 font-bold text-slate-800 outline-none cursor-pointer"
-            >
-              <option value="ALL">Semua Cabang ({allWorkOrders.length})</option>
-              <option value="MHS 1">MHS 1 ({allWorkOrders.filter(w => (w.received_at_branch || 'MHS 1') === 'MHS 1').length})</option>
-              <option value="MHS 2">MHS 2 ({allWorkOrders.filter(w => (w.received_at_branch || 'MHS 1') === 'MHS 2').length})</option>
-              <option value="MHS 3">MHS 3 ({allWorkOrders.filter(w => (w.received_at_branch || 'MHS 1') === 'MHS 3').length})</option>
-            </select>
-          </div>
+          {canAccessAll ? (
+            <div className="flex items-center space-x-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200 text-xs">
+              <Building2 className="w-3.5 h-3.5 text-maroon-700 ml-1.5" />
+              <span className="text-[11px] font-bold text-slate-500">Cabang:</span>
+              <select
+                value={selectedBranch}
+                onChange={(e) => setSelectedBranch(e.target.value as any)}
+                className="text-xs px-2 py-1 rounded-lg bg-white border border-slate-200 font-bold text-slate-800 outline-none cursor-pointer"
+              >
+                <option value="ALL">Semua Cabang ({allWorkOrders.length})</option>
+                <option value="MHS 1">MHS 1 ({allWorkOrders.filter(w => (w.received_at_branch || 'MHS 1') === 'MHS 1').length})</option>
+                <option value="MHS 2">MHS 2 ({allWorkOrders.filter(w => (w.received_at_branch || 'MHS 1') === 'MHS 2').length})</option>
+                <option value="MHS 3">MHS 3 ({allWorkOrders.filter(w => (w.received_at_branch || 'MHS 1') === 'MHS 3').length})</option>
+              </select>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
+              <Building2 className="w-3.5 h-3.5 text-maroon-700" />
+              <span className="text-[11px] font-bold text-slate-500">Cabang:</span>
+              <span className="text-xs font-black text-slate-900 bg-white px-2 py-0.5 rounded-md border border-slate-200">{activeBranch}</span>
+            </div>
+          )}
 
           {/* Filter Status */}
           <div className="flex items-center space-x-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200 text-xs">

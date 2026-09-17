@@ -198,7 +198,7 @@ export function Sidebar() {
       name: 'Laporan & Keuangan',
       href: '/laporan',
       icon: <BarChart3 className="w-4 h-4" />,
-      roles: ['owner', 'estimator'],
+      roles: ['owner', 'estimator', 'admin'],
     },
     {
       name: 'Pengaturan',
@@ -281,12 +281,12 @@ export function Sidebar() {
         {/* Brand Header — selalu muncul termasuk di mobile */}
         {brandHeader}
 
-        {/* Cabang Selector (Owner only) */}
-        {currentUser?.canAccessAllBranches && (
+        {/* Cabang Indicator / Selector */}
+        {currentUser?.canAccessAllBranches ? (
           <div className="px-3 py-2 border-b border-slate-800">
             <button
               onClick={() => setIsBranchDropdownOpen(!isBranchDropdownOpen)}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 hover:border-maroon-700 transition text-xs font-bold text-white"
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 hover:border-maroon-700 transition text-xs font-bold text-white cursor-pointer"
             >
               <div className="flex items-center space-x-2">
                 <Building2 className="w-3.5 h-3.5 text-blue-400" />
@@ -296,7 +296,7 @@ export function Sidebar() {
             </button>
 
             {isBranchDropdownOpen && (
-              <div className="mt-1.5 rounded-xl overflow-hidden border border-slate-700 bg-slate-900">
+              <div className="mt-1.5 rounded-xl overflow-hidden border border-slate-700 bg-slate-900 shadow-xl">
                 {BRANCHES.map((branch: BranchId) => (
                   <button
                     key={branch}
@@ -304,17 +304,28 @@ export function Sidebar() {
                       setActiveBranch(branch);
                       setIsBranchDropdownOpen(false);
                     }}
-                    className={`w-full text-left px-3 py-2 text-xs font-bold transition ${
+                    className={`w-full text-left px-3 py-2 text-xs font-bold transition flex items-center justify-between cursor-pointer ${
                       activeBranch === branch
                         ? 'bg-maroon-900 text-amber-300 border-l-2 border-amber-400'
                         : 'text-slate-300 hover:bg-slate-800'
                     }`}
                   >
-                    {branch}
+                    <span>{branch}</span>
+                    {activeBranch === branch && <span className="text-[10px] text-amber-400 font-bold">Aktif</span>}
                   </button>
                 ))}
               </div>
             )}
+          </div>
+        ) : (
+          <div className="px-3 py-2 border-b border-slate-800">
+            <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900/70 border border-slate-800 text-xs font-bold text-slate-300">
+              <div className="flex items-center space-x-2">
+                <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Cabang: <span className="text-white font-extrabold">{activeBranch}</span></span>
+              </div>
+              <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded-md text-slate-400 font-medium">Terkunci</span>
+            </div>
           </div>
         )}
 

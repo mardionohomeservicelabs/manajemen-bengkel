@@ -67,7 +67,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
 
           setCurrentUser(parsed.user);
-          setActiveBranchState(parsed.activeBranch || parsed.user.branch);
+          // Jika user tidak memiliki akses semua cabang, selalu kunci ke cabangnya sendiri
+          const effectiveBranch = parsed.user.canAccessAllBranches
+            ? (parsed.activeBranch || parsed.user.branch)
+            : parsed.user.branch;
+          setActiveBranchState(effectiveBranch);
         } else {
           // Session expired
           localStorage.removeItem(AUTH_STORAGE_KEY);

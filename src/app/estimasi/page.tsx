@@ -228,8 +228,13 @@ function EstimationBuilderContent() {
     syncWithSupabase();
   }, [refreshData, syncWithSupabase]);
 
-  // Sumber work orders yang mencakup seluruh cabang (MHS 1, MHS 2, MHS 3)
-  const availableOrders = (allWorkOrders && allWorkOrders.length > 0) ? allWorkOrders : workOrders;
+  const { currentUser, activeBranch } = useAuth();
+
+  // Sumber work orders disesuaikan dengan cabang aktif (terkunci untuk staf cabang, dinamis untuk Via/Owner)
+  const canAccessAll = !!currentUser?.canAccessAllBranches;
+  const availableOrders = (allWorkOrders && allWorkOrders.length > 0)
+    ? allWorkOrders.filter((wo) => (wo.received_at_branch || 'MHS 1') === activeBranch)
+    : workOrders;
 
   // Selected SPK & Tab (tab berbentuk {id, name} agar bisa rename bebas)
   const [selectedSpkId, setSelectedSpkId] = useState<string>(spkIdParam || '');
@@ -252,7 +257,13 @@ function EstimationBuilderContent() {
   const [vehicleStatus, setVehicleStatus] = useState<string>('Di Tinggal');
   const [paymentPlan, setPaymentPlan] = useState<string>('Transfer');
 
-  const { currentUser } = useAuth();
+  // Jika cabang aktif berganti dan mobil terpilih bukan dari cabang ini, reset pemilihan
+  useEffect(() => {
+    if (selectedSpk && (selectedSpk.received_at_branch || 'MHS 1') !== activeBranch) {
+      setSelectedSpkId('');
+      setSelectedSpk(null);
+    }
+  }, [activeBranch, selectedSpk]);
 
   // Estimator/SA name, signature & estimated work duration (baru)
   const [estimatorName, setEstimatorName] = useState<string>(() => {
@@ -1673,6 +1684,9 @@ function EstimationBuilderContent() {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Detail PKB</h1>
+              <span className="px-2.5 py-0.5 rounded-lg text-xs font-black bg-maroon-100 text-maroon-900 border border-maroon-200">
+                {activeBranch}
+              </span>
               {selectedSpk && (
                 <div className="relative inline-block">
                   <select

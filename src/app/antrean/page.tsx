@@ -113,10 +113,11 @@ function QueueBoardContent() {
   const searchParams = useSearchParams();
   const branchParam = searchParams.get('branch');
 
+  const canAccessAll = !!currentUser?.canAccessAllBranches;
   const [pageTab, setPageTab] = useState<'active' | 'database'>('active');
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [selectedBranch, setSelectedBranch] = useState<'ALL' | BranchId>(
-    (branchParam as BranchId) || 'ALL'
+    canAccessAll ? ((branchParam as BranchId) || activeBranch || 'ALL') : activeBranch
   );
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
   const [editingPlateOrder, setEditingPlateOrder] = useState<WorkOrder | null>(null);
@@ -131,15 +132,26 @@ function QueueBoardContent() {
     syncWithSupabase();
   }, [refreshData, syncWithSupabase]);
 
+  // Sinkronkan jika activeBranch berubah (misal via switcher sidebar oleh Via atau Owner)
+  useEffect(() => {
+    if (!canAccessAll) {
+      setSelectedBranch(activeBranch);
+    } else if (activeBranch) {
+      setSelectedBranch(activeBranch);
+    }
+  }, [activeBranch, canAccessAll]);
+
   // Sinkronkan jika query param branch berubah
   useEffect(() => {
-    if (branchParam && (branchParam === 'MHS 1' || branchParam === 'MHS 2' || branchParam === 'MHS 3')) {
+    if (canAccessAll && branchParam && (branchParam === 'MHS 1' || branchParam === 'MHS 2' || branchParam === 'MHS 3')) {
       setSelectedBranch(branchParam as BranchId);
     }
-  }, [branchParam]);
+  }, [branchParam, canAccessAll]);
 
-  // Sumber data: Semua cabang atau difilter per cabang tertentu
-  const sourceOrders = selectedBranch === 'ALL'
+  // Sumber data: Terkunci pada cabang akun staf, atau mengikuti pilihan untuk Owner/Via
+  const sourceOrders = !canAccessAll
+    ? allWorkOrders.filter((w) => (w.received_at_branch || 'MHS 1') === activeBranch)
+    : selectedBranch === 'ALL'
     ? allWorkOrders
     : allWorkOrders.filter((w) => (w.received_at_branch || 'MHS 1') === selectedBranch);
 
@@ -247,46 +259,54 @@ function QueueBoardContent() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold border border-slate-200">
-            <button
-              onClick={() => setSelectedBranch('ALL')}
-              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg transition ${
-                selectedBranch === 'ALL'
-                  ? 'bg-maroon-700 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              <span>Semua Cabang</span>
-              <span className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-black ${
-                selectedBranch === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-              }`}>
-                {allWorkOrders.filter((w) => w.status !== 'completed' && w.status !== 'cancelled').length}
-              </span>
-            </button>
-            {(['MHS 1', 'MHS 2', 'MHS 3'] as BranchId[]).map((b) => {
-              const activeCount = allWorkOrders.filter(
-                (w) => (w.received_at_branch || 'MHS 1') === b && w.status !== 'completed' && w.status !== 'cancelled'
-              ).length;
-              return (
-                <button
-                  key={b}
-                  onClick={() => setSelectedBranch(b)}
-                  className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg transition ${
-                    selectedBranch === b
-                      ? 'bg-maroon-700 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                  }`}
-                >
-                  <span>{b}</span>
-                  <span className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-black ${
-                    selectedBranch === b ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                  }`}>
-                    {activeCount}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          {canAccessAll ? (
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold border border-slate-200">
+              <button
+                onClick={() => setSelectedBranch('ALL')}
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg transition ${
+                  selectedBranch === 'ALL'
+                    ? 'bg-maroon-700 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                }`}
+              >
+                <span>Semua Cabang</span>
+                <span className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-black ${
+                  selectedBranch === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {allWorkOrders.filter((w) => w.status !== 'completed' && w.status !== 'cancelled').length}
+                </span>
+              </button>
+              {(['MHS 1', 'MHS 2', 'MHS 3'] as BranchId[]).map((b) => {
+                const activeCount = allWorkOrders.filter(
+                  (w) => (w.received_at_branch || 'MHS 1') === b && w.status !== 'completed' && w.status !== 'cancelled'
+                ).length;
+                return (
+                  <button
+                    key={b}
+                    onClick={() => setSelectedBranch(b)}
+                    className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg transition ${
+                      selectedBranch === b
+                        ? 'bg-maroon-700 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                    }`}
+                  >
+                    <span>{b}</span>
+                    <span className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-black ${
+                      selectedBranch === b ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {activeCount}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center space-x-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
+              <span className="text-[11px] font-bold text-slate-500">Cabang Anda:</span>
+              <span className="text-xs font-black text-slate-900 bg-white px-2.5 py-0.5 rounded-md border border-slate-200 shadow-xs">{activeBranch}</span>
+              <span className="text-[10.5px] text-slate-500 font-semibold">(Antrean khusus {activeBranch})</span>
+            </div>
+          )}
         </div>
 
         {/* Primary Tab Switcher: Antrean Aktif vs Database Selesai */}

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '@/lib/context/AppContext';
+import { useAuth } from '@/lib/context/AuthContext';
 import { DBService } from '@/lib/services/db-service';
 import { BranchId } from '@/lib/auth/users';
 import { formatCurrency, formatDateTime, formatDate, formatPlate } from '@/lib/utils';
@@ -14,61 +15,114 @@ import {
   Building2,
   Receipt,
   CreditCard,
-  Banknote,
-  QrCode,
   CheckCircle2,
   Activity,
-  ExternalLink,
-  Wallet,
   ArrowUpRight,
+  Wallet,
   RotateCcw,
+  Calendar,
+  CalendarDays,
+  TrendingUp,
+  Filter,
+  Eye,
 } from 'lucide-react';
 import Link from 'next/link';
 
+const MONTH_NAMES = [
+  'Januari',
+  'Februari',
+  'Maret',
+  'April',
+  'Mei',
+  'Juni',
+  'Juli',
+  'Agustus',
+  'September',
+  'Oktober',
+  'November',
+  'Desember',
+];
+
+const MONTH_SHORT = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'Mei',
+  'Jun',
+  'Jul',
+  'Agu',
+  'Sep',
+  'Okt',
+  'Nov',
+  'Des',
+];
+
 export default function ReportsPage() {
   const { currentRole, invoices, allInvoices } = useApp();
+  const { currentUser, activeBranch } = useAuth();
+  const canAccessAll = !!currentUser?.canAccessAllBranches;
 
-  const [selectedBranch, setSelectedBranch] = useState<'ALL' | BranchId>('ALL');
+  // State Filter Cabang: Terkunci ke activeBranch jika staf biasa, bebas untuk Owner / Via
+  const [selectedBranch, setSelectedBranch] = useState<'ALL' | BranchId>(
+    canAccessAll ? 'ALL' : activeBranch
+  );
+
+  // Sinkronkan selectedBranch saat activeBranch berganti
+  useEffect(() => {
+    if (!canAccessAll) {
+      setSelectedBranch(activeBranch);
+    }
+  }, [activeBranch, canAccessAll]);
+
+  // State Filter Waktu: Tahun & Bulan
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState<'ALL' | number>('ALL'); // 'ALL' = 1 Tahun Penuh, 0-11 = Bulan Jan-Des
+
+  // State Filter Tambahan
   const [paymentCategoryFilter, setPaymentCategoryFilter] = useState<'ALL' | 'cash' | 'transfer_bca' | 'transfer_bri'>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // If not owner or estimator, show restricted view
-  if (currentRole !== 'owner' && currentRole !== 'estimator') {
+  // 1. Validasi Otorisasi: Owner, Estimator, dan Admin diizinkan mengakses
+  if (currentRole !== 'owner' && currentRole !== 'estimator' && currentRole !== 'admin') {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-12 text-center max-w-lg mx-auto space-y-4">
         <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
           <Lock className="w-8 h-8" />
         </div>
-        <h2 className="text-xl font-bold text-slate-900">Akses Terbatas: Khusus Owner &amp; Estimator</h2>
+        <h2 className="text-xl font-bold text-slate-900">Akses Terbatas: Khusus Owner, Estimator &amp; Admin</h2>
         <p className="text-xs text-slate-500 leading-relaxed">
-          Modul Laporan Keuangan, Analisis Omzet Pembayaran Servis, dan Global Audit Log hanya dapat diakses oleh peran <strong>Owner</strong> dan <strong>Estimator</strong>.
+          Modul Laporan Keuangan, Analisis Omzet Pembayaran Servis, dan Rekapitulasi Finansial Bulanan/Tahunan hanya dapat diakses oleh akun <strong>Owner</strong>, <strong>Estimator</strong>, dan <strong>Admin</strong>.
         </p>
       </div>
     );
   }
 
-  // 1. Data Sumber: Semua Cabang atau Filter Per Cabang
-  const rawInvoices = selectedBranch === 'ALL' ? allInvoices : invoices;
+  // 2. Data Sumber: Dibatasi pada cabang akun (untuk staf/admin) atau sesuai pilihan (untuk owner/via)
+  const rawInvoices = !canAccessAll
+    ? allInvoices.filter((i) => (i.work_order?.received_at_branch || 'MHS 1') === activeBranch)
+    : selectedBranch === 'ALL'
+    ? allInvoices
+    : allInvoices.filter((i) => (i.work_order?.received_at_branch || 'MHS 1') === selectedBranch);
 
-  // 2. Transaksi Servis Lunas (Masuk Omzet)
-  const paidInvoices = rawInvoices.filter((i) => i.type === 'invoice' && i.payment_status === 'paid');
+  // 3. Transaksi Servis Lunas (Masuk Omzet)
+  const allPaidInvoices = rawInvoices.filter((i) => i.type === 'invoice' && i.payment_status === 'paid');
 
-  // Metrik Finansial Keseluruhan
-  const totalRevenue = paidInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+  // Deteksi daftar tahun yang tersedia dari data nota
+  const availableYears = useMemo(() => {
+    const yearsSet = new Set<number>();
+    yearsSet.add(currentYear);
+    allPaidInvoices.forEach((inv) => {
+      const d = new Date(inv.paid_at || inv.created_at || '');
+      if (!isNaN(d.getFullYear())) {
+        yearsSet.add(d.getFullYear());
+      }
+    });
+    return Array.from(yearsSet).sort((a, b) => b - a);
+  }, [allPaidInvoices, currentYear]);
 
-  const totalCost = paidInvoices.reduce((acc, inv) => {
-    const invCost = (inv.items || []).reduce((sum, item) => {
-      const buyPrice = item.buy_price || 0;
-      return sum + buyPrice * item.qty;
-    }, 0);
-    return acc + invCost;
-  }, 0);
-
-  const grossProfit = totalRevenue - totalCost;
-  const profitMarginPercent = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(1) : '0';
-  const averageTicket = paidInvoices.length > 0 ? totalRevenue / paidInvoices.length : 0;
-
-  // 3. Klasifikasi Kategori Pembayaran yang Masuk Omzet (Tunai, Transfer BCA, Transfer BRI)
+  // Helper Klasifikasi Kategori Pembayaran
   const getPaymentCategory = (method?: string): 'cash' | 'transfer_bca' | 'transfer_bri' => {
     const m = (method || 'cash').toLowerCase();
     if (m.includes('bri')) return 'transfer_bri';
@@ -76,38 +130,139 @@ export default function ReportsPage() {
     return 'cash';
   };
 
-  const cashInvoices = paidInvoices.filter((i) => getPaymentCategory(i.payment_method) === 'cash');
-  const bcaInvoices = paidInvoices.filter((i) => getPaymentCategory(i.payment_method) === 'transfer_bca');
-  const briInvoices = paidInvoices.filter((i) => getPaymentCategory(i.payment_method) === 'transfer_bri');
+  // Helper Hitung Biaya / HPP per Invoice
+  const getInvoiceCost = (inv: (typeof allPaidInvoices)[0]): number => {
+    return (inv.items || []).reduce((sum, item) => {
+      const buyPrice = item.buy_price || 0;
+      return sum + buyPrice * (item.qty || 1);
+    }, 0);
+  };
 
-  const cashTotal = cashInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
-  const bcaTotal = bcaInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
-  const briTotal = briInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
-
-  const cashPercent = totalRevenue > 0 ? ((cashTotal / totalRevenue) * 100).toFixed(1) : '0';
-  const bcaPercent = totalRevenue > 0 ? ((bcaTotal / totalRevenue) * 100).toFixed(1) : '0';
-  const briPercent = totalRevenue > 0 ? ((briTotal / totalRevenue) * 100).toFixed(1) : '0';
-
-  // 4. Data Transaksi Terfilter untuk Tabel
-  const filteredTransactions = paidInvoices
-    .filter((inv) => {
-      if (paymentCategoryFilter !== 'ALL' && getPaymentCategory(inv.payment_method) !== paymentCategoryFilter) {
-        return false;
-      }
-      if (!searchQuery.trim()) return true;
-      const q = searchQuery.toLowerCase();
-      const invoiceNum = (inv.invoice_number || '').toLowerCase();
-      const spkNum = (inv.work_order?.spk_number || inv.work_order_id || '').toLowerCase();
-      const plate = (inv.vehicle?.license_plate || '').toLowerCase();
-      const cust = (inv.vehicle?.customer_name || '').toLowerCase();
-      const car = `${inv.vehicle?.car_brand || ''} ${inv.vehicle?.car_model || ''}`.toLowerCase();
-      return invoiceNum.includes(q) || spkNum.includes(q) || plate.includes(q) || cust.includes(q) || car.includes(q);
-    })
-    .sort((a, b) => {
-      const timeA = new Date(a.paid_at || a.created_at || 0).getTime() || 0;
-      const timeB = new Date(b.paid_at || b.created_at || 0).getTime() || 0;
-      return timeB - timeA;
+  // 4. Data Transaksi Tahun Terpilih
+  const yearPaidInvoices = useMemo(() => {
+    return allPaidInvoices.filter((inv) => {
+      const d = new Date(inv.paid_at || inv.created_at || '');
+      return !isNaN(d.getFullYear()) && d.getFullYear() === selectedYear;
     });
+  }, [allPaidInvoices, selectedYear]);
+
+  // 5. Rekapitulasi 12 Bulan dalam Tahun Terpilih
+  const monthlyBreakdown = useMemo(() => {
+    return Array.from({ length: 12 }, (_, monthIdx) => {
+      const monthInvs = yearPaidInvoices.filter((inv) => {
+        const d = new Date(inv.paid_at || inv.created_at || '');
+        return !isNaN(d.getMonth()) && d.getMonth() === monthIdx;
+      });
+
+      const revenue = monthInvs.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+      const cost = monthInvs.reduce((sum, i) => sum + getInvoiceCost(i), 0);
+      const profit = revenue - cost;
+      const margin = revenue > 0 ? ((profit / revenue) * 100).toFixed(1) : '0';
+
+      const cash = monthInvs
+        .filter((i) => getPaymentCategory(i.payment_method) === 'cash')
+        .reduce((sum, i) => sum + (i.total_amount || 0), 0);
+      const bca = monthInvs
+        .filter((i) => getPaymentCategory(i.payment_method) === 'transfer_bca')
+        .reduce((sum, i) => sum + (i.total_amount || 0), 0);
+      const bri = monthInvs
+        .filter((i) => getPaymentCategory(i.payment_method) === 'transfer_bri')
+        .reduce((sum, i) => sum + (i.total_amount || 0), 0);
+
+      return {
+        monthIndex: monthIdx,
+        monthName: MONTH_NAMES[monthIdx],
+        monthShort: MONTH_SHORT[monthIdx],
+        count: monthInvs.length,
+        revenue,
+        cost,
+        profit,
+        margin,
+        cash,
+        bca,
+        bri,
+      };
+    });
+  }, [yearPaidInvoices]);
+
+  // Total Akumulasi 1 Tahun Penuh
+  const yearSummary = useMemo(() => {
+    const totalRevenue = monthlyBreakdown.reduce((sum, m) => sum + m.revenue, 0);
+    const totalCost = monthlyBreakdown.reduce((sum, m) => sum + m.cost, 0);
+    const totalProfit = totalRevenue - totalCost;
+    const totalCount = monthlyBreakdown.reduce((sum, m) => sum + m.count, 0);
+    const totalCash = monthlyBreakdown.reduce((sum, m) => sum + m.cash, 0);
+    const totalBca = monthlyBreakdown.reduce((sum, m) => sum + m.bca, 0);
+    const totalBri = monthlyBreakdown.reduce((sum, m) => sum + m.bri, 0);
+    const margin = totalRevenue > 0 ? ((totalProfit / totalRevenue) * 100).toFixed(1) : '0';
+    const averageMonthly = totalRevenue / 12;
+
+    return {
+      totalRevenue,
+      totalCost,
+      totalProfit,
+      totalCount,
+      totalCash,
+      totalBca,
+      totalBri,
+      margin,
+      averageMonthly,
+    };
+  }, [monthlyBreakdown]);
+
+  // 6. Transaksi Periode Aktif (Sesuai Bulan yang Dipilih atau 1 Tahun Penuh)
+  const activePeriodInvoices = useMemo(() => {
+    if (selectedMonth === 'ALL') {
+      return yearPaidInvoices;
+    }
+    return yearPaidInvoices.filter((inv) => {
+      const d = new Date(inv.paid_at || inv.created_at || '');
+      return d.getMonth() === selectedMonth;
+    });
+  }, [yearPaidInvoices, selectedMonth]);
+
+  // Metrik Finansial untuk Periode Aktif (Ditampilkan di Kartu KPI)
+  const activeRevenue = activePeriodInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+  const activeCost = activePeriodInvoices.reduce((sum, i) => sum + getInvoiceCost(i), 0);
+  const activeProfit = activeRevenue - activeCost;
+  const activeMarginPercent = activeRevenue > 0 ? ((activeProfit / activeRevenue) * 100).toFixed(1) : '0';
+  const activeAverageTicket = activePeriodInvoices.length > 0 ? activeRevenue / activePeriodInvoices.length : 0;
+
+  // Breakdown Metode Pembayaran Periode Aktif
+  const activeCashInvoices = activePeriodInvoices.filter((i) => getPaymentCategory(i.payment_method) === 'cash');
+  const activeBcaInvoices = activePeriodInvoices.filter((i) => getPaymentCategory(i.payment_method) === 'transfer_bca');
+  const activeBriInvoices = activePeriodInvoices.filter((i) => getPaymentCategory(i.payment_method) === 'transfer_bri');
+
+  const activeCashTotal = activeCashInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+  const activeBcaTotal = activeBcaInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+  const activeBriTotal = activeBriInvoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+
+  const activeCashPercent = activeRevenue > 0 ? ((activeCashTotal / activeRevenue) * 100).toFixed(1) : '0';
+  const activeBcaPercent = activeRevenue > 0 ? ((activeBcaTotal / activeRevenue) * 100).toFixed(1) : '0';
+  const activeBriPercent = activeRevenue > 0 ? ((activeBriTotal / activeRevenue) * 100).toFixed(1) : '0';
+
+  // 7. Data Transaksi Terfilter untuk Tabel Rincian
+  const filteredTransactions = useMemo(() => {
+    return activePeriodInvoices
+      .filter((inv) => {
+        if (paymentCategoryFilter !== 'ALL' && getPaymentCategory(inv.payment_method) !== paymentCategoryFilter) {
+          return false;
+        }
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        const invoiceNum = (inv.invoice_number || '').toLowerCase();
+        const spkNum = (inv.work_order?.spk_number || inv.work_order_id || '').toLowerCase();
+        const plate = (inv.vehicle?.license_plate || '').toLowerCase();
+        const cust = (inv.vehicle?.customer_name || '').toLowerCase();
+        const car = `${inv.vehicle?.car_brand || ''} ${inv.vehicle?.car_model || ''}`.toLowerCase();
+        return invoiceNum.includes(q) || spkNum.includes(q) || plate.includes(q) || cust.includes(q) || car.includes(q);
+      })
+      .sort((a, b) => {
+        const timeA = new Date(a.paid_at || a.created_at || 0).getTime() || 0;
+        const timeB = new Date(b.paid_at || b.created_at || 0).getTime() || 0;
+        return timeB - timeA;
+      });
+  }, [activePeriodInvoices, paymentCategoryFilter, searchQuery]);
 
   const auditLogs = DBService.getAuditLogs();
 
@@ -152,6 +307,7 @@ export default function ReportsPage() {
       ];
     });
 
+    const periodStr = selectedMonth === 'ALL' ? `Tahun_${selectedYear}` : `${MONTH_NAMES[selectedMonth]}_${selectedYear}`;
     const csvContent =
       'data:text/csv;charset=utf-8,' +
       [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
@@ -161,24 +317,27 @@ export default function ReportsPage() {
     link.setAttribute('href', encodedUri);
     link.setAttribute(
       'download',
-      `laporan_omzet_pembayaran_${selectedBranch}_${new Date().toISOString().slice(0, 10)}.csv`
+      `laporan_keuangan_${selectedBranch}_${periodStr}_${new Date().toISOString().slice(0, 10)}.csv`
     );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
+  // Nilai omzet bulanan tertinggi untuk skala visual bar
+  const maxMonthRevenue = Math.max(...monthlyBreakdown.map((m) => m.revenue), 1);
+
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header Utama */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center space-x-2">
             <BarChart3 className="w-6 h-6 text-maroon-700" />
-            <span>Laporan Keuangan &amp; Omzet Pembayaran Servis</span>
+            <span>Laporan Keuangan &amp; Analisis Omzet</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Rincian data pembayaran servis, klasifikasi metode pembayaran, dan rekapitulasi omzet riil bengkel.
+            Rekapitulasi keuangan bulanan &amp; tahunan, klasifikasi metode pembayaran, dan rincian transaksi nota servis.
           </p>
         </div>
 
@@ -187,12 +346,12 @@ export default function ReportsPage() {
           className="inline-flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer"
         >
           <Download className="w-4 h-4" />
-          <span>Export Laporan CSV</span>
+          <span>Export Laporan CSV ({selectedMonth === 'ALL' ? `Tahun ${selectedYear}` : MONTH_NAMES[selectedMonth]})</span>
         </button>
       </div>
 
-      {/* Filter Lokasi Cabang Bengkel */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+      {/* FILTER BAR 1: Lokasi Cabang Bengkel */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex items-center space-x-2.5">
           <div className="w-8 h-8 rounded-xl bg-maroon-100 text-maroon-800 flex items-center justify-center font-bold">
             <Building2 className="w-4 h-4" />
@@ -202,121 +361,410 @@ export default function ReportsPage() {
               Filter Lokasi Cabang Laporan
             </div>
             <div className="text-[11px] text-slate-500">
-              Pilih cabang untuk memfilter omzet dan rincian transaksi nota servis
+              {canAccessAll
+                ? 'Pilih cabang untuk memfilter omzet dan transaksi nota servis'
+                : `Akses terkunci pada cabang penugasan akun Anda (${activeBranch})`}
             </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold border border-slate-200">
+        {canAccessAll ? (
+          <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold border border-slate-200">
+            <button
+              onClick={() => setSelectedBranch('ALL')}
+              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg transition cursor-pointer ${
+                selectedBranch === 'ALL'
+                  ? 'bg-maroon-700 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
+            >
+              <span>Semua Cabang</span>
+              <span className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-black ${
+                selectedBranch === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+              }`}>
+                {allPaidInvoices.length}
+              </span>
+            </button>
+            {(['MHS 1', 'MHS 2', 'MHS 3'] as BranchId[]).map((b) => {
+              const count = allPaidInvoices.filter(
+                (i) => (i.work_order?.received_at_branch || 'MHS 1') === b
+              ).length;
+              return (
+                <button
+                  key={b}
+                  onClick={() => setSelectedBranch(b)}
+                  className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg transition cursor-pointer ${
+                    selectedBranch === b
+                      ? 'bg-maroon-700 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                >
+                  <span>{b}</span>
+                  <span className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-black ${
+                    selectedBranch === b ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex items-center space-x-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
+            <span className="text-[11px] font-bold text-slate-500">Cabang Anda:</span>
+            <span className="text-xs font-black text-slate-900 bg-white px-2.5 py-0.5 rounded-md border border-slate-200 shadow-xs">{activeBranch}</span>
+            <span className="text-[10.5px] text-slate-500 font-semibold">(Laporan khusus {activeBranch})</span>
+          </div>
+        )}
+      </div>
+
+      {/* FILTER BAR 2: Navigasi Tahun & Bulan */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-bold">
+              <Calendar className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                Periode Laporan Keuangan
+              </div>
+              <div className="text-[11px] text-slate-500">
+                Pilih tahun dan bulan untuk melihat analisis omzet spesifik atau akumulasi 1 tahun penuh
+              </div>
+            </div>
+          </div>
+
+          {/* Selector Tahun */}
+          <div className="flex items-center space-x-2">
+            <span className="text-xs font-bold text-slate-500">Tahun:</span>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="text-xs font-bold bg-slate-100 border border-slate-300 text-slate-900 px-3 py-1.5 rounded-xl outline-none cursor-pointer focus:ring-2 focus:ring-maroon-600/20"
+            >
+              {availableYears.map((yr) => (
+                <option key={yr} value={yr}>
+                  Tahun {yr}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Tab Pemilihan Bulan (Semua Bulan / Jan - Des) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-bold">
           <button
-            onClick={() => setSelectedBranch('ALL')}
-            className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg transition ${
-              selectedBranch === 'ALL'
-                ? 'bg-maroon-700 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            onClick={() => setSelectedMonth('ALL')}
+            className={`px-3.5 py-1.5 rounded-xl whitespace-nowrap transition cursor-pointer flex items-center space-x-1.5 ${
+              selectedMonth === 'ALL'
+                ? 'bg-maroon-800 text-white shadow-xs font-black'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
             }`}
           >
-            <span>Semua Cabang</span>
-            <span className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-black ${
-              selectedBranch === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+            <CalendarDays className="w-3.5 h-3.5" />
+            <span>Semua Bulan (1 Tahun Penuh)</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+              selectedMonth === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
             }`}>
-              {allInvoices.filter((i) => i.type === 'invoice' && i.payment_status === 'paid').length}
+              {yearPaidInvoices.length}
             </span>
           </button>
-          {(['MHS 1', 'MHS 2', 'MHS 3'] as BranchId[]).map((b) => {
-            const count = allInvoices.filter(
-              (i) => i.type === 'invoice' && i.payment_status === 'paid' && (i.work_order?.received_at_branch || 'MHS 1') === b
-            ).length;
+
+          {MONTH_NAMES.map((name, idx) => {
+            const count = monthlyBreakdown[idx]?.count || 0;
+            const isSelected = selectedMonth === idx;
             return (
               <button
-                key={b}
-                onClick={() => setSelectedBranch(b)}
-                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg transition ${
-                  selectedBranch === b
-                    ? 'bg-maroon-700 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                key={name}
+                onClick={() => setSelectedMonth(idx)}
+                className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition cursor-pointer flex items-center space-x-1.5 ${
+                  isSelected
+                    ? 'bg-maroon-700 text-white shadow-xs font-black'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
                 }`}
               >
-                <span>{b}</span>
-                <span className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-black ${
-                  selectedBranch === b ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                }`}>
-                  {count}
-                </span>
+                <span>{MONTH_SHORT[idx]}</span>
+                {count > 0 && (
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {count}
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* KPI Cards Ringkasan Finansial */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-card">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Total Omzet Pendapatan
-            </span>
-            <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800">
-              <DollarSign className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-slate-900 font-mono mt-2">
-            {formatCurrency(totalRevenue)}
-          </div>
-          <p className="text-[11px] text-emerald-700 font-semibold mt-1">
-            Dari {paidInvoices.length} transaksi pembayaran servis lunas
-          </p>
+      {/* KPI Cards Ringkasan Finansial Periode Aktif */}
+      <div className="space-y-2">
+        <div className="text-xs font-black text-slate-700 uppercase tracking-wide flex items-center space-x-2">
+          <TrendingUp className="w-4 h-4 text-emerald-700" />
+          <span>
+            Ringkasan Finansial — {selectedMonth === 'ALL' ? `Total 1 Tahun Penuh (${selectedYear})` : `Bulan ${MONTH_NAMES[selectedMonth]} ${selectedYear}`}
+          </span>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-card">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Estimasi Laba Kotor
-            </span>
-            <div className="p-2 rounded-xl bg-blue-100 text-blue-800">
-              <Wallet className="w-4 h-4" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Total Omzet */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-card">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                {selectedMonth === 'ALL' ? 'Total Omzet 1 Tahun' : `Omzet Bulan ${MONTH_SHORT[selectedMonth]}`}
+              </span>
+              <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800">
+                <DollarSign className="w-4 h-4" />
+              </div>
             </div>
+            <div className="text-2xl font-black text-slate-900 font-mono mt-2">
+              {formatCurrency(activeRevenue)}
+            </div>
+            <p className="text-[11px] text-emerald-700 font-semibold mt-1">
+              Dari {activePeriodInvoices.length} transaksi pembayaran servis lunas
+            </p>
           </div>
-          <div className="text-2xl font-black text-blue-900 font-mono mt-2">
-            {formatCurrency(grossProfit)}
+
+          {/* Card 2: Estimasi Laba Kotor */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-card">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Estimasi Laba Kotor
+              </span>
+              <div className="p-2 rounded-xl bg-blue-100 text-blue-800">
+                <Wallet className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-2xl font-black text-blue-900 font-mono mt-2">
+              {formatCurrency(activeProfit)}
+            </div>
+            <p className="text-[11px] text-blue-700 font-bold mt-1">
+              Margin: {activeMarginPercent}% dari omzet
+            </p>
           </div>
-          <p className="text-[11px] text-blue-700 font-bold mt-1">
-            Margin: {profitMarginPercent}% dari omzet
-          </p>
+
+          {/* Card 3: Modal Part (HPP) */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-card">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Estimasi HPP (Modal Part)
+              </span>
+              <div className="p-2 rounded-xl bg-slate-100 text-slate-700">
+                <BarChart3 className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-2xl font-black text-slate-700 font-mono mt-2">
+              {formatCurrency(activeCost)}
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Biaya modal pembelian suku cadang terpakai
+            </p>
+          </div>
+
+          {/* Card 4: Rata-rata Transaksi / Bulanan */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-card">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                {selectedMonth === 'ALL' ? 'Rata-rata Omzet / Bulan' : 'Rata-rata Nilai Nota (Ticket)'}
+              </span>
+              <div className="p-2 rounded-xl bg-maroon-100 text-maroon-800">
+                <Receipt className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-2xl font-black text-maroon-900 font-mono mt-2">
+              {selectedMonth === 'ALL' ? formatCurrency(yearSummary.averageMonthly) : formatCurrency(activeAverageTicket)}
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">
+              {selectedMonth === 'ALL' ? 'Rata-rata pendapatan per bulan di tahun ini' : 'Rata-rata nilai transaksi per kendaraan'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* SECTION: REKAPITULASI KEUANGAN 12 BULAN (JANUARI - DESEMBER) */}
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-card space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+          <div>
+            <h3 className="font-black text-sm text-slate-900 uppercase tracking-wide flex items-center space-x-2">
+              <Calendar className="w-4 h-4 text-maroon-700" />
+              <span>Rekapitulasi Keuangan Bulanan Tahun {selectedYear}</span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Rincian omzet, modal, estimasi laba kotor, dan metode pembayaran per bulan hingga total 1 tahun penuh.
+            </p>
+          </div>
+          {selectedMonth !== 'ALL' && (
+            <button
+              onClick={() => setSelectedMonth('ALL')}
+              className="inline-flex items-center space-x-1.5 text-xs font-bold text-maroon-700 hover:text-maroon-900 bg-maroon-50 px-3 py-1.5 rounded-xl border border-maroon-200 cursor-pointer"
+            >
+              <span>Tampilkan Semua Bulan (1 Tahun)</span>
+            </button>
+          )}
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-card">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Estimasi HPP (Modal Part)
-            </span>
-            <div className="p-2 rounded-xl bg-slate-100 text-slate-700">
-              <BarChart3 className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-slate-700 font-mono mt-2">
-            {formatCurrency(totalCost)}
-          </div>
-          <p className="text-[11px] text-slate-400 mt-1">
-            Biaya modal pembelian suku cadang terpakai
-          </p>
-        </div>
+        {/* Tabel Rekapitulasi 12 Bulan */}
+        <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold uppercase text-[11px]">
+                <th className="p-3">Bulan</th>
+                <th className="p-3 text-center">Nota Lunas</th>
+                <th className="p-3 text-right">Omzet Bruto</th>
+                <th className="p-3 text-right">Modal Part (HPP)</th>
+                <th className="p-3 text-right">Laba Kotor</th>
+                <th className="p-3 text-center">Margin</th>
+                <th className="p-3 text-right">Tunai (Cash)</th>
+                <th className="p-3 text-right">Transfer BCA</th>
+                <th className="p-3 text-right">Transfer BRI</th>
+                <th className="p-3 text-center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {monthlyBreakdown.map((row) => {
+                const isSelected = selectedMonth === row.monthIndex;
+                const isZero = row.count === 0 && row.revenue === 0;
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-card">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Rata-rata Transaksi (Ticket)
-            </span>
-            <div className="p-2 rounded-xl bg-maroon-100 text-maroon-800">
-              <Receipt className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-maroon-900 font-mono mt-2">
-            {formatCurrency(averageTicket)}
-          </div>
-          <p className="text-[11px] text-slate-400 mt-1">
-            Rata-rata nominal per mobil yang selesai servis
-          </p>
+                return (
+                  <tr
+                    key={row.monthIndex}
+                    className={`transition ${
+                      isSelected
+                        ? 'bg-maroon-50/70 font-semibold'
+                        : isZero
+                        ? 'text-slate-400 hover:bg-slate-50/60'
+                        : 'hover:bg-slate-50 text-slate-800'
+                    }`}
+                  >
+                    {/* Nama Bulan & Bar Mini Visual */}
+                    <td className="p-3 font-bold whitespace-nowrap">
+                      <div className="flex items-center space-x-2">
+                        <span>{row.monthName}</span>
+                        {isSelected && (
+                          <span className="text-[9.5px] bg-maroon-800 text-white px-1.5 py-0.2 rounded font-black">
+                            Aktif
+                          </span>
+                        )}
+                      </div>
+                      {/* Mini Revenue Bar */}
+                      <div className="w-24 h-1 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                        <div
+                          className={`h-full ${row.revenue > 0 ? 'bg-emerald-600' : 'bg-transparent'}`}
+                          style={{ width: `${(row.revenue / maxMonthRevenue) * 100}%` }}
+                        />
+                      </div>
+                    </td>
+
+                    {/* Jumlah Nota */}
+                    <td className="p-3 text-center font-bold">
+                      {row.count > 0 ? (
+                        <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 font-mono">
+                          {row.count} unit
+                        </span>
+                      ) : (
+                        <span className="text-slate-300">-</span>
+                      )}
+                    </td>
+
+                    {/* Omzet Bruto */}
+                    <td className={`p-3 text-right font-mono font-black ${row.revenue > 0 ? 'text-emerald-700' : 'text-slate-300'}`}>
+                      {formatCurrency(row.revenue)}
+                    </td>
+
+                    {/* Modal Part */}
+                    <td className={`p-3 text-right font-mono ${row.cost > 0 ? 'text-slate-700' : 'text-slate-300'}`}>
+                      {formatCurrency(row.cost)}
+                    </td>
+
+                    {/* Laba Kotor */}
+                    <td className={`p-3 text-right font-mono font-bold ${row.profit > 0 ? 'text-blue-700' : 'text-slate-300'}`}>
+                      {formatCurrency(row.profit)}
+                    </td>
+
+                    {/* Margin */}
+                    <td className="p-3 text-center font-bold">
+                      {row.revenue > 0 ? (
+                        <span className={`px-2 py-0.5 rounded-full text-[10.5px] ${
+                          Number(row.margin) >= 30 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200'
+                        }`}>
+                          {row.margin}%
+                        </span>
+                      ) : (
+                        <span className="text-slate-300">-</span>
+                      )}
+                    </td>
+
+                    {/* Tunai */}
+                    <td className="p-3 text-right font-mono text-slate-600">
+                      {row.cash > 0 ? formatCurrency(row.cash) : <span className="text-slate-300">-</span>}
+                    </td>
+
+                    {/* BCA */}
+                    <td className="p-3 text-right font-mono text-slate-600">
+                      {row.bca > 0 ? formatCurrency(row.bca) : <span className="text-slate-300">-</span>}
+                    </td>
+
+                    {/* BRI */}
+                    <td className="p-3 text-right font-mono text-slate-600">
+                      {row.bri > 0 ? formatCurrency(row.bri) : <span className="text-slate-300">-</span>}
+                    </td>
+
+                    {/* Aksi: Filter ke Bulan ini */}
+                    <td className="p-3 text-center whitespace-nowrap">
+                      <button
+                        onClick={() => setSelectedMonth(row.monthIndex)}
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                          isSelected
+                            ? 'bg-maroon-700 text-white shadow-2xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                        title={`Lihat rincian transaksi bulan ${row.monthName}`}
+                      >
+                        {isSelected ? 'Terpilih' : 'Lihat Detail'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+
+            {/* Footer Row: TOTAL 1 TAHUN PENUH */}
+            <tfoot>
+              <tr className="bg-slate-900 text-white font-bold border-t-2 border-slate-700">
+                <td className="p-3.5 font-black uppercase tracking-wider">
+                  TOTAL 1 TAHUN ({selectedYear})
+                </td>
+                <td className="p-3.5 text-center font-mono font-black text-amber-300">
+                  {yearSummary.totalCount} unit
+                </td>
+                <td className="p-3.5 text-right font-mono font-black text-emerald-400 text-sm">
+                  {formatCurrency(yearSummary.totalRevenue)}
+                </td>
+                <td className="p-3.5 text-right font-mono text-slate-300">
+                  {formatCurrency(yearSummary.totalCost)}
+                </td>
+                <td className="p-3.5 text-right font-mono font-black text-blue-300 text-sm">
+                  {formatCurrency(yearSummary.totalProfit)}
+                </td>
+                <td className="p-3.5 text-center font-bold text-amber-300">
+                  {yearSummary.margin}%
+                </td>
+                <td className="p-3.5 text-right font-mono text-slate-300">
+                  {formatCurrency(yearSummary.totalCash)}
+                </td>
+                <td className="p-3.5 text-right font-mono text-slate-300">
+                  {formatCurrency(yearSummary.totalBca)}
+                </td>
+                <td className="p-3.5 text-right font-mono text-slate-300">
+                  {formatCurrency(yearSummary.totalBri)}
+                </td>
+                <td className="p-3.5 text-center text-[10.5px] text-slate-400 font-normal">
+                  12 Bulan
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
 
@@ -326,14 +774,14 @@ export default function ReportsPage() {
           <div>
             <h3 className="font-black text-sm text-slate-900 uppercase tracking-wide flex items-center space-x-2">
               <CreditCard className="w-4 h-4 text-maroon-700" />
-              <span>Nominal &amp; Kategori Pembayaran Servis yang Masuk Omzet</span>
+              <span>Metode Pembayaran ({selectedMonth === 'ALL' ? `Tahun ${selectedYear}` : MONTH_NAMES[selectedMonth]})</span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Rincian kontribusi nominal pendapatan servis berdasarkan metode pembayaran resmi yang digunakan pelanggan.
+              Klik salah satu kategori di bawah untuk memfilter daftar transaksi nota sesuai metode pembayaran.
             </p>
           </div>
           <div className="text-xs font-black text-slate-700 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-            Total Transaksi Lunas: {paidInvoices.length} Nota
+            Total Masuk: {activePeriodInvoices.length} Nota Lunas
           </div>
         </div>
 
@@ -349,49 +797,55 @@ export default function ReportsPage() {
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-black uppercase tracking-wider text-emerald-900 flex items-center space-x-1.5">
-                <Banknote className="w-4 h-4 text-emerald-700" />
+              <span className="text-xs font-black uppercase text-emerald-950 flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
                 <span>Tunai (Cash)</span>
               </span>
-              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
-                {cashPercent}%
+              <span className="text-[11px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-full border border-emerald-200">
+                {activeCashInvoices.length} Transaksi
               </span>
             </div>
-            <div className="text-xl font-black text-emerald-950 font-mono mt-2">
-              {formatCurrency(cashTotal)}
+            <div className="text-xl font-black text-emerald-900 font-mono mt-3">
+              {formatCurrency(activeCashTotal)}
             </div>
-            <div className="text-[11px] text-emerald-800 font-medium mt-1">
-              {cashInvoices.length} transaksi nota servis
+            <div className="flex items-center justify-between text-[11px] text-emerald-700 font-medium mt-1">
+              <span>{activeCashPercent}% dari omzet aktif</span>
+              {paymentCategoryFilter === 'cash' && (
+                <span className="font-bold text-emerald-800 underline">Filter Aktif</span>
+              )}
             </div>
           </div>
 
-          {/* 2. Transfer Bank BCA */}
+          {/* 2. Transfer BCA */}
           <div
             onClick={() => setPaymentCategoryFilter(paymentCategoryFilter === 'transfer_bca' ? 'ALL' : 'transfer_bca')}
             className={`p-4 rounded-2xl border cursor-pointer transition ${
               paymentCategoryFilter === 'transfer_bca'
-                ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-500/20 shadow-md'
-                : 'bg-indigo-50/40 border-indigo-200/80 hover:bg-indigo-50/70 shadow-xs'
+                ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-500/20 shadow-md'
+                : 'bg-blue-50/40 border-blue-200/80 hover:bg-blue-50/70 shadow-xs'
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-black uppercase tracking-wider text-indigo-900 flex items-center space-x-1.5">
-                <Building2 className="w-4 h-4 text-indigo-700" />
+              <span className="text-xs font-black uppercase text-blue-950 flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-full bg-blue-600"></span>
                 <span>Transfer Bank BCA</span>
               </span>
-              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-200 text-indigo-900">
-                {bcaPercent}%
+              <span className="text-[11px] font-bold text-blue-700 bg-white px-2 py-0.5 rounded-full border border-blue-200">
+                {activeBcaInvoices.length} Transaksi
               </span>
             </div>
-            <div className="text-xl font-black text-indigo-950 font-mono mt-2">
-              {formatCurrency(bcaTotal)}
+            <div className="text-xl font-black text-blue-900 font-mono mt-3">
+              {formatCurrency(activeBcaTotal)}
             </div>
-            <div className="text-[11px] text-indigo-800 font-medium mt-1">
-              {bcaInvoices.length} transaksi (BCA 2711235398 a/n ARDIYANTO WIJAYA)
+            <div className="flex items-center justify-between text-[11px] text-blue-700 font-medium mt-1">
+              <span>{activeBcaPercent}% dari omzet aktif</span>
+              {paymentCategoryFilter === 'transfer_bca' && (
+                <span className="font-bold text-blue-800 underline">Filter Aktif</span>
+              )}
             </div>
           </div>
 
-          {/* 3. Transfer Bank BRI */}
+          {/* 3. Transfer BRI */}
           <div
             onClick={() => setPaymentCategoryFilter(paymentCategoryFilter === 'transfer_bri' ? 'ALL' : 'transfer_bri')}
             className={`p-4 rounded-2xl border cursor-pointer transition ${
@@ -401,288 +855,196 @@ export default function ReportsPage() {
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-black uppercase tracking-wider text-amber-900 flex items-center space-x-1.5">
-                <Building2 className="w-4 h-4 text-amber-700" />
+              <span className="text-xs font-black uppercase text-amber-950 flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-600"></span>
                 <span>Transfer Bank BRI</span>
               </span>
-              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
-                {briPercent}%
+              <span className="text-[11px] font-bold text-amber-800 bg-white px-2 py-0.5 rounded-full border border-amber-200">
+                {activeBriInvoices.length} Transaksi
               </span>
             </div>
-            <div className="text-xl font-black text-amber-950 font-mono mt-2">
-              {formatCurrency(briTotal)}
+            <div className="text-xl font-black text-amber-900 font-mono mt-3">
+              {formatCurrency(activeBriTotal)}
             </div>
-            <div className="text-[11px] text-amber-800 font-medium mt-1">
-              {briInvoices.length} transaksi (BRI 0086-0113-1974-508 a/n ARDIYANTO WIJAYA)
-            </div>
-          </div>
-        </div>
-
-        {/* Bar Komposisi Omzet */}
-        <div className="space-y-1.5 pt-1">
-          <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
-            <span>Komposisi Arus Kas Masuk (Cashflow Distribution):</span>
-            <span className="font-mono text-slate-900">Total Omzet: {formatCurrency(totalRevenue)}</span>
-          </div>
-          <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
-            <div
-              style={{ width: `${cashPercent}%` }}
-              className="h-full bg-emerald-500 hover:opacity-90 transition"
-              title={`Tunai: ${formatCurrency(cashTotal)} (${cashPercent}%)`}
-            />
-            <div
-              style={{ width: `${bcaPercent}%` }}
-              className="h-full bg-indigo-500 hover:opacity-90 transition"
-              title={`Transfer BCA: ${formatCurrency(bcaTotal)} (${bcaPercent}%)`}
-            />
-            <div
-              style={{ width: `${briPercent}%` }}
-              className="h-full bg-amber-500 hover:opacity-90 transition"
-              title={`Transfer BRI: ${formatCurrency(briTotal)} (${briPercent}%)`}
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-4 text-[11px] pt-1 text-slate-600 font-medium">
-            <div className="flex items-center space-x-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-              <span>Tunai: <strong>{cashPercent}%</strong> ({formatCurrency(cashTotal)})</span>
-            </div>
-            <div className="flex items-center space-x-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
-              <span>Transfer BCA: <strong>{bcaPercent}%</strong> ({formatCurrency(bcaTotal)})</span>
-            </div>
-            <div className="flex items-center space-x-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-              <span>Transfer BRI: <strong>{briPercent}%</strong> ({formatCurrency(briTotal)})</span>
+            <div className="flex items-center justify-between text-[11px] text-amber-800 font-medium mt-1">
+              <span>{activeBriPercent}% dari omzet aktif</span>
+              {paymentCategoryFilter === 'transfer_bri' && (
+                <span className="font-bold text-amber-900 underline">Filter Aktif</span>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* SECTION: Tabel Rincian Data Pembayaran Servis Masuk Omzet */}
-      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-card space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+      {/* SECTION: TABEL RINCIAN TRANSAKSI NOTA */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-card overflow-hidden">
+        <div className="p-5 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h3 className="font-black text-sm text-slate-900 uppercase tracking-wide flex items-center space-x-2">
-              <Receipt className="w-4 h-4 text-emerald-600" />
-              <span>Daftar Transaksi Pembayaran Servis (Data Riil Masuk Omzet)</span>
+            <h3 className="font-black text-base text-slate-900 flex items-center space-x-2">
+              <Receipt className="w-4 h-4 text-maroon-700" />
+              <span>
+                Daftar Transaksi Nota Servis — {selectedMonth === 'ALL' ? `Tahun ${selectedYear}` : `${MONTH_NAMES[selectedMonth]} ${selectedYear}`}
+              </span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Menampilkan seluruh nota servis lunas dengan rincian waktu bayar, nominal omzet, dan metode pembayaran.
+              Menampilkan {filteredTransactions.length} nota pembayaran servis lunas.
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-            {/* Quick Category Filter Pills */}
-            <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-bold border border-slate-200">
-              <button
-                onClick={() => setPaymentCategoryFilter('ALL')}
-                className={`px-3 py-1 rounded-lg transition ${
-                  paymentCategoryFilter === 'ALL'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Semua
-              </button>
-              <button
-                onClick={() => setPaymentCategoryFilter('cash')}
-                className={`px-3 py-1 rounded-lg transition ${
-                  paymentCategoryFilter === 'cash'
-                    ? 'bg-white text-emerald-800 shadow-xs font-black'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Tunai
-              </button>
-              <button
-                onClick={() => setPaymentCategoryFilter('transfer_bca')}
-                className={`px-3 py-1 rounded-lg transition ${
-                  paymentCategoryFilter === 'transfer_bca'
-                    ? 'bg-white text-indigo-800 shadow-xs font-black'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Transfer BCA
-              </button>
-              <button
-                onClick={() => setPaymentCategoryFilter('transfer_bri')}
-                className={`px-3 py-1 rounded-lg transition ${
-                  paymentCategoryFilter === 'transfer_bri'
-                    ? 'bg-white text-amber-800 shadow-xs font-black'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Transfer BRI
-              </button>
-            </div>
-
+          <div className="flex flex-wrap items-center gap-3">
             {/* Search Input */}
-            <div className="relative min-w-[220px]">
+            <div className="relative w-full sm:w-64">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
+                placeholder="Cari nota, plat, nama, mobil..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari Plat / No Nota / SPK..."
-                className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 focus:bg-white transition"
+                className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 font-medium"
               />
             </div>
+
+            {/* Reset Kategori Filter if active */}
+            {paymentCategoryFilter !== 'ALL' && (
+              <button
+                onClick={() => setPaymentCategoryFilter('ALL')}
+                className="inline-flex items-center space-x-1 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition cursor-pointer"
+              >
+                <span>Reset Kategori ({paymentCategoryFilter})</span>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Tabel Data Pembayaran */}
-        <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-black uppercase text-[11px]">
-                  <th className="p-3.5">Waktu Pembayaran</th>
-                  <th className="p-3.5">No. Nota &amp; SPK</th>
-                  <th className="p-3.5">Plat &amp; Kendaraan</th>
-                  <th className="p-3.5">Pelanggan</th>
-                  <th className="p-3.5">Cabang</th>
-                  <th className="p-3.5">Kategori Bayar</th>
-                  <th className="p-3.5">Status</th>
-                  <th className="p-3.5 text-right">Nominal Omzet</th>
-                  <th className="p-3.5 text-right">Aksi</th>
+        {/* Tabel Data */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold uppercase text-[11px]">
+                <th className="p-3.5">No Nota &amp; Tanggal</th>
+                <th className="p-3.5">Kendaraan &amp; Pelanggan</th>
+                <th className="p-3.5">Kategori Pembayaran</th>
+                <th className="p-3.5">Cabang</th>
+                <th className="p-3.5 text-right">Subtotal</th>
+                <th className="p-3.5 text-right">Diskon</th>
+                <th className="p-3.5 text-right">Total Masuk Omzet</th>
+                <th className="p-3.5 text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredTransactions.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="p-12 text-center text-slate-400">
+                    <Receipt className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="font-bold text-slate-600">Tidak ada transaksi yang cocok dengan filter</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Coba sesuaikan pilihan bulan, tahun, cabang, atau kata kunci pencarian Anda.
+                    </p>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredTransactions.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="p-10 text-center text-slate-400 font-medium">
-                      {searchQuery || paymentCategoryFilter !== 'ALL'
-                        ? 'Tidak ada data pembayaran servis yang cocok dengan kriteria filter.'
-                        : 'Belum ada data transaksi pembayaran servis di cabang yang dipilih.'}
-                    </td>
-                  </tr>
-                ) : (
-                  filteredTransactions.map((inv) => {
-                    const vehicle = inv.vehicle;
-                    const branchLabel = inv.work_order?.received_at_branch || 'MHS 1';
-                    const cat = getPaymentCategory(inv.payment_method);
+              ) : (
+                filteredTransactions.map((inv) => {
+                  const vehicle = inv.vehicle;
+                  const cat = getPaymentCategory(inv.payment_method);
+                  const branchName = inv.work_order?.received_at_branch || 'MHS 1';
 
-                    return (
-                      <tr key={inv.id} className="hover:bg-slate-50/80 transition">
-                        {/* Waktu Pembayaran */}
-                        <td className="p-3.5 space-y-0.5">
-                          <div className="font-bold text-slate-900">
-                            {formatDate(inv.paid_at || inv.created_at)}
-                          </div>
-                          <div className="text-[10px] text-slate-500 font-mono">
-                            {formatDateTime(inv.paid_at || inv.created_at).split(' ')[1] || ''} WIB
-                          </div>
-                        </td>
+                  return (
+                    <tr key={inv.id} className="hover:bg-slate-50/80 transition">
+                      {/* No Nota & Tanggal */}
+                      <td className="p-3.5">
+                        <div className="font-mono font-bold text-slate-900">
+                          {inv.invoice_number}
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          {inv.paid_at ? formatDateTime(inv.paid_at) : formatDateTime(inv.created_at)}
+                        </div>
+                      </td>
 
-                        {/* No Nota & SPK */}
-                        <td className="p-3.5 space-y-0.5 font-mono">
-                          <div className="font-bold text-maroon-900 text-xs">
-                            {inv.invoice_number}
-                          </div>
-                          <div className="text-[10.5px] text-slate-500">
-                            SPK: {inv.work_order?.spk_number || inv.work_order_id?.slice(-8) || '-'}
-                          </div>
-                        </td>
-
-                        {/* Plat & Kendaraan */}
-                        <td className="p-3.5">
-                          <div className="font-mono font-black text-slate-900 text-xs">
+                      {/* Kendaraan & Pelanggan */}
+                      <td className="p-3.5">
+                        <div className="font-bold text-slate-900 flex items-center space-x-1.5">
+                          <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[11px] text-slate-800 border border-slate-200">
                             {vehicle?.license_plate ? formatPlate(vehicle.license_plate) : '-'}
-                          </div>
-                          <div className="text-slate-600 text-[11px] font-medium">
-                            {vehicle?.car_brand} {vehicle?.car_model}
-                          </div>
-                        </td>
-
-                        {/* Pelanggan */}
-                        <td className="p-3.5">
-                          <div className="font-bold text-slate-900">
-                            {vehicle?.customer_name || 'Pelanggan'}
-                          </div>
-                          <div className="text-[10.5px] text-slate-500 font-mono">
-                            {vehicle?.phone_number || '-'}
-                          </div>
-                        </td>
-
-                        {/* Cabang */}
-                        <td className="p-3.5">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
-                            branchLabel === 'MHS 2'
-                              ? 'bg-amber-50 text-amber-900 border-amber-300'
-                              : branchLabel === 'MHS 3'
-                              ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
-                              : 'bg-blue-50 text-blue-900 border-blue-300'
-                          }`}>
-                            {branchLabel}
                           </span>
-                        </td>
+                          <span>{vehicle?.customer_name || 'Pelanggan'}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          {vehicle?.car_brand} {vehicle?.car_model} {vehicle?.car_year ? `(${vehicle.car_year})` : ''}
+                        </div>
+                      </td>
 
-                        {/* Kategori Pembayaran Badge */}
-                        <td className="p-3.5">
-                          {cat === 'cash' && (
-                            <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10.5px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300">
-                              <Banknote className="w-3 h-3 text-emerald-700" />
-                              <span>TUNAI (CASH)</span>
-                            </span>
-                          )}
-                          {cat === 'transfer_bca' && (
-                            <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10.5px] font-black bg-indigo-100 text-indigo-900 border border-indigo-300">
-                              <Building2 className="w-3 h-3 text-indigo-700" />
-                              <span>TRANSFER BCA</span>
-                            </span>
-                          )}
-                          {cat === 'transfer_bri' && (
-                            <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10.5px] font-black bg-amber-100 text-amber-900 border border-amber-300">
-                              <Building2 className="w-3 h-3 text-amber-700" />
-                              <span>TRANSFER BRI</span>
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Status Lunas */}
-                        <td className="p-3.5">
-                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            <span>LUNAS</span>
+                      {/* Kategori Pembayaran */}
+                      <td className="p-3.5">
+                        {cat === 'cash' ? (
+                          <span className="inline-flex items-center space-x-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            <span>Tunai (Cash)</span>
                           </span>
-                        </td>
+                        ) : cat === 'transfer_bca' ? (
+                          <span className="inline-flex items-center space-x-1 text-[11px] font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                            <span>Transfer Bank BCA</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center space-x-1 text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                            <span>Transfer Bank BRI</span>
+                          </span>
+                        )}
+                      </td>
 
-                        {/* Nominal Masuk Omzet */}
-                        <td className="p-3.5 text-right font-mono font-black text-emerald-800 text-sm">
-                          {formatCurrency(inv.total_amount)}
-                        </td>
+                      {/* Cabang */}
+                      <td className="p-3.5">
+                        <span className="text-[11px] font-extrabold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                          {branchName}
+                        </span>
+                      </td>
 
-                        {/* Aksi */}
-                        <td className="p-3.5 text-right whitespace-nowrap space-x-1.5">
-                          {currentRole === 'owner' && (
-                            <Link
-                              href={`/kasir?invoiceId=${inv.id}&mode=owner_edit`}
-                              className="inline-flex items-center space-x-1 text-[11px] font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2.5 py-1.5 rounded-lg transition shadow-2xs"
-                              title="Koreksi Nota & Pembayaran Ulang Kasir (Khusus Owner)"
-                            >
-                              <RotateCcw className="w-3 h-3 text-amber-700" />
-                              <span>Koreksi / Ulang Bayar</span>
-                            </Link>
-                          )}
+                      {/* Subtotal */}
+                      <td className="p-3.5 text-right font-mono text-slate-600">
+                        {formatCurrency(inv.subtotal)}
+                      </td>
+
+                      {/* Diskon */}
+                      <td className="p-3.5 text-right font-mono text-rose-600">
+                        {inv.discount_amount && inv.discount_amount > 0 ? `-${formatCurrency(inv.discount_amount)}` : '-'}
+                      </td>
+
+                      {/* Total Omzet */}
+                      <td className="p-3.5 text-right font-mono font-black text-emerald-800 text-sm">
+                        {formatCurrency(inv.total_amount)}
+                      </td>
+
+                      {/* Aksi */}
+                      <td className="p-3.5 text-right whitespace-nowrap space-x-1.5">
+                        {currentRole === 'owner' && (
                           <Link
-                            href={`/riwayat?search=${vehicle?.license_plate || inv.invoice_number || ''}`}
-                            className="inline-flex items-center space-x-1 text-[11px] font-bold text-slate-700 hover:text-maroon-700 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg transition"
+                            href={`/kasir?invoiceId=${inv.id}&mode=owner_edit`}
+                            className="inline-flex items-center space-x-1 text-[11px] font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2.5 py-1.5 rounded-lg transition shadow-2xs cursor-pointer"
+                            title="Koreksi Nota & Pembayaran Ulang Kasir (Khusus Owner)"
                           >
-                            <span>Lihat Nota</span>
-                            <ArrowUpRight className="w-3 h-3" />
+                            <RotateCcw className="w-3 h-3 text-amber-700" />
+                            <span>Koreksi / Ulang Bayar</span>
                           </Link>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                        )}
+                        <Link
+                          href={`/riwayat?search=${vehicle?.license_plate || inv.invoice_number || ''}`}
+                          className="inline-flex items-center space-x-1 text-[11px] font-bold text-slate-700 hover:text-maroon-700 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+                        >
+                          <span>Lihat Nota</span>
+                          <ArrowUpRight className="w-3 h-3" />
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Global Audit Log */}
+      {/* Global Audit Trail (Khusus Owner & Admin) */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-card space-y-4">
         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
           <div className="flex items-center space-x-2">

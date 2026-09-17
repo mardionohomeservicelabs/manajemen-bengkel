@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useApp } from '@/lib/context/AppContext';
+import { useAuth } from '@/lib/context/AuthContext';
 import { CheckupRecord, VehicleCustomer, WorkOrder } from '@/lib/types/database';
 import { formatDate, formatPlate } from '@/lib/utils';
 import {
@@ -72,7 +73,12 @@ const resolveGroupBranch = (wo?: WorkOrder, v?: any, rec?: any): BranchId => {
 
 export default function CheckupPage() {
   const { checkups, workOrders, allWorkOrders, vehicles, settings, deleteCheckupAsync, showToast, currentRole, refreshData, syncWithSupabase } = useApp();
-  const [selectedBranch, setSelectedBranch] = useState<'ALL' | BranchId>('ALL');
+  const { currentUser, activeBranch } = useAuth();
+  const canAccessAll = !!currentUser?.canAccessAllBranches;
+
+  const [selectedBranch, setSelectedBranch] = useState<'ALL' | BranchId>(
+    canAccessAll ? 'ALL' : activeBranch
+  );
   const [filterTab, setFilterTab] = useState<'all' | 'has_checkup' | 'empty'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVehicleGroup, setSelectedVehicleGroup] = useState<VehicleCheckupGroup | null>(null);
@@ -84,6 +90,15 @@ export default function CheckupPage() {
     refreshData();
     syncWithSupabase();
   }, [refreshData, syncWithSupabase]);
+
+  // Sinkronkan jika activeBranch berganti (misal via switcher sidebar oleh Via atau Owner)
+  useEffect(() => {
+    if (!canAccessAll) {
+      setSelectedBranch(activeBranch);
+    } else if (activeBranch) {
+      setSelectedBranch(activeBranch);
+    }
+  }, [activeBranch, canAccessAll]);
 
   // Group checkups & workOrders by car (license_plate / vehicle_id)
   const vehicleGroups: VehicleCheckupGroup[] = useMemo(() => {
@@ -415,52 +430,59 @@ export default function CheckupPage() {
                 <Building2 className="w-4 h-4 text-maroon-700" />
                 <span>Cabang:</span>
               </div>
-              <div className="flex flex-wrap gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold">
-                <button
-                  type="button"
-                  onClick={() => setSelectedBranch('ALL')}
-                  className={`px-3 py-1.5 rounded-lg transition font-black cursor-pointer ${
-                    selectedBranch === 'ALL'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Semua Cabang ({vehicleGroups.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedBranch('MHS 1')}
-                  className={`px-3 py-1.5 rounded-lg transition font-black cursor-pointer ${
-                    selectedBranch === 'MHS 1'
-                      ? 'bg-[#8B0000] text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  MHS 1 ({countMhs1})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedBranch('MHS 2')}
-                  className={`px-3 py-1.5 rounded-lg transition font-black cursor-pointer ${
-                    selectedBranch === 'MHS 2'
-                      ? 'bg-[#001F7A] text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  MHS 2 ({countMhs2})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedBranch('MHS 3')}
-                  className={`px-3 py-1.5 rounded-lg transition font-black cursor-pointer ${
-                    selectedBranch === 'MHS 3'
-                      ? 'bg-emerald-700 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  MHS 3 ({countMhs3})
-                </button>
-              </div>
+              {canAccessAll ? (
+                <div className="flex flex-wrap gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBranch('ALL')}
+                    className={`px-3 py-1.5 rounded-lg transition font-black cursor-pointer ${
+                      selectedBranch === 'ALL'
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Semua Cabang ({vehicleGroups.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBranch('MHS 1')}
+                    className={`px-3 py-1.5 rounded-lg transition font-black cursor-pointer ${
+                      selectedBranch === 'MHS 1'
+                        ? 'bg-[#8B0000] text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    MHS 1 ({countMhs1})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBranch('MHS 2')}
+                    className={`px-3 py-1.5 rounded-lg transition font-black cursor-pointer ${
+                      selectedBranch === 'MHS 2'
+                        ? 'bg-[#001F7A] text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    MHS 2 ({countMhs2})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBranch('MHS 3')}
+                    className={`px-3 py-1.5 rounded-lg transition font-black cursor-pointer ${
+                      selectedBranch === 'MHS 3'
+                        ? 'bg-emerald-700 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    MHS 3 ({countMhs3})
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-2 bg-slate-100 px-3 py-1.5 rounded-xl text-xs">
+                  <span className="text-[11px] font-bold text-slate-500">Cabang Anda:</span>
+                  <span className="text-xs font-black text-slate-900 bg-white px-2 py-0.5 rounded-md border border-slate-200">{activeBranch}</span>
+                </div>
+              )}
             </div>
           </div>
 
