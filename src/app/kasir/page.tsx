@@ -21,6 +21,7 @@ import {
   formatPlate,
   generateInvoiceNumber,
   parseNumericPrice,
+  resolveInvoiceBranch,
 } from '@/lib/utils';
 import Link from 'next/link';
 import {
@@ -696,7 +697,7 @@ function CashierContent() {
                   (inv, index, self) =>
                     inv.type === 'invoice' &&
                     inv.payment_status === 'paid' &&
-                    (inv.work_order?.received_at_branch || 'MHS 1') === activeBranch &&
+                    (inv.branch || resolveInvoiceBranch(inv, allWorkOrders)) === activeBranch &&
                     self.findIndex((i) => i.id === inv.id || i.invoice_number === inv.invoice_number) === index
                 )
                 .map((inv) => (

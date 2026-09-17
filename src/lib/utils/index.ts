@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { BranchId } from '../auth/users';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -162,6 +163,85 @@ export function generateInvoiceNumber(type: 'invoice' | 'estimation' = 'invoice'
   const branchCode = getBranchCode(branch);
   const randomSuffix = Math.floor(1000 + Math.random() * 9000);
   return `${prefix}-${dateStr}-${branchCode}-${randomSuffix}`;
+}
+
+/**
+ * Menentukan cabang asal sebuah invoice/estimasi secara akurat.
+ * Menghindari kesalahan pengkategorian pendapatan MHS 2 masuk ke MHS 1.
+ */
+export function resolveInvoiceBranch(inv?: any, allWorkOrders?: any[]): BranchId {
+  if (!inv) return 'MHS 1';
+
+  // 1. Cek kode cabang langsung pada nomor nota (paling eksplisit dan definitif)
+  // Format standar: INV-20260917-M2-8648 atau EST-20260917-M2-7752
+  const num = String(inv.invoice_number || '').toUpperCase();
+  if (num.includes('-M2-') || num.includes('-M2') || num.includes('MHS2') || num.includes('MHS 2')) {
+    return 'MHS 2';
+  }
+  if (num.includes('-M3-') || num.includes('-M3') || num.includes('MHS3') || num.includes('MHS 3')) {
+    return 'MHS 3';
+  }
+  if (num.includes('-M1-') || num.includes('-M1') || num.includes('MHS1') || num.includes('MHS 1')) {
+    return 'MHS 1';
+  }
+
+  // 2. Cek properti work_order yang sudah ter-attach
+  const wo = inv.work_order;
+  if (wo) {
+    const raw = wo.checklist_data?.received_at_branch || wo.received_at_branch;
+    if (raw) {
+      const u = String(raw).toUpperCase();
+      if (u.includes('2')) return 'MHS 2';
+      if (u.includes('3')) return 'MHS 3';
+      if (u.includes('1')) return 'MHS 1';
+    }
+    const spk = String(wo.spk_number || '').toUpperCase();
+    if (spk.includes('-M2-') || spk.includes('-M2') || spk.includes('MHS2')) return 'MHS 2';
+    if (spk.includes('-M3-') || spk.includes('-M3') || spk.includes('MHS3')) return 'MHS 3';
+    if (spk.includes('-M1-') || spk.includes('-M1') || spk.includes('MHS1')) return 'MHS 1';
+  }
+
+  // 3. Cek properti branch langsung pada invoice jika ada
+  if (inv.branch) {
+    const b = String(inv.branch).toUpperCase();
+    if (b.includes('2')) return 'MHS 2';
+    if (b.includes('3')) return 'MHS 3';
+    if (b.includes('1')) return 'MHS 1';
+  }
+
+  // 4. Cari dari allWorkOrders jika work_order_id tersedia
+  const woId = inv.work_order_id;
+  if (woId && Array.isArray(allWorkOrders)) {
+    const matched = allWorkOrders.find((w) => w.id === woId || w.spk_number === woId);
+    if (matched) {
+      const raw = matched.checklist_data?.received_at_branch || matched.received_at_branch;
+      if (raw) {
+        const u = String(raw).toUpperCase();
+        if (u.includes('2')) return 'MHS 2';
+        if (u.includes('3')) return 'MHS 3';
+        if (u.includes('1')) return 'MHS 1';
+      }
+      const spk = String(matched.spk_number || '').toUpperCase();
+      if (spk.includes('-M2-') || spk.includes('-M2') || spk.includes('MHS2')) return 'MHS 2';
+      if (spk.includes('-M3-') || spk.includes('-M3') || spk.includes('MHS3')) return 'MHS 3';
+      if (spk.includes('-M1-') || spk.includes('-M1') || spk.includes('MHS1')) return 'MHS 1';
+    }
+  }
+
+  // 5. Cek work_order_id jika berbentuk nomor SPK langsung (misal SPK-20260917-M2-xxxx)
+  if (typeof woId === 'string') {
+    const upperWoId = woId.toUpperCase();
+    if (upperWoId.includes('-M2-') || upperWoId.includes('-M2') || upperWoId.includes('MHS2')) return 'MHS 2';
+    if (upperWoId.includes('-M3-') || upperWoId.includes('-M3') || upperWoId.includes('MHS3')) return 'MHS 3';
+    if (upperWoId.includes('-M1-') || upperWoId.includes('-M1') || upperWoId.includes('MHS1')) return 'MHS 1';
+  }
+
+  // 6. Cek penanggung jawab (Mey Wulandari selalu MHS 2)
+  const creator = String(inv.created_by || inv.estimator_name || inv.admin_notes || '').toLowerCase();
+  if (creator.includes('mey')) return 'MHS 2';
+  if (creator.includes('arida')) return 'MHS 1';
+
+  return 'MHS 1';
 }
 
 /**

@@ -332,6 +332,7 @@ export interface Invoice {
   id: string;
   invoice_number: string;
   type: InvoiceType;
+  branch?: string;
   work_order_id?: string;
   vehicle_id: string;
   items: InvoiceItem[];

@@ -21,7 +21,7 @@ import {
   initialSettingsMHS3,
 } from '../data/mock-data';
 import { supabase, isSupabaseConfigured } from '../supabase/client';
-import { generateSpkNumber, generateInvoiceNumber, getBranchCode } from '../utils';
+import { generateSpkNumber, generateInvoiceNumber, getBranchCode, resolveInvoiceBranch } from '../utils';
 
 export const SYSTEM_DATA_EPOCH = '2026-09-16T05:46:00.000Z';
 
@@ -2107,43 +2107,56 @@ export class DBService {
   static getInvoices(branch?: BranchId): Invoice[] {
     const key = getBranchKey(BASE_STORAGE_KEYS.INVOICES, branch);
     const invoices = getLocal<Invoice[]>(key, []);
-    const vehicles = this.getVehicles(branch);
-    const workOrders = this.getWorkOrders(branch);
+    const vehicles = branch ? this.getVehicles(branch) : this.getAllVehicles();
+    const workOrders = branch ? this.getWorkOrders(branch) : this.getAllWorkOrders();
+    const allWos = this.getAllWorkOrders();
 
-    return invoices.map((inv) => {
-      const cleanPlate = inv.vehicle?.license_plate?.toUpperCase().replace(/\s+/g, '');
-      const vehicle = vehicles.find(
-        (v) =>
-          v.id === inv.vehicle_id ||
-          (cleanPlate && v.license_plate.toUpperCase().replace(/\s+/g, '') === cleanPlate)
-      ) || inv.vehicle;
+    return invoices
+      .filter((inv) => !branch || resolveInvoiceBranch(inv, allWos) === branch)
+      .map((inv) => {
+        const cleanPlate = inv.vehicle?.license_plate?.toUpperCase().replace(/\s+/g, '');
+        const vehicle = vehicles.find(
+          (v) =>
+            v.id === inv.vehicle_id ||
+            (cleanPlate && v.license_plate.toUpperCase().replace(/\s+/g, '') === cleanPlate)
+        ) || inv.vehicle;
 
-      const workOrder = workOrders.find(
-        (w) =>
-          w.id === inv.work_order_id ||
-          w.spk_number === inv.work_order_id ||
-          (inv.work_order?.spk_number && w.spk_number === inv.work_order.spk_number) ||
-          (w.spk_number && inv.invoice_number && inv.invoice_number.includes(w.spk_number))
-      ) || inv.work_order;
+        const workOrder = workOrders.find(
+          (w) =>
+            w.id === inv.work_order_id ||
+            w.spk_number === inv.work_order_id ||
+            (inv.work_order?.spk_number && w.spk_number === inv.work_order.spk_number) ||
+            (w.spk_number && inv.invoice_number && inv.invoice_number.includes(w.spk_number))
+        ) || allWos.find(
+          (w) =>
+            w.id === inv.work_order_id ||
+            w.spk_number === inv.work_order_id ||
+            (inv.work_order?.spk_number && w.spk_number === inv.work_order.spk_number)
+        ) || inv.work_order;
 
-      let estimatedDuration = inv.estimated_duration;
-      if (!estimatedDuration && workOrder?.checklist_data) {
-        const cl = workOrder.checklist_data as any;
-        const tabKey = (inv as any).tab_id || inv.estimation_tab;
-        const estFromCl = (tabKey && cl[`estimation_${tabKey}`]) || cl.estimation;
-        if (estFromCl?.estimated_duration) {
-          estimatedDuration = estFromCl.estimated_duration;
+        let estimatedDuration = inv.estimated_duration;
+        if (!estimatedDuration && workOrder?.checklist_data) {
+          const cl = workOrder.checklist_data as any;
+          const tabKey = (inv as any).tab_id || inv.estimation_tab;
+          const estFromCl = (tabKey && cl[`estimation_${tabKey}`]) || cl.estimation;
+          if (estFromCl?.estimated_duration) {
+            estimatedDuration = estFromCl.estimated_duration;
+          }
         }
-      }
 
-      return {
-        ...inv,
-        estimated_duration: estimatedDuration || undefined,
-        complaints: workOrder?.complaints || (inv as any).complaints || undefined,
-        vehicle,
-        work_order: workOrder,
-      };
-    });
+        const resolvedBranch = resolveInvoiceBranch(inv, allWos);
+
+        return {
+          ...inv,
+          branch: resolvedBranch,
+          estimated_duration: estimatedDuration || undefined,
+          complaints: workOrder?.complaints || (inv as any).complaints || undefined,
+          vehicle,
+          work_order: workOrder
+            ? { ...workOrder, received_at_branch: workOrder.received_at_branch || resolvedBranch }
+            : undefined,
+        };
+      });
   }
 
   static getInvoiceById(id: string, branch?: BranchId): Invoice | undefined {
@@ -2152,12 +2165,14 @@ export class DBService {
 
   static getAllInvoices(): Invoice[] {
     const branches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+    const allWos = this.getAllWorkOrders();
     const map = new Map<string, Invoice>();
     branches.forEach((b) => {
       this.getInvoices(b).forEach((inv) => {
         const key = inv.invoice_number || inv.id;
+        const resolvedBranch = resolveInvoiceBranch(inv, allWos);
         if (!map.has(key)) {
-          map.set(key, inv);
+          map.set(key, { ...inv, branch: resolvedBranch } as any);
         }
       });
     });
@@ -3666,6 +3681,9 @@ export class DBService {
       return;
     }
 
+    const allWos = this.getAllWorkOrders();
+    const targetBranch = resolveInvoiceBranch(row, allWos);
+
     allBranches.forEach((b) => {
       const key = getBranchKey(BASE_STORAGE_KEYS.INVOICES, b);
       const invs = getLocal<Invoice[]>(key, []);
@@ -3673,36 +3691,44 @@ export class DBService {
         (i) => (row.id && i.id === row.id) || (row.invoice_number && i.invoice_number === row.invoice_number)
       );
 
-      if (existingIdx !== -1) {
-        invs[existingIdx] = {
-          ...invs[existingIdx],
-          ...row,
-          payment_status: row.payment_status || invs[existingIdx].payment_status,
-          updated_at: row.updated_at || new Date().toISOString(),
-        };
-        setLocal(key, invs);
-      } else if (event === 'INSERT' && b === 'MHS 1') {
-        const newInv: Invoice = {
-          id: row.id,
-          invoice_number: row.invoice_number,
-          type: row.type || (row.invoice_number?.startsWith('EST-') ? 'estimation' : 'invoice'),
-          work_order_id: row.work_order_id,
-          vehicle_id: row.vehicle_id,
-          items: Array.isArray(row.items) ? row.items : [],
-          subtotal: Number(row.subtotal) || 0,
-          discount_amount: Number(row.discount_amount) || 0,
-          tax_percent: Number(row.tax_percent) || 0,
-          tax_amount: Number(row.tax_amount) || 0,
-          total_amount: Number(row.total_amount) || 0,
-          down_payment: Number(row.down_payment) || 0,
-          balance_due: Number(row.balance_due) || 0,
-          payment_status: row.payment_status || 'pending',
-          payment_method: row.payment_method,
-          created_at: row.created_at || new Date().toISOString(),
-          updated_at: row.updated_at || new Date().toISOString(),
-        };
-        invs.unshift(newInv);
-        setLocal(key, invs);
+      if (b === targetBranch) {
+        if (existingIdx !== -1) {
+          invs[existingIdx] = {
+            ...invs[existingIdx],
+            ...row,
+            payment_status: row.payment_status || invs[existingIdx].payment_status,
+            updated_at: row.updated_at || new Date().toISOString(),
+          };
+          setLocal(key, invs);
+        } else {
+          const newInv: Invoice = {
+            id: row.id,
+            invoice_number: row.invoice_number,
+            type: row.type || (row.invoice_number?.startsWith('EST-') ? 'estimation' : 'invoice'),
+            work_order_id: row.work_order_id,
+            vehicle_id: row.vehicle_id,
+            items: Array.isArray(row.items) ? row.items : [],
+            subtotal: Number(row.subtotal) || 0,
+            discount_amount: Number(row.discount_amount) || 0,
+            tax_percent: Number(row.tax_percent) || 0,
+            tax_amount: Number(row.tax_amount) || 0,
+            total_amount: Number(row.total_amount) || 0,
+            down_payment: Number(row.down_payment) || 0,
+            balance_due: Number(row.balance_due) || 0,
+            payment_status: row.payment_status || 'pending',
+            payment_method: row.payment_method,
+            created_at: row.created_at || new Date().toISOString(),
+            updated_at: row.updated_at || new Date().toISOString(),
+          };
+          invs.unshift(newInv);
+          setLocal(key, invs);
+        }
+      } else {
+        // Hapus jika sebelumnya salah tersimpan di cabang lain
+        if (existingIdx !== -1) {
+          invs.splice(existingIdx, 1);
+          setLocal(key, invs);
+        }
       }
     });
   }
@@ -4069,11 +4095,19 @@ export class DBService {
         });
 
         const cloudInvoices = Array.from(cloudInvoicesMap.values());
+        const allCloudWos = this.getAllWorkOrders();
 
-        // SMART MERGE: gabungkan invoices cloud dengan lokal per cabang dengan smartMergeInvoices
+        // SMART MERGE: partisi invoices cloud dan lokal per cabang dengan resolveInvoiceBranch
         allBranches.forEach((b) => {
+          const branchCloudInvoices = cloudInvoices.filter(
+            (inv) => resolveInvoiceBranch(inv, allCloudWos) === b
+          );
           const localInvs = getLocal<Invoice[]>(getBranchKey(BASE_STORAGE_KEYS.INVOICES, b), []);
-          const mergedInvs = smartMergeInvoices(cloudInvoices, localInvs);
+          // Bersihkan juga invoice lokal yang salah cabang
+          const validLocalInvs = localInvs.filter(
+            (inv) => resolveInvoiceBranch(inv, allCloudWos) === b
+          );
+          const mergedInvs = smartMergeInvoices(branchCloudInvoices, validLocalInvs);
           setLocal(getBranchKey(BASE_STORAGE_KEYS.INVOICES, b), mergedInvs);
         });
       }

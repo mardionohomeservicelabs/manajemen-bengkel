@@ -5,8 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useApp } from '@/lib/context/AppContext';
 import { useAuth } from '@/lib/context/AuthContext';
-import { DBService } from '@/lib/services/db-service';
-import { BRANCHES, BranchId, ROLE_LABELS } from '@/lib/auth/users';
+import { BRANCHES, BranchId, ROLE_LABELS, canUserAccessFinancialReports } from '@/lib/auth/users';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -245,11 +244,16 @@ export function Sidebar() {
     </div>
   );
 
-  // Filter menu navigasi sesuai role user
-  const displayedNavItems =
-    currentRole === 'mekanik'
-      ? navItems.filter((item) => item.roles.includes('mekanik'))
-      : navItems;
+  // Filter menu navigasi sesuai role user & otorisasi laporan keuangan
+  const displayedNavItems = navItems.filter((item) => {
+    if (currentRole === 'mekanik' && !item.roles.includes('mekanik')) {
+      return false;
+    }
+    if (item.href === '/laporan' && !canUserAccessFinancialReports(currentUser)) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <>

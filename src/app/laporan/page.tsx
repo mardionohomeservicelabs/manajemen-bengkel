@@ -4,8 +4,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '@/lib/context/AppContext';
 import { useAuth } from '@/lib/context/AuthContext';
 import { DBService } from '@/lib/services/db-service';
-import { BranchId } from '@/lib/auth/users';
-import { formatCurrency, formatDateTime, formatDate, formatPlate } from '@/lib/utils';
+import { BranchId, canUserAccessFinancialReports } from '@/lib/auth/users';
+import { formatCurrency, formatDateTime, formatDate, formatPlate, resolveInvoiceBranch } from '@/lib/utils';
 import {
   BarChart3,
   DollarSign,
@@ -59,9 +59,14 @@ const MONTH_SHORT = [
 ];
 
 export default function ReportsPage() {
-  const { currentRole, invoices, allInvoices } = useApp();
+  const { currentRole, invoices, allInvoices, allWorkOrders } = useApp();
   const { currentUser, activeBranch } = useAuth();
   const canAccessAll = !!currentUser?.canAccessAllBranches;
+
+  // Helper resolusi cabang invoice yang akurat dan anti-salah-kamar
+  const getInvoiceBranch = (inv: any): BranchId => {
+    return (inv?.branch as BranchId) || resolveInvoiceBranch(inv, allWorkOrders);
+  };
 
   // State Filter Cabang: Terkunci ke activeBranch jika staf biasa, bebas untuk Owner / Via
   const [selectedBranch, setSelectedBranch] = useState<'ALL' | BranchId>(
@@ -84,16 +89,16 @@ export default function ReportsPage() {
   const [paymentCategoryFilter, setPaymentCategoryFilter] = useState<'ALL' | 'cash' | 'transfer_bca' | 'transfer_bri'>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // 1. Validasi Otorisasi: Owner, Estimator, dan Admin diizinkan mengakses
-  if (currentRole !== 'owner' && currentRole !== 'estimator' && currentRole !== 'admin') {
+  // 1. Validasi Otorisasi: Khusus Owner, Mey, Via, dan Arida
+  if (!canUserAccessFinancialReports(currentUser)) {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-12 text-center max-w-lg mx-auto space-y-4">
         <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
           <Lock className="w-8 h-8" />
         </div>
-        <h2 className="text-xl font-bold text-slate-900">Akses Terbatas: Khusus Owner, Estimator &amp; Admin</h2>
+        <h2 className="text-xl font-bold text-slate-900">Akses Terbatas: Laporan Keuangan</h2>
         <p className="text-xs text-slate-500 leading-relaxed">
-          Modul Laporan Keuangan, Analisis Omzet Pembayaran Servis, dan Rekapitulasi Finansial Bulanan/Tahunan hanya dapat diakses oleh akun <strong>Owner</strong>, <strong>Estimator</strong>, dan <strong>Admin</strong>.
+          Modul Laporan Keuangan, Analisis Omzet Pembayaran Servis, dan Rekapitulasi Finansial Bulanan/Tahunan hanya dapat diakses oleh <strong>Owner</strong>, <strong>Mey</strong>, <strong>Via</strong>, dan <strong>Arida</strong>.
         </p>
       </div>
     );
@@ -101,10 +106,10 @@ export default function ReportsPage() {
 
   // 2. Data Sumber: Dibatasi pada cabang akun (untuk staf/admin) atau sesuai pilihan (untuk owner/via)
   const rawInvoices = !canAccessAll
-    ? allInvoices.filter((i) => (i.work_order?.received_at_branch || 'MHS 1') === activeBranch)
+    ? allInvoices.filter((i) => getInvoiceBranch(i) === activeBranch)
     : selectedBranch === 'ALL'
     ? allInvoices
-    : allInvoices.filter((i) => (i.work_order?.received_at_branch || 'MHS 1') === selectedBranch);
+    : allInvoices.filter((i) => getInvoiceBranch(i) === selectedBranch);
 
   // 3. Transaksi Servis Lunas (Masuk Omzet)
   const allPaidInvoices = rawInvoices.filter((i) => i.type === 'invoice' && i.payment_status === 'paid');
@@ -283,7 +288,7 @@ export default function ReportsPage() {
       'Status',
     ];
     const rows = filteredTransactions.map((inv) => {
-      const branchName = inv.work_order?.received_at_branch || 'MHS 1';
+      const branchName = getInvoiceBranch(inv);
       const cat = getPaymentCategory(inv.payment_method);
       const catLabel =
         cat === 'cash'
@@ -387,7 +392,7 @@ export default function ReportsPage() {
             </button>
             {(['MHS 1', 'MHS 2', 'MHS 3'] as BranchId[]).map((b) => {
               const count = allPaidInvoices.filter(
-                (i) => (i.work_order?.received_at_branch || 'MHS 1') === b
+                (i) => getInvoiceBranch(i) === b
               ).length;
               return (
                 <button
@@ -946,7 +951,7 @@ export default function ReportsPage() {
                 filteredTransactions.map((inv) => {
                   const vehicle = inv.vehicle;
                   const cat = getPaymentCategory(inv.payment_method);
-                  const branchName = inv.work_order?.received_at_branch || 'MHS 1';
+                  const branchName = getInvoiceBranch(inv);
 
                   return (
                     <tr key={inv.id} className="hover:bg-slate-50/80 transition">

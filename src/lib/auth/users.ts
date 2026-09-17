@@ -284,3 +284,26 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   mekanik: 'Mekanik',
   estimator: 'Estimator & CRM',
 };
+
+/**
+ * Pengecekan otorisasi akses Laporan Keuangan:
+ * Sesuai instruksi: Yang bisa mengakses laporan keuangan adalah Owner, Mey, Via, dan Arida.
+ */
+export function canUserAccessFinancialReports(user?: AppUser | null): boolean {
+  if (!user) return false;
+  if (user.role === 'owner') return true;
+  const lowerEmail = (user.email || '').toLowerCase();
+  const lowerId = (user.id || '').toLowerCase();
+  const lowerName = (user.full_name || '').toLowerCase();
+  return (
+    lowerEmail.includes('mey') ||
+    lowerId.includes('mey') ||
+    lowerName.includes('mey') ||
+    lowerEmail.includes('via') ||
+    lowerId.includes('via') ||
+    lowerName.includes('via') ||
+    lowerEmail.includes('arida') ||
+    lowerId.includes('arida') ||
+    lowerName.includes('arida')
+  );
+}
