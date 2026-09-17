@@ -185,71 +185,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
           broadcast: { self: false },
         },
       })
-      // ── 1. WORK ORDERS (SPK) ─────────────────────────────────────────────
+      // ── 1. WORK ORDERS (SPK) — INSTANT REALTIME (0ms delay, 0 Egress) ────
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'work_orders' },
+        { event: '*', schema: 'public', table: 'work_orders' },
         (payload) => {
-          console.info('[Realtime] work_orders INSERT:', payload.new?.spk_number);
-          scheduleDebouncedSync(['work_orders']);
+          const event = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE';
+          const row: any = event === 'DELETE' ? payload.old : payload.new;
+          console.info(`[Realtime] work_orders ${event}:`, row?.spk_number || row?.id, row?.status);
+          DBService.applyRealtimeWorkOrderUpdate(event, row);
+          refreshData();
         }
       )
+      // ── 2. INVOICES & ESTIMASI — INSTANT REALTIME (0ms delay, 0 Egress) ──
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'work_orders' },
+        { event: '*', schema: 'public', table: 'invoices' },
         (payload) => {
-          console.info('[Realtime] work_orders UPDATE:', payload.new?.spk_number, payload.new?.status);
-          scheduleDebouncedSync(['work_orders', 'invoices']);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'work_orders' },
-        (payload) => {
-          console.info('[Realtime] work_orders DELETE:', payload.old?.id);
-          scheduleDebouncedSync(['work_orders']);
-        }
-      )
-      // ── 2. INVOICES & ESTIMASI ─────────────────────────────────────────────
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'invoices' },
-        (payload) => {
-          console.info('[Realtime] invoices INSERT:', payload.new?.invoice_number);
-          scheduleDebouncedSync(['invoices']);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'invoices' },
-        (payload) => {
-          console.info('[Realtime] invoices UPDATE:', payload.new?.invoice_number, payload.new?.payment_status);
-          scheduleDebouncedSync(['invoices']);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'invoices' },
-        (payload) => {
-          console.info('[Realtime] invoices DELETE:', payload.old?.id);
-          scheduleDebouncedSync(['invoices']);
+          const event = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE';
+          const row: any = event === 'DELETE' ? payload.old : payload.new;
+          console.info(`[Realtime] invoices ${event}:`, row?.invoice_number || row?.id, row?.payment_status);
+          DBService.applyRealtimeInvoiceUpdate(event, row);
+          refreshData();
         }
       )
       // ── 3. VEHICLES & CUSTOMERS ────────────────────────────────────────────
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'vehicles_customers' },
+        { event: '*', schema: 'public', table: 'vehicles_customers' },
         (payload) => {
-          console.info('[Realtime] vehicles_customers INSERT:', payload.new?.license_plate);
-          scheduleDebouncedSync(['vehicles']);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'vehicles_customers' },
-        (payload) => {
-          console.info('[Realtime] vehicles_customers UPDATE:', payload.new?.license_plate);
-          scheduleDebouncedSync(['vehicles', 'work_orders']);
+          console.info('[Realtime] vehicles_customers change:', payload.eventType, (payload.new as any)?.license_plate);
+          refreshData();
         }
       )
       .subscribe((status) => {
@@ -277,7 +243,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         console.info(`[Realtime] Channel "${channelName}" dibersihkan.`);
       }
     };
-  }, [activeBranch]);
+  }, [activeBranch, refreshData]);
 
   // ─── SYNC TAMBAHAN & FALLBACK ─────────────────────────────────────────────
   useEffect(() => {
@@ -311,12 +277,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // 3. Background sync setiap 12 detik sebagai fallback jika WebSocket terputus
+    // 3. Background sync hemat kuota sebagai fallback santai jika ada packet drop (setiap 90 detik, bukan 12 detik)
     const syncInterval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         syncWithSupabase();
       }
-    }, 12000);
+    }, 90000);
 
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityOrFocus);

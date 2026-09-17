@@ -1518,6 +1518,12 @@ export class DBService {
 
     if (supabase && isSupabaseConfigured) {
       try {
+        let targetWo = this.getWorkOrderById(id, branch);
+        if (!targetWo) {
+          const allWos = this.getAllWorkOrders();
+          targetWo = allWos.find((w) => w.id === id || w.spk_number === id);
+        }
+
         const updatePayload: Record<string, any> = {
           status,
           updated_at: new Date().toISOString(),
@@ -1525,7 +1531,16 @@ export class DBService {
         if (status === 'completed') {
           updatePayload.finish_date = new Date().toISOString();
         }
-        await supabase.from('work_orders').update(updatePayload).eq('id', id);
+
+        // 1. Coba update via id
+        const res = await supabase.from('work_orders').update(updatePayload).eq('id', id).select('id');
+        // 2. Jika tidak ada baris yang ter-update, coba dengan spk_number
+        if (!res.data || res.data.length === 0) {
+          const spkToMatch = targetWo?.spk_number || (id.startsWith('SPK-') ? id : null);
+          if (spkToMatch) {
+            await supabase.from('work_orders').update(updatePayload).eq('spk_number', spkToMatch);
+          }
+        }
       } catch (err) {
         console.warn('Supabase updateWorkOrderStatus exception:', err);
       }
@@ -1587,13 +1602,21 @@ export class DBService {
 
     if (supabase && isSupabaseConfigured) {
       try {
-        await supabase
+        const updatePayload = {
+          status: targetStatus,
+          updated_at: new Date().toISOString(),
+        };
+        const res = await supabase
           .from('work_orders')
-          .update({
-            status: targetStatus,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', id);
+          .update(updatePayload)
+          .eq('id', id)
+          .select('id');
+        if (!res.data || res.data.length === 0) {
+          const spkToMatch = orders[idx]?.spk_number || (id.startsWith('SPK-') ? id : null);
+          if (spkToMatch) {
+            await supabase.from('work_orders').update(updatePayload).eq('spk_number', spkToMatch);
+          }
+        }
       } catch (err) {
         console.warn('Supabase unlockWorkOrderAsync exception:', err);
       }
@@ -3543,11 +3566,154 @@ export class DBService {
     setLocal(key, logs.slice(0, 200));
   }
 
+  private static _isSyncing = false;
+
+  /**
+   * Terapkan pembaruan instan dari event Supabase Realtime WebSocket (0ms, 0 Egress).
+   * Mengupdate LocalStorage secara langsung tanpa perlu mendownload ulang seluruh database.
+   */
+  static applyRealtimeWorkOrderUpdate(event: 'INSERT' | 'UPDATE' | 'DELETE', row: any): void {
+    if (!row) return;
+    const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+
+    if (event === 'DELETE') {
+      const targetId = row.id;
+      const targetSpk = row.spk_number;
+      allBranches.forEach((b) => {
+        const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b);
+        const orders = getLocal<WorkOrder[]>(key, []);
+        const filtered = orders.filter((o) => o.id !== targetId && (!targetSpk || o.spk_number !== targetSpk));
+        if (filtered.length !== orders.length) {
+          setLocal(key, filtered);
+        }
+      });
+      return;
+    }
+
+    // INSERT atau UPDATE
+    const rawBranch = row.checklist_data?.received_at_branch || row.received_at_branch || (row as any).branch || 'MHS 1';
+    const targetBranch = normalizeBranch(rawBranch);
+    const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, targetBranch);
+    const orders = getLocal<WorkOrder[]>(key, []);
+
+    const existingIdx = orders.findIndex(
+      (o) => (row.id && o.id === row.id) || (row.spk_number && o.spk_number === row.spk_number)
+    );
+
+    if (existingIdx !== -1) {
+      const existing = orders[existingIdx];
+      const mergedChecklist = sanitizeChecklistData({
+        ...(existing.checklist_data || {}),
+        ...(row.checklist_data || {}),
+      });
+
+      orders[existingIdx] = {
+        ...existing,
+        ...row,
+        id: row.id || existing.id,
+        spk_number: row.spk_number || existing.spk_number,
+        status: row.status || existing.status,
+        finish_date: row.finish_date || (row.status === 'completed' ? (existing.finish_date || new Date().toISOString()) : existing.finish_date),
+        updated_at: row.updated_at || new Date().toISOString(),
+        checklist_data: mergedChecklist,
+        vehicle: existing.vehicle || row.vehicle,
+      };
+      setLocal(key, orders);
+    } else {
+      const checklist = sanitizeChecklistData(row.checklist_data || {});
+      const newWo: WorkOrder = {
+        id: row.id,
+        spk_number: row.spk_number,
+        vehicle_id: row.vehicle_id,
+        sa_id: row.sa_id,
+        petugas_name: checklist.petugas_name || row.petugas_name,
+        mechanic_name: row.mechanic_name,
+        entry_date: row.entry_date,
+        finish_date: row.finish_date,
+        complaints: row.complaints,
+        fuel_level: row.fuel_level,
+        status: row.status || 'queue',
+        notes: row.notes,
+        source_info: checklist.source_info,
+        vehicle_status: checklist.vehicle_status,
+        received_at_branch: checklist.received_at_branch || targetBranch,
+        checklist_data: checklist,
+        created_at: row.created_at || new Date().toISOString(),
+        updated_at: row.updated_at || new Date().toISOString(),
+        vehicle: row.vehicle,
+      };
+      orders.unshift(newWo);
+      setLocal(key, orders);
+    }
+  }
+
+  /**
+   * Terapkan pembaruan instan invoice dari Supabase Realtime WebSocket (0ms, 0 Egress)
+   */
+  static applyRealtimeInvoiceUpdate(event: 'INSERT' | 'UPDATE' | 'DELETE', row: any): void {
+    if (!row) return;
+    const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+
+    if (event === 'DELETE') {
+      allBranches.forEach((b) => {
+        const key = getBranchKey(BASE_STORAGE_KEYS.INVOICES, b);
+        const invs = getLocal<Invoice[]>(key, []);
+        const filtered = invs.filter((i) => i.id !== row.id && (!row.invoice_number || i.invoice_number !== row.invoice_number));
+        if (filtered.length !== invs.length) {
+          setLocal(key, filtered);
+        }
+      });
+      return;
+    }
+
+    allBranches.forEach((b) => {
+      const key = getBranchKey(BASE_STORAGE_KEYS.INVOICES, b);
+      const invs = getLocal<Invoice[]>(key, []);
+      const existingIdx = invs.findIndex(
+        (i) => (row.id && i.id === row.id) || (row.invoice_number && i.invoice_number === row.invoice_number)
+      );
+
+      if (existingIdx !== -1) {
+        invs[existingIdx] = {
+          ...invs[existingIdx],
+          ...row,
+          payment_status: row.payment_status || invs[existingIdx].payment_status,
+          updated_at: row.updated_at || new Date().toISOString(),
+        };
+        setLocal(key, invs);
+      } else if (event === 'INSERT' && b === 'MHS 1') {
+        const newInv: Invoice = {
+          id: row.id,
+          invoice_number: row.invoice_number,
+          type: row.type || (row.invoice_number?.startsWith('EST-') ? 'estimation' : 'invoice'),
+          work_order_id: row.work_order_id,
+          vehicle_id: row.vehicle_id,
+          items: Array.isArray(row.items) ? row.items : [],
+          subtotal: Number(row.subtotal) || 0,
+          discount_amount: Number(row.discount_amount) || 0,
+          tax_percent: Number(row.tax_percent) || 0,
+          tax_amount: Number(row.tax_amount) || 0,
+          total_amount: Number(row.total_amount) || 0,
+          down_payment: Number(row.down_payment) || 0,
+          balance_due: Number(row.balance_due) || 0,
+          payment_status: row.payment_status || 'pending',
+          payment_method: row.payment_method,
+          created_at: row.created_at || new Date().toISOString(),
+          updated_at: row.updated_at || new Date().toISOString(),
+        };
+        invs.unshift(newInv);
+        setLocal(key, invs);
+      }
+    });
+  }
+
   /**
    * Mengambil data terbaru langsung dari database Supabase dan mengupdate local storage untuk semua cabang
    */
   static async syncFromSupabase(branch?: BranchId): Promise<boolean> {
     if (!supabase || !isSupabaseConfigured) return false;
+    if (this._isSyncing) return true;
+    this._isSyncing = true;
 
     this.checkAndApplyDataResetEpoch();
 
@@ -3916,6 +4082,8 @@ export class DBService {
     } catch (err) {
       console.warn('Supabase syncFromSupabase exception:', err);
       return false;
+    } finally {
+      this._isSyncing = false;
     }
   }
 

@@ -30,7 +30,7 @@ interface StoredAuth {
   timestamp: number;
 }
 
-const SESSION_DURATION_MS = 12 * 60 * 60 * 1000; // 12 jam
+const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 hari sesi aktif
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);

@@ -131,23 +131,26 @@ export default function LoginPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Email */}
+              {/* Email / Username */}
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5">
-                  Email
+                  Email atau Username
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                   <input
                     id="login-email"
-                    type="email"
+                    type="text"
                     value={email}
                     onChange={(e) => {
                       setEmail(e.target.value);
                       setError('');
                     }}
-                    placeholder="email@mhs.mardiono"
-                    autoComplete="email"
+                    placeholder="ardiyanto, navira, arida, dito, dll."
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck="false"
                     className="w-full pl-10 pr-4 py-3 bg-slate-800/60 border border-slate-600/50 text-white placeholder:text-slate-500 text-sm rounded-xl focus:outline-none focus:border-maroon-500 focus:ring-2 focus:ring-maroon-500/20 transition"
                   />
                 </div>
@@ -196,7 +199,7 @@ export default function LoginPage() {
                 id="login-submit"
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 bg-gradient-to-r from-maroon-700 to-maroon-800 hover:from-maroon-600 hover:to-maroon-700 text-white font-black text-sm rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg shadow-maroon-900/40 disabled:opacity-60 disabled:cursor-not-allowed border border-maroon-600/30 mt-2"
+                className="w-full py-3 bg-gradient-to-r from-maroon-700 to-maroon-800 hover:from-maroon-600 hover:to-maroon-700 text-white font-black text-sm rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg shadow-maroon-900/40 disabled:opacity-60 disabled:cursor-not-allowed border border-maroon-600/30 mt-2 cursor-pointer"
               >
                 {isLoading ? (
                   <>
@@ -211,6 +214,31 @@ export default function LoginPage() {
                 )}
               </button>
             </form>
+
+            {/* Bantuan Akun Terdaftar (Collapsible) */}
+            <details className="mt-5 border-t border-slate-700/40 pt-3 text-slate-400 text-xs group">
+              <summary className="cursor-pointer text-slate-400 hover:text-slate-200 font-medium list-none flex items-center justify-between text-[11px] select-none py-1">
+                <span>ℹ️ Bantuan format login & username staf</span>
+                <span className="text-[10px] text-slate-500 group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <div className="mt-2.5 p-3 rounded-xl bg-slate-800/40 border border-slate-700/40 space-y-2 text-[11px] text-slate-300">
+                <div>
+                  <strong className="text-amber-300">👑 Owner:</strong> username <code className="text-white bg-slate-900 px-1 py-0.5 rounded">ardiyanto</code> (MHS 1) atau <code className="text-white bg-slate-900 px-1 py-0.5 rounded">navira</code> (MHS 2).
+                </div>
+                <div>
+                  <strong className="text-blue-300">🏢 Cabang MHS 1:</strong> Admin (<code className="text-white bg-slate-900 px-1 py-0.5 rounded">arida</code>), SA (<code className="text-white bg-slate-900 px-1 py-0.5 rounded">dito</code>), Mekanik (<code className="text-white bg-slate-900 px-1 py-0.5 rounded">mekanik@mhs1.mardiono</code>).
+                </div>
+                <div>
+                  <strong className="text-emerald-300">🏢 Cabang MHS 2:</strong> Admin (<code className="text-white bg-slate-900 px-1 py-0.5 rounded">mey</code>), Estimator (<code className="text-white bg-slate-900 px-1 py-0.5 rounded">via</code>), Mekanik (<code className="text-white bg-slate-900 px-1 py-0.5 rounded">mekanik@mhs2.mardiono</code>).
+                </div>
+                <div>
+                  <strong className="text-purple-300">🏢 Cabang MHS 3:</strong> Admin (<code className="text-white bg-slate-900 px-1 py-0.5 rounded">arida@mhs3.mardiono</code>), SA (<code className="text-white bg-slate-900 px-1 py-0.5 rounded">dito@mhs3.mardiono</code>).
+                </div>
+                <p className="text-[10px] text-slate-500 pt-1 border-t border-slate-700/40">
+                  * Anda dapat memasukkan username saja (misal: ardiyanto) tanpa perlu mengetikkan domain @mardiono.
+                </p>
+              </div>
+            </details>
           </div>
         </div>
 

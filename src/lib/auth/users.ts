@@ -154,22 +154,64 @@ export const APP_USERS: AppUser[] = [
 // ============================================================
 
 /**
- * Autentikasi user berdasarkan email dan password.
+ * Autentikasi user berdasarkan email/username dan password.
+ * Mendukung login dengan email lengkap (misal ardiyanto@mardiono) maupun username (misal ardiyanto, navira, arida, dito, mey, via, mekanik).
  * Mengembalikan AppUser jika cocok, atau null jika gagal.
  */
-export function authenticateUser(email: string, password: string): AppUser | null {
-  const normalizedEmail = email.trim().toLowerCase();
+export function authenticateUser(rawEmailOrUsername: string, rawPassword: string): AppUser | null {
+  const input = (rawEmailOrUsername || '').trim().toLowerCase();
+  const password = (rawPassword || '').trim();
 
-  // Dukungan alias login khusus Via Rizkiana (estimator seluruh cabang)
+  if (!input || !password) return null;
+
+  // 1. Alias username cepat
+  const usernameAliases: Record<string, string[]> = {
+    'ardiyanto': ['ardiyanto@mardiono', 'ardiyanto3@mardiono'],
+    'owner': ['ardiyanto@mardiono', 'navira@mardiono'],
+    'owner1': ['ardiyanto@mardiono'],
+    'navira': ['navira@mardiono'],
+    'owner2': ['navira@mardiono'],
+    'arida': ['arida@mhs1.mardiono', 'arida@mhs3.mardiono'],
+    'admin': ['arida@mhs1.mardiono', 'mey@mhs2.mardiono'],
+    'admin1': ['arida@mhs1.mardiono'],
+    'admin2': ['mey@mhs2.mardiono'],
+    'admin3': ['arida@mhs3.mardiono'],
+    'dito': ['dito@mhs1.mardiono', 'dito@mhs3.mardiono'],
+    'sa': ['dito@mhs1.mardiono', 'mey@mhs2.mardiono'],
+    'sa1': ['dito@mhs1.mardiono'],
+    'sa2': ['mey@mhs2.mardiono'],
+    'sa3': ['dito@mhs3.mardiono'],
+    'via': ['via@mardiono', 'via@mhs2.mardiono', 'via@estimasi.mardiono'],
+    'estimator': ['via@mardiono', 'via@mhs2.mardiono'],
+    'mey': ['mey@mhs2.mardiono', 'mey@mardiono'],
+    'mekanik': ['mekanik@mhs1.mardiono', 'mekanik@mhs2.mardiono', 'mekanik@mhs3.mardiono', 'mekanik@mardiono'],
+    'mekanik1': ['mekanik@mhs1.mardiono'],
+    'mekanik2': ['mekanik@mhs2.mardiono'],
+    'mekanik3': ['mekanik@mhs3.mardiono'],
+  };
+
+  const candidateEmails: string[] = [input];
+  if (usernameAliases[input]) {
+    candidateEmails.push(...usernameAliases[input]);
+  }
+  if (!input.includes('@')) {
+    candidateEmails.push(`${input}@mardiono`);
+    candidateEmails.push(`${input}@mhs1.mardiono`);
+    candidateEmails.push(`${input}@mhs2.mardiono`);
+    candidateEmails.push(`${input}@mhs3.mardiono`);
+  }
+
+  // 2. Dukungan alias login khusus Via Rizkiana (estimator seluruh cabang)
+  const isVia = candidateEmails.some((e) =>
+    ['via@mardiono', 'via@mhs2.mardiono', 'via@estimasi.mardiono'].includes(e)
+  );
   if (
-    (normalizedEmail === 'via@mardiono' ||
-      normalizedEmail === 'via@mhs2.mardiono' ||
-      normalizedEmail === 'via@estimasi.mardiono') &&
-    (password === 'mhs2admin' || password === 'via123' || password === 'admin123')
+    isVia &&
+    (password === 'mhs2admin' || password === 'via123' || password === 'admin123' || password === 'via')
   ) {
     return {
       id: 'mhs2-estimator-via',
-      email: normalizedEmail,
+      email: 'via@mardiono',
       password: password,
       full_name: 'Via Rizkiana',
       role: 'estimator',
@@ -178,14 +220,15 @@ export function authenticateUser(email: string, password: string): AppUser | nul
     };
   }
 
-  // Dukungan alias login khusus Mey Wulandari
+  // 3. Dukungan alias login khusus Mey Wulandari
+  const isMey = candidateEmails.some((e) => ['mey@mardiono', 'mey@mhs2.mardiono'].includes(e));
   if (
-    (normalizedEmail === 'mey@mardiono' || normalizedEmail === 'mey@mhs2.mardiono') &&
-    (password === 'mhs2sa' || password === 'mey123')
+    isMey &&
+    (password === 'mhs2sa' || password === 'mey123' || password === 'mhs2admin' || password === 'mey')
   ) {
     return {
       id: 'mhs2-sa-mey',
-      email: normalizedEmail,
+      email: 'mey@mhs2.mardiono',
       password: password,
       full_name: 'Mey Wulandari',
       role: 'admin',
@@ -193,12 +236,37 @@ export function authenticateUser(email: string, password: string): AppUser | nul
     };
   }
 
-  const user = APP_USERS.find(
-    (u) =>
-      u.email.toLowerCase() === normalizedEmail &&
-      u.password === password
-  );
-  return user || null;
+  // 4. Dukungan fleksibel Owner Ardiyanto
+  const isArdiyanto = candidateEmails.some((e) => ['ardiyanto@mardiono', 'ardiyanto3@mardiono'].includes(e));
+  if (
+    isArdiyanto &&
+    (password === 'owner123' || password === 'owner789' || password === 'owner' || password === 'ardiyanto123')
+  ) {
+    const matched = APP_USERS.find((u) => u.email === 'ardiyanto@mardiono');
+    if (matched) return matched;
+  }
+
+  // 5. Dukungan fleksibel Owner Navira
+  const isNavira = candidateEmails.some((e) => ['navira@mardiono'].includes(e));
+  if (
+    isNavira &&
+    (password === 'owner456' || password === 'owner' || password === 'navira123')
+  ) {
+    const matched = APP_USERS.find((u) => u.email === 'navira@mardiono');
+    if (matched) return matched;
+  }
+
+  // 6. Pencocokan langsung pada seluruh user APP_USERS
+  for (const emailTry of candidateEmails) {
+    const user = APP_USERS.find(
+      (u) =>
+        u.email.toLowerCase() === emailTry &&
+        (u.password === password || u.password.trim() === password)
+    );
+    if (user) return user;
+  }
+
+  return null;
 }
 
 /**
