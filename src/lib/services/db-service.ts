@@ -628,6 +628,18 @@ export class DBService {
       localStorage.setItem(STORAGE_CLEANUP_FLAG, 'true');
     }
 
+    // Bersihkan sisa-sisa key mhs_est_saved_ yang tidak terpakai untuk membebaskan kuota LocalStorage browser
+    try {
+      const savedKeysToPurge: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('mhs_est_saved_') || k.startsWith('acwms_temp_'))) {
+          savedKeysToPurge.push(k);
+        }
+      }
+      savedKeysToPurge.forEach((k) => localStorage.removeItem(k));
+    } catch {}
+
     const branches: BranchId[] = targetBranch ? [targetBranch] : ['MHS 1', 'MHS 2', 'MHS 3'];
 
     branches.forEach((branch) => {

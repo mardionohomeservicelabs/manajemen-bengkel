@@ -222,9 +222,21 @@ function EstimationBuilderContent() {
     generateUniqueInvoiceNumberAsync,
   } = useApp();
 
-  // Muat data saat halaman dibuka
+  // Muat data saat halaman dibuka & bersihkan cache usang untuk membebaskan kuota LocalStorage
   useEffect(() => {
     refreshData();
+    if (typeof window !== 'undefined') {
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('mhs_est_saved_') || k.startsWith('acwms_temp_'))) {
+            keysToRemove.push(k);
+          }
+        }
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
+      } catch {}
+    }
   }, [refreshData]);
 
   const { currentUser, activeBranch } = useAuth();
@@ -1650,18 +1662,27 @@ function EstimationBuilderContent() {
       };
       await DBService.saveWorkOrderAsync(updatedWorkOrder, targetBranch);
 
-      // 3. Backup ke LocalStorage browser & hapus draft
+      // 3. Bersihkan draft yang tersimpan dan perbarui daftar tab di cache lokal (non-blocking & aman kuota browser)
       if (typeof window !== 'undefined') {
-        localStorage.setItem(`mhs_est_saved_${selectedSpk.id}_${activeTabId}`, JSON.stringify(savedInvoice));
-        localStorage.setItem(`mhs_est_saved_${selectedSpk.spk_number}_${activeTabId}`, JSON.stringify(savedInvoice));
-        localStorage.removeItem(`mhs_est_draft_${selectedSpk.id}_${activeTabId}`);
-        localStorage.removeItem(`mhs_est_draft_${selectedSpk.spk_number}_${activeTabId}`);
-        localStorage.setItem(`mhs_est_tabs_${selectedSpk.id}`, JSON.stringify(updatedTabList));
-        localStorage.setItem(`mhs_est_tabs_${selectedSpk.spk_number}`, JSON.stringify(updatedTabList));
+        try {
+          localStorage.removeItem(`mhs_est_draft_${selectedSpk.id}_${activeTabId}`);
+          if (selectedSpk?.spk_number) {
+            localStorage.removeItem(`mhs_est_draft_${selectedSpk.spk_number}_${activeTabId}`);
+          }
+          localStorage.removeItem(`mhs_est_saved_${selectedSpk.id}_${activeTabId}`);
+          if (selectedSpk?.spk_number) {
+            localStorage.removeItem(`mhs_est_saved_${selectedSpk.spk_number}_${activeTabId}`);
+          }
+          localStorage.setItem(`mhs_est_tabs_${selectedSpk.id}`, JSON.stringify(updatedTabList));
+          if (selectedSpk?.spk_number) {
+            localStorage.setItem(`mhs_est_tabs_${selectedSpk.spk_number}`, JSON.stringify(updatedTabList));
+          }
+        } catch (storageErr) {
+          console.warn('[Storage] Gagal memperbarui cache lokal, namun data berhasil tersimpan di cloud:', storageErr);
+        }
       }
 
-      // 4. Ambil ulang data authoritative terbaru dari Supabase database
-      await syncWithSupabase();
+      // 4. Segarkan state lokal
       refreshData();
 
       // 5. Update state tampilan & indikator tersimpan
