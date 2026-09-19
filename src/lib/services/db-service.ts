@@ -2645,6 +2645,7 @@ export class DBService {
                 ? nestedEst.has_discount
                 : Number(row.discount_amount) > 0,
             has_opsi2: hasOpsi2,
+            has_opsi2_detail: Boolean(nestedEst?.has_opsi2_detail),
             has_tax:
               nestedEst?.has_tax !== undefined ? nestedEst.has_tax : Number(row.tax_percent) > 0,
             has_range_price: nestedEst?.has_range_price || false,
@@ -4055,6 +4056,7 @@ export class DBService {
             customer_response_note: row.customer_response_note || undefined,
             has_discount: row.has_discount,
             has_opsi2: row.has_opsi2,
+            has_opsi2_detail: row.has_opsi2_detail,
             has_tax: row.has_tax,
             total_opsi1: row.total_opsi1,
             total_opsi2: row.total_opsi2,

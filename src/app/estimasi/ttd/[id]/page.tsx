@@ -81,32 +81,32 @@ const formatTtdItemRow = (
   qty: number,
   isOpsi2: boolean = false
 ): { priceDisplay: string; totalDisplay: string } => {
-  if (isOpsi2) {
-    const val2 = totalRaw !== undefined && totalRaw !== null && totalRaw !== ''
-      ? totalRaw
-      : (priceRaw !== undefined && priceRaw !== null && priceRaw !== '' ? priceRaw : '');
+  const hasTotalExplicit = totalRaw !== undefined && totalRaw !== null && totalRaw !== '';
+  const hasPriceExplicit = priceRaw !== undefined && priceRaw !== null && priceRaw !== '';
 
-    const isValEmpty = val2 === '' || val2 === 0 || val2 === '0';
-    if (isValEmpty) {
+  if (isOpsi2) {
+    if (!hasTotalExplicit && !hasPriceExplicit) {
       return { priceDisplay: '-', totalDisplay: '-' };
     }
 
-    const isText = typeof val2 === 'string' && /[a-zA-Z]/.test(val2.trim());
-    if (isText) {
-      const textVal = val2.toString().trim().toUpperCase();
-      return { priceDisplay: textVal, totalDisplay: textVal };
+    const isPriceText = typeof priceRaw === 'string' && /[a-zA-Z]/.test(priceRaw.trim());
+    const isTotalText = typeof totalRaw === 'string' && /[a-zA-Z]/.test(totalRaw.trim());
+    if (isPriceText || isTotalText) {
+      const textVal = isPriceText ? priceRaw.toString().trim().toUpperCase() : totalRaw.toString().trim().toUpperCase();
+      const totVal = isTotalText ? totalRaw.toString().trim().toUpperCase() : textVal;
+      return { priceDisplay: textVal, totalDisplay: totVal };
     }
 
-    const { min, max } = parseRangePrice(val2);
-    const totalDisplay = min === max ? formatNumberOrText(min) : `${formatNumberOrText(min)} – ${formatNumberOrText(max)}`;
-    return { priceDisplay: totalDisplay, totalDisplay };
+    const { min: pMin, max: pMax } = parseRangePrice(priceRaw);
+    const { min: tMin, max: tMax } = hasTotalExplicit ? parseRangePrice(totalRaw) : { min: pMin * qty, max: pMax * qty };
+
+    const priceDisplay = hasPriceExplicit ? (pMin === pMax ? formatNumberOrText(pMin) : `${formatNumberOrText(pMin)} – ${formatNumberOrText(pMax)}`) : '-';
+    const totalDisplay = tMin === tMax ? formatNumberOrText(tMin) : `${formatNumberOrText(tMin)} – ${formatNumberOrText(tMax)}`;
+    return { priceDisplay, totalDisplay };
   }
 
-  const isPriceEmpty = priceRaw === '' || priceRaw === undefined || priceRaw === null;
-
-  // Cek apakah ada teks seperti 'CEK', 'cek', dll.
   const isPriceText = typeof priceRaw === 'string' && /[a-zA-Z]/.test(priceRaw.trim());
-  const isTotalText = totalRaw !== undefined && totalRaw !== null && typeof totalRaw === 'string' && /[a-zA-Z]/.test(totalRaw.trim());
+  const isTotalText = typeof totalRaw === 'string' && /[a-zA-Z]/.test(totalRaw.trim());
 
   if (isPriceText || isTotalText) {
     const textVal = isPriceText
@@ -121,18 +121,15 @@ const formatTtdItemRow = (
     };
   }
 
-  if (isPriceEmpty) {
-    return { priceDisplay: isOpsi2 ? '-' : '0', totalDisplay: isOpsi2 ? '-' : '0' };
+  if (!hasPriceExplicit && !hasTotalExplicit) {
+    return { priceDisplay: '0', totalDisplay: '0' };
   }
 
-  const { min, max } = parseRangePrice(priceRaw);
-  const isZero = priceRaw === 0 || priceRaw === '0' || (min === 0 && max === 0);
-  if (isZero) {
-    return { priceDisplay: isOpsi2 ? '-' : '0', totalDisplay: isOpsi2 ? '-' : '0' };
-  }
+  const { min: pMin, max: pMax } = parseRangePrice(priceRaw);
+  const { min: tMin, max: tMax } = hasTotalExplicit ? parseRangePrice(totalRaw) : { min: pMin * qty, max: pMax * qty };
 
-  const priceDisplay = min === max ? formatNumberOrText(min) : `${formatNumberOrText(min)} – ${formatNumberOrText(max)}`;
-  const totalDisplay = min === max ? formatNumberOrText(min * qty) : `${formatNumberOrText(min * qty)} – ${formatNumberOrText(max * qty)}`;
+  const priceDisplay = hasPriceExplicit ? (pMin === pMax ? formatNumberOrText(pMin) : `${formatNumberOrText(pMin)} – ${formatNumberOrText(pMax)}`) : '0';
+  const totalDisplay = tMin === tMax ? formatNumberOrText(tMin) : `${formatNumberOrText(tMin)} – ${formatNumberOrText(tMax)}`;
 
   return { priceDisplay, totalDisplay };
 };
@@ -354,20 +351,31 @@ export default function CustomerSignatureApprovalPage() {
   const calcSectionTotals = (itemList: typeof items) => {
     let s1Min = 0, s1Max = 0, s2Min = 0, s2Max = 0;
     itemList.forEach((it) => {
-      const qty = it.qty || 1;
+      const qty1 = it.qty || 1;
       const isP1Empty = it.price_opsi1 === '' || it.price_opsi1 === 0 || it.price_opsi1 === '0';
+      const hasTot1 = it.total_opsi1 !== undefined && it.total_opsi1 !== '' && it.total_opsi1 !== 0 && it.total_opsi1 !== '0';
       const p1Raw = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
       
       const hasTot2 = it.total_opsi2 !== undefined && it.total_opsi2 !== '' && it.total_opsi2 !== 0 && it.total_opsi2 !== '0';
       const hasP2 = it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0';
       const isP2Empty = !hasTot2 && !hasP2;
 
-      const r1 = parseRangePrice(p1Raw);
-
-      if (!isP1Empty) {
-        s1Min += r1.min * qty;
-        s1Max += r1.max * qty;
+      // Opsi 1
+      if (hasTot1) {
+        const r1 = parseRangePrice(it.total_opsi1);
+        if (typeof it.total_opsi1 !== 'string' || !/[a-zA-Z]/.test(String(it.total_opsi1)) || r1.min > 0) {
+          s1Min += r1.min;
+          s1Max += r1.max;
+        }
+      } else if (!isP1Empty) {
+        const r1 = parseRangePrice(p1Raw);
+        if (typeof p1Raw !== 'string' || !/[a-zA-Z]/.test(p1Raw) || r1.min > 0) {
+          s1Min += r1.min * qty1;
+          s1Max += r1.max * qty1;
+        }
       }
+
+      // Opsi 2
       if (!isP2Empty) {
         if (hasTot2) {
           const r2 = parseRangePrice(it.total_opsi2);
@@ -376,10 +384,11 @@ export default function CustomerSignatureApprovalPage() {
             s2Max += r2.max;
           }
         } else {
+          const qty2 = it.qty_opsi2 !== undefined && it.qty_opsi2 !== null && it.qty_opsi2 !== '' ? Number(it.qty_opsi2) || 1 : qty1;
           const r2 = parseRangePrice(it.price_opsi2);
           if (typeof it.price_opsi2 !== 'string' || !/[a-zA-Z]/.test(String(it.price_opsi2)) || r2.min > 0) {
-            s2Min += r2.min * qty;
-            s2Max += r2.max * qty;
+            s2Min += r2.min * qty2;
+            s2Max += r2.max * qty2;
           }
         }
       }
@@ -401,17 +410,34 @@ export default function CustomerSignatureApprovalPage() {
       ))
   );
 
+  const hasOpsi2Detail = Boolean(
+    hasOpsi2 && (
+      estimation.has_opsi2_detail ||
+      allItems.some((it) => it.qty_opsi2 !== undefined && it.qty_opsi2 !== null && it.qty_opsi2 !== '' && Number(it.qty_opsi2) > 0)
+    )
+  );
+
   const discount = estimation.discount_amount || 0;
   const taxPercent = estimation.tax_percent || 0;
 
   // Kalkulasi Opsi 1
   const subtotalOpsi1Min = allItems.reduce((sum, it) => {
+    const hasTot1 = it.total_opsi1 !== undefined && it.total_opsi1 !== '' && it.total_opsi1 !== 0 && it.total_opsi1 !== '0';
+    if (hasTot1) {
+      const { min } = parseRangePrice(it.total_opsi1);
+      return sum + min;
+    }
     const p = it.price_opsi1 !== undefined ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
     const { min } = parseRangePrice(p);
     return sum + min * (it.qty || 1);
   }, 0);
 
   const subtotalOpsi1Max = allItems.reduce((sum, it) => {
+    const hasTot1 = it.total_opsi1 !== undefined && it.total_opsi1 !== '' && it.total_opsi1 !== 0 && it.total_opsi1 !== '0';
+    if (hasTot1) {
+      const { max } = parseRangePrice(it.total_opsi1);
+      return sum + max;
+    }
     const p = it.price_opsi1 !== undefined ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
     const { max } = parseRangePrice(p);
     return sum + max * (it.qty || 1);
@@ -425,19 +451,37 @@ export default function CustomerSignatureApprovalPage() {
 
   // Kalkulasi Opsi 2
   const subtotalOpsi2Min = allItems.reduce((sum, it) => {
-    const val2 = it.total_opsi2 !== undefined && it.total_opsi2 !== '' ? it.total_opsi2 : it.price_opsi2;
-    if (val2 === undefined || val2 === null || val2 === '' || val2 === 0 || val2 === '0') return sum;
-    if (typeof val2 === 'string' && /[a-zA-Z]/.test(val2)) return sum;
-    const { min } = parseRangePrice(val2);
-    return sum + min;
+    const hasTot2 = it.total_opsi2 !== undefined && it.total_opsi2 !== '' && it.total_opsi2 !== 0 && it.total_opsi2 !== '0';
+    if (hasTot2) {
+      if (typeof it.total_opsi2 === 'string' && /[a-zA-Z]/.test(it.total_opsi2)) return sum;
+      const { min } = parseRangePrice(it.total_opsi2);
+      return sum + min;
+    }
+    const hasP2 = it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0';
+    if (hasP2) {
+      if (typeof it.price_opsi2 === 'string' && /[a-zA-Z]/.test(it.price_opsi2)) return sum;
+      const qty2 = it.qty_opsi2 !== undefined && it.qty_opsi2 !== null && it.qty_opsi2 !== '' ? Number(it.qty_opsi2) || 1 : (it.qty || 1);
+      const { min } = parseRangePrice(it.price_opsi2);
+      return sum + min * qty2;
+    }
+    return sum;
   }, 0);
 
   const subtotalOpsi2Max = allItems.reduce((sum, it) => {
-    const val2 = it.total_opsi2 !== undefined && it.total_opsi2 !== '' ? it.total_opsi2 : it.price_opsi2;
-    if (val2 === undefined || val2 === null || val2 === '' || val2 === 0 || val2 === '0') return sum;
-    if (typeof val2 === 'string' && /[a-zA-Z]/.test(val2)) return sum;
-    const { max } = parseRangePrice(val2);
-    return sum + max;
+    const hasTot2 = it.total_opsi2 !== undefined && it.total_opsi2 !== '' && it.total_opsi2 !== 0 && it.total_opsi2 !== '0';
+    if (hasTot2) {
+      if (typeof it.total_opsi2 === 'string' && /[a-zA-Z]/.test(it.total_opsi2)) return sum;
+      const { max } = parseRangePrice(it.total_opsi2);
+      return sum + max;
+    }
+    const hasP2 = it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0';
+    if (hasP2) {
+      if (typeof it.price_opsi2 === 'string' && /[a-zA-Z]/.test(it.price_opsi2)) return sum;
+      const qty2 = it.qty_opsi2 !== undefined && it.qty_opsi2 !== null && it.qty_opsi2 !== '' ? Number(it.qty_opsi2) || 1 : (it.qty || 1);
+      const { max } = parseRangePrice(it.price_opsi2);
+      return sum + max * qty2;
+    }
+    return sum;
   }, 0);
 
   const taxAmountOpsi2Min = taxPercent > 0 ? ((subtotalOpsi2Min - discount) * (taxPercent / 100)) : 0;
@@ -680,26 +724,50 @@ export default function CustomerSignatureApprovalPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-[11px] border-collapse min-w-[540px]">
               <thead>
-                <tr className="bg-slate-800 text-white text-[10px] font-black uppercase">
-                  <th className="p-2 w-7 text-center border-r border-slate-600">No</th>
-                  <th className="p-2 border-r border-slate-600">Saran / Sparepart / Jasa</th>
-                  <th className="p-2 w-9 text-center border-r border-slate-600">Qty</th>
-                  <th className="p-2 w-11 text-center border-r border-slate-600">Satuan</th>
-                  <th className="p-2 w-[90px] text-right border-r border-slate-600">Harga Sat</th>
-                  <th className={`p-2 ${hasOpsi2 ? 'w-[96px]' : 'w-[105px]'} text-right border-r border-slate-600`}>
-                    {hasOpsi2 ? 'Total 1' : 'Total'}
-                  </th>
-                  {hasOpsi2 && (
-                    <th className="p-2 w-[96px] text-right bg-blue-900">Total 2</th>
-                  )}
-                </tr>
+                {hasOpsi2 && hasOpsi2Detail ? (
+                  <>
+                    <tr className="bg-slate-800 text-white text-[10px] font-black uppercase">
+                      <th rowSpan={2} className="p-2 w-7 text-center border-r border-slate-600 align-middle">No</th>
+                      <th rowSpan={2} className="p-2 border-r border-slate-600 align-middle">Saran / Sparepart / Jasa</th>
+                      <th colSpan={4} className="p-1.5 text-center border-r border-slate-600 bg-slate-700 text-slate-100 font-black">
+                        PILIHAN 1 (OPSI 1)
+                      </th>
+                      <th colSpan={3} className="p-1.5 text-center bg-blue-900 text-white font-black">
+                        PILIHAN 2 (OPSI 2)
+                      </th>
+                    </tr>
+                    <tr className="bg-slate-700 text-slate-200 text-[9.5px] font-bold uppercase">
+                      <th className="p-1.5 w-8 text-center border-r border-slate-600">Qty</th>
+                      <th className="p-1.5 w-10 text-center border-r border-slate-600">Satuan</th>
+                      <th className="p-1.5 w-[80px] text-right border-r border-slate-600">Harga Sat</th>
+                      <th className="p-1.5 w-[85px] text-right border-r border-slate-600">Total 1</th>
+                      <th className="p-1.5 w-8 text-center border-r border-slate-600 bg-blue-950/60 text-blue-200 font-black">Qty</th>
+                      <th className="p-1.5 w-[80px] text-right border-r border-slate-600 bg-blue-950/60 text-blue-200 font-black">Harga Sat</th>
+                      <th className="p-1.5 w-[85px] text-right bg-blue-950/60 text-blue-200 font-black">Total 2</th>
+                    </tr>
+                  </>
+                ) : (
+                  <tr className="bg-slate-800 text-white text-[10px] font-black uppercase">
+                    <th className="p-2 w-7 text-center border-r border-slate-600">No</th>
+                    <th className="p-2 border-r border-slate-600">Saran / Sparepart / Jasa</th>
+                    <th className="p-2 w-9 text-center border-r border-slate-600">Qty</th>
+                    <th className="p-2 w-11 text-center border-r border-slate-600">Satuan</th>
+                    <th className="p-2 w-[90px] text-right border-r border-slate-600">Harga Sat</th>
+                    <th className={`p-2 ${hasOpsi2 ? 'w-[96px]' : 'w-[105px]'} text-right border-r border-slate-600`}>
+                      {hasOpsi2 ? 'Total 1' : 'Total'}
+                    </th>
+                    {hasOpsi2 && (
+                      <th className="p-2 w-[96px] text-right bg-blue-900">Total 2</th>
+                    )}
+                  </tr>
+                )}
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {/* Table 1 Slice Divider (Rendered when Double Table is enabled) */}
                 {hasSecondTable && (
                   <tr className="bg-slate-100/90 border-b-2 border-slate-300">
                     <td
-                      colSpan={hasOpsi2 ? 7 : 6}
+                      colSpan={hasOpsi2 ? (hasOpsi2Detail ? 9 : 7) : 6}
                       className="py-2 px-4 text-center font-extrabold text-slate-800 uppercase tracking-wider text-[11px]"
                     >
                       {table1Title}
@@ -712,7 +780,11 @@ export default function CustomerSignatureApprovalPage() {
                   const qty = item.qty || 1;
                   const p1Raw = item.price_opsi1 !== undefined && item.price_opsi1 !== '' ? item.price_opsi1 : (item.price !== undefined ? item.price : 0);
                   const p1Info = formatTtdItemRow(p1Raw, item.total_opsi1, qty, false);
-                  const p2Info = formatTtdItemRow(item.price_opsi2, item.total_opsi2, qty, true);
+                  const isP2Empty =
+                    (item.total_opsi2 === '' || item.total_opsi2 === undefined || item.total_opsi2 === null || item.total_opsi2 === 0 || item.total_opsi2 === '0') &&
+                    (item.price_opsi2 === '' || item.price_opsi2 === undefined || item.price_opsi2 === null || item.price_opsi2 === 0 || item.price_opsi2 === '0');
+                  const qty2 = isP2Empty ? '-' : (item.qty_opsi2 !== undefined && item.qty_opsi2 !== null && item.qty_opsi2 !== '' ? Number(item.qty_opsi2) || 1 : qty);
+                  const p2Info = formatTtdItemRow(item.price_opsi2, item.total_opsi2, typeof qty2 === 'number' ? qty2 : qty, true);
 
                   return (
                     <tr key={`t1-${idx}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
@@ -729,9 +801,23 @@ export default function CustomerSignatureApprovalPage() {
                         {renderCompactPrice(p1Info.totalDisplay)}
                       </td>
                       {hasOpsi2 && (
-                        <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">
-                          {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
-                        </td>
+                        hasOpsi2Detail ? (
+                          <>
+                            <td className="p-2 text-center font-mono font-bold text-blue-950 bg-blue-50/20 border-r border-slate-100">
+                              {qty2}
+                            </td>
+                            <td className="p-2 text-right font-mono font-bold text-blue-950 bg-blue-50/20 border-r border-slate-100">
+                              {renderCompactPrice(p2Info.priceDisplay, 'text-blue-950')}
+                            </td>
+                            <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">
+                              {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
+                            </td>
+                          </>
+                        ) : (
+                          <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">
+                            {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
+                          </td>
+                        )
                       )}
                     </tr>
                   );
@@ -749,16 +835,19 @@ export default function CustomerSignatureApprovalPage() {
                         {renderTotalCellCompact(t1Totals.s1Min, t1Totals.s1Max)}
                       </td>
                       {hasOpsi2 && (
-                        <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">
-                          {renderTotalCellCompact(t1Totals.s2Min, t1Totals.s2Max, 'text-blue-950')}
-                        </td>
+                        <>
+                          {hasOpsi2Detail && <td colSpan={2} className="border-r border-slate-200 bg-blue-50/10"></td>}
+                          <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">
+                            {renderTotalCellCompact(t1Totals.s2Min, t1Totals.s2Max, 'text-blue-950')}
+                          </td>
+                        </>
                       )}
                     </tr>
 
                     {/* Slice Divider */}
                     <tr className="bg-slate-100/90 border-y-2 border-slate-300">
                       <td
-                        colSpan={hasOpsi2 ? 7 : 6}
+                        colSpan={hasOpsi2 ? (hasOpsi2Detail ? 9 : 7) : 6}
                         className="py-2 px-4 text-center font-extrabold text-slate-800 uppercase tracking-wider text-[11px]"
                       >
                         {table2Title}
@@ -771,7 +860,11 @@ export default function CustomerSignatureApprovalPage() {
                       const qty = item.qty || 1;
                       const p1Raw = item.price_opsi1 !== undefined && item.price_opsi1 !== '' ? item.price_opsi1 : (item.price !== undefined ? item.price : 0);
                       const p1Info = formatTtdItemRow(p1Raw, item.total_opsi1, qty, false);
-                      const p2Info = formatTtdItemRow(item.price_opsi2, item.total_opsi2, qty, true);
+                      const isP2Empty =
+                        (item.total_opsi2 === '' || item.total_opsi2 === undefined || item.total_opsi2 === null || item.total_opsi2 === 0 || item.total_opsi2 === '0') &&
+                        (item.price_opsi2 === '' || item.price_opsi2 === undefined || item.price_opsi2 === null || item.price_opsi2 === 0 || item.price_opsi2 === '0');
+                      const qty2 = isP2Empty ? '-' : (item.qty_opsi2 !== undefined && item.qty_opsi2 !== null && item.qty_opsi2 !== '' ? Number(item.qty_opsi2) || 1 : qty);
+                      const p2Info = formatTtdItemRow(item.price_opsi2, item.total_opsi2, typeof qty2 === 'number' ? qty2 : qty, true);
 
                       return (
                         <tr key={`t2-${idx}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
@@ -788,9 +881,23 @@ export default function CustomerSignatureApprovalPage() {
                             {renderCompactPrice(p1Info.totalDisplay)}
                           </td>
                           {hasOpsi2 && (
-                            <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">
-                              {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
-                            </td>
+                            hasOpsi2Detail ? (
+                              <>
+                                <td className="p-2 text-center font-mono font-bold text-blue-950 bg-blue-50/20 border-r border-slate-100">
+                                  {qty2}
+                                </td>
+                                <td className="p-2 text-right font-mono font-bold text-blue-950 bg-blue-50/20 border-r border-slate-100">
+                                  {renderCompactPrice(p2Info.priceDisplay, 'text-blue-950')}
+                                </td>
+                                <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">
+                                  {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
+                                </td>
+                              </>
+                            ) : (
+                              <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">
+                                {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
+                              </td>
+                            )
                           )}
                         </tr>
                       );
@@ -805,9 +912,12 @@ export default function CustomerSignatureApprovalPage() {
                         {renderTotalCellCompact(t2Totals.s1Min, t2Totals.s1Max)}
                       </td>
                       {hasOpsi2 && (
-                        <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">
-                          {renderTotalCellCompact(t2Totals.s2Min, t2Totals.s2Max, 'text-blue-950')}
-                        </td>
+                        <>
+                          {hasOpsi2Detail && <td colSpan={2} className="border-r border-slate-200 bg-blue-50/10"></td>}
+                          <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/30">
+                            {renderTotalCellCompact(t2Totals.s2Min, t2Totals.s2Max, 'text-blue-950')}
+                          </td>
+                        </>
                       )}
                     </tr>
                   </>
@@ -822,9 +932,12 @@ export default function CustomerSignatureApprovalPage() {
                     {renderTotalCellCompact(totalFinalOpsi1Min, totalFinalOpsi1Max)}
                   </td>
                   {hasOpsi2 && (
-                    <td className="p-2 text-right font-mono text-blue-950 bg-blue-50/40">
-                      {renderTotalCellCompact(totalFinalOpsi2Min, totalFinalOpsi2Max, 'text-blue-950')}
-                    </td>
+                    <>
+                      {hasOpsi2Detail && <td colSpan={2} className="border-r border-slate-200 bg-blue-50/10"></td>}
+                      <td className="p-2 text-right font-mono text-blue-950 bg-blue-50/40">
+                        {renderTotalCellCompact(totalFinalOpsi2Min, totalFinalOpsi2Max, 'text-blue-950')}
+                      </td>
+                    </>
                   )}
                 </tr>
               </tfoot>

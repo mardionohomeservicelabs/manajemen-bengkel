@@ -302,6 +302,7 @@ export interface InvoiceItem {
   // --- Multi-Option (Opsi 1 & Opsi 2 per row) ---
   price_opsi1?: number | string;
   total_opsi1?: number | string;
+  qty_opsi2?: number | string;
   price_opsi2?: number | string;
   total_opsi2?: number | string;
   discount_percent?: number;
@@ -362,6 +363,7 @@ export interface Invoice {
   payment_plan?: string; // 'Transfer' | 'Cash' | 'QRIS' | 'Debit' | 'Tempo'
   has_discount?: boolean;
   has_opsi2?: boolean;
+  has_opsi2_detail?: boolean;
   has_tax?: boolean;
   has_range_price?: boolean;
   total_opsi1?: number;

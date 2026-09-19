@@ -86,6 +86,28 @@ export function PrintableEstimation({
       ))
   );
 
+  const hasOpsi2Detail = Boolean(
+    hasOpsi2 && (
+      estimation.has_opsi2_detail ||
+      (estimation.items &&
+        estimation.items.some(
+          (it: any) =>
+            it.qty_opsi2 !== undefined &&
+            it.qty_opsi2 !== null &&
+            it.qty_opsi2 !== '' &&
+            Number(it.qty_opsi2) > 0
+        )) ||
+      (estimation.items_table2 &&
+        estimation.items_table2.some(
+          (it: any) =>
+            it.qty_opsi2 !== undefined &&
+            it.qty_opsi2 !== null &&
+            it.qty_opsi2 !== '' &&
+            Number(it.qty_opsi2) > 0
+        ))
+    )
+  );
+
   // Deteksi mode Double Estimasi (Tabel 1 & Tabel 2)
   const isDoubleTable = Boolean(
     estimation.has_second_table ||
@@ -114,20 +136,31 @@ export function PrintableEstimation({
     let tot2Max = 0;
 
     itemsList.forEach((it) => {
-      const qty = it.qty || 1;
+      const qty1 = it.qty || 1;
       const isP1Empty = it.price_opsi1 === '' || it.price_opsi1 === 0 || it.price_opsi1 === '0';
+      const hasTot1 = it.total_opsi1 !== undefined && it.total_opsi1 !== '' && it.total_opsi1 !== 0 && it.total_opsi1 !== '0';
       const p1Raw = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
       
       const hasTot2 = it.total_opsi2 !== undefined && it.total_opsi2 !== '' && it.total_opsi2 !== 0 && it.total_opsi2 !== '0';
       const hasP2 = it.price_opsi2 !== undefined && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0';
       const isP2Empty = !hasTot2 && !hasP2;
 
-      const r1 = parseRangePrice(p1Raw);
-
-      if (!isP1Empty && (typeof p1Raw !== 'string' || !/[a-zA-Z]/.test(p1Raw) || r1.min > 0)) {
-        tot1Min += r1.min * qty;
-        tot1Max += r1.max * qty;
+      // Opsi 1: Jika Total Opsi 1 diedit manual langsung, prioritaskan nilainya
+      if (hasTot1) {
+        const r1 = parseRangePrice(it.total_opsi1);
+        if (typeof it.total_opsi1 !== 'string' || !/[a-zA-Z]/.test(String(it.total_opsi1)) || r1.min > 0) {
+          tot1Min += r1.min;
+          tot1Max += r1.max;
+        }
+      } else if (!isP1Empty) {
+        const r1 = parseRangePrice(p1Raw);
+        if (typeof p1Raw !== 'string' || !/[a-zA-Z]/.test(p1Raw) || r1.min > 0) {
+          tot1Min += r1.min * qty1;
+          tot1Max += r1.max * qty1;
+        }
       }
+
+      // Opsi 2:
       if (!isP2Empty) {
         if (hasTot2) {
           const r2 = parseRangePrice(it.total_opsi2);
@@ -136,10 +169,11 @@ export function PrintableEstimation({
             tot2Max += r2.max;
           }
         } else {
+          const qty2 = it.qty_opsi2 !== undefined && it.qty_opsi2 !== null && it.qty_opsi2 !== '' ? Number(it.qty_opsi2) || 1 : qty1;
           const r2 = parseRangePrice(it.price_opsi2);
           if (typeof it.price_opsi2 !== 'string' || !/[a-zA-Z]/.test(String(it.price_opsi2)) || r2.min > 0) {
-            tot2Min += r2.min * qty;
-            tot2Max += r2.max * qty;
+            tot2Min += r2.min * qty2;
+            tot2Max += r2.max * qty2;
           }
         }
       }
@@ -212,34 +246,36 @@ export function PrintableEstimation({
     qty: number,
     isOpsi2: boolean = false
   ): { priceDisplay: string; totalDisplay: string } {
+    const hasTotalExplicit = totalRaw !== undefined && totalRaw !== null && totalRaw !== '';
+    const hasPriceExplicit = priceRaw !== undefined && priceRaw !== null && priceRaw !== '';
+
     if (isOpsi2) {
-      const val2 = totalRaw !== undefined && totalRaw !== null && totalRaw !== ''
-        ? totalRaw
-        : (priceRaw !== undefined && priceRaw !== null && priceRaw !== '' ? priceRaw : '');
-
-      const isValEmpty = val2 === '' || val2 === 0 || val2 === '0';
-      if (isValEmpty) {
-        return { priceDisplay: '0', totalDisplay: '0' };
+      if (!hasTotalExplicit && !hasPriceExplicit) {
+        return { priceDisplay: '-', totalDisplay: '-' };
       }
 
-      const isText = typeof val2 === 'string' && /[a-zA-Z]/.test(val2.trim());
-      if (isText) {
-        const textVal = val2.toString().trim().toUpperCase();
-        return { priceDisplay: textVal, totalDisplay: textVal };
+      const isPriceText = typeof priceRaw === 'string' && /[a-zA-Z]/.test(priceRaw.trim());
+      const isTotalText = typeof totalRaw === 'string' && /[a-zA-Z]/.test(totalRaw.trim());
+      if (isPriceText || isTotalText) {
+        const textVal = isPriceText ? priceRaw.toString().trim().toUpperCase() : totalRaw.toString().trim().toUpperCase();
+        const totVal = isTotalText ? totalRaw.toString().trim().toUpperCase() : textVal;
+        return { priceDisplay: textVal, totalDisplay: totVal };
       }
 
-      const r = parseRangePrice(val2);
-      const totalDisplay = r.min === r.max
-        ? formatCurrency(r.min)
-        : `${formatCurrency(r.min)} – ${formatCurrency(r.max)}`;
-      return { priceDisplay: totalDisplay, totalDisplay };
+      const pR = parseRangePrice(priceRaw);
+      const tR = hasTotalExplicit ? parseRangePrice(totalRaw) : null;
+
+      const priceDisplay = hasPriceExplicit ? (pR.min === pR.max ? formatCurrency(pR.min) : `${formatCurrency(pR.min)} – ${formatCurrency(pR.max)}`) : '-';
+      const totalDisplay = tR 
+        ? (tR.min === tR.max ? formatCurrency(tR.min) : `${formatCurrency(tR.min)} – ${formatCurrency(tR.max)}`)
+        : (pR.min === pR.max ? formatCurrency(pR.min * qty) : `${formatCurrency(pR.min * qty)} – ${formatCurrency(pR.max * qty)}`);
+
+      return { priceDisplay, totalDisplay };
     }
 
-    const isPriceEmpty = priceRaw === '' || priceRaw === undefined || priceRaw === null;
-
-    // Cek apakah kolom berisi teks seperti 'CEK', 'cek', 'Cek', dll.
+    // Opsi 1
     const isPriceText = typeof priceRaw === 'string' && /[a-zA-Z]/.test(priceRaw.trim());
-    const isTotalText = totalRaw !== undefined && totalRaw !== null && typeof totalRaw === 'string' && /[a-zA-Z]/.test(totalRaw.trim());
+    const isTotalText = typeof totalRaw === 'string' && /[a-zA-Z]/.test(totalRaw.trim());
 
     if (isPriceText || isTotalText) {
       const textVal = isPriceText
@@ -248,26 +284,20 @@ export function PrintableEstimation({
       const totVal = isTotalText
         ? totalRaw.toString().trim().toUpperCase()
         : textVal;
-      return {
-        priceDisplay: textVal,
-        totalDisplay: totVal,
-      };
+      return { priceDisplay: textVal, totalDisplay: totVal };
     }
 
-    if (isPriceEmpty) {
+    if (!hasPriceExplicit && !hasTotalExplicit) {
       return { priceDisplay: '0', totalDisplay: '0' };
     }
 
-    const r = parseRangePrice(priceRaw);
-    const isZero = priceRaw === 0 || priceRaw === '0' || (r.min === 0 && r.max === 0);
-    if (isZero) {
-      return { priceDisplay: '0', totalDisplay: '0' };
-    }
+    const pR = parseRangePrice(priceRaw);
+    const tR = hasTotalExplicit ? parseRangePrice(totalRaw) : null;
 
-    const priceDisplay = formatCurrency(priceRaw);
-    const totalDisplay = r.min === r.max
-      ? formatCurrency(r.min * qty)
-      : `${formatCurrency(r.min * qty)} – ${formatCurrency(r.max * qty)}`;
+    const priceDisplay = hasPriceExplicit ? (pR.min === pR.max ? formatCurrency(pR.min) : `${formatCurrency(pR.min)} – ${formatCurrency(pR.max)}`) : '0';
+    const totalDisplay = tR 
+      ? (tR.min === tR.max ? formatCurrency(tR.min) : `${formatCurrency(tR.min)} – ${formatCurrency(tR.max)}`)
+      : (pR.min === pR.max ? formatCurrency(pR.min * qty) : `${formatCurrency(pR.min * qty)} – ${formatCurrency(pR.max * qty)}`);
 
     return { priceDisplay, totalDisplay };
   }
@@ -423,28 +453,52 @@ export function PrintableEstimation({
           <div className="border-2 border-black rounded-xl overflow-hidden text-xs my-2 estimation-table-wrapper">
             <table className="w-full text-left border-collapse text-[10.5px] estimation-items-table">
               <thead className="estimation-items-thead" style={{ display: 'table-row-group' }}>
-                <tr className="bg-slate-100 border-b-2 border-black font-black text-black uppercase text-[10px]">
-                  <th className="p-1.5 w-7 text-center border-r border-black">No</th>
-                  <th className="p-1.5 border-r border-black">Saran/Perbaikan/Ganti Sparepart</th>
-                  <th className="p-1.5 w-9 text-center border-r border-black">QTY</th>
-                  <th className="p-1.5 w-11 text-center border-r border-black">Satuan</th>
-                  <th className="p-1.5 w-[92px] text-right border-r border-black">Hrg Satuan</th>
-                  <th className={`p-1.5 ${hasOpsi2 ? 'w-[98px]' : 'w-[110px]'} text-right border-r border-black`}>
-                    {hasOpsi2 ? 'Total Opsi 1' : 'Total Harga'}
-                  </th>
-                  {hasOpsi2 && (
-                    <th className="p-1.5 w-[98px] text-right bg-blue-50/40 text-blue-950 font-black">
-                      Total Opsi 2
+                {hasOpsi2 && hasOpsi2Detail ? (
+                  <>
+                    <tr className="bg-slate-100 border-b border-black font-black text-black uppercase text-[10px]">
+                      <th rowSpan={2} className="p-1.5 w-7 text-center border-r border-black align-middle">No</th>
+                      <th rowSpan={2} className="p-1.5 border-r border-black align-middle">Saran/Perbaikan/Ganti Sparepart</th>
+                      <th colSpan={4} className="p-1 text-center border-r border-black bg-slate-200/80 text-black font-black text-[10.5px] uppercase tracking-wider">
+                        PILIHAN 1 (OPSI 1)
+                      </th>
+                      <th colSpan={3} className="p-1 text-center bg-blue-100/70 text-blue-950 font-black text-[10.5px] uppercase tracking-wider">
+                        PILIHAN 2 (OPSI 2)
+                      </th>
+                    </tr>
+                    <tr className="bg-slate-50 border-b-2 border-black font-bold text-black uppercase text-[9.5px]">
+                      <th className="p-1 w-8 text-center border-r border-black">QTY</th>
+                      <th className="p-1 w-10 text-center border-r border-black">Satuan</th>
+                      <th className="p-1 w-[82px] text-right border-r border-black">Hrg Satuan</th>
+                      <th className="p-1 w-[88px] text-right border-r border-black">Total Opsi 1</th>
+                      <th className="p-1 w-8 text-center border-r border-black bg-blue-50/40 text-blue-950 font-black">QTY</th>
+                      <th className="p-1 w-[82px] text-right border-r border-black bg-blue-50/40 text-blue-950 font-black">Hrg Satuan</th>
+                      <th className="p-1 w-[88px] text-right bg-blue-50/40 text-blue-950 font-black">Total Opsi 2</th>
+                    </tr>
+                  </>
+                ) : (
+                  <tr className="bg-slate-100 border-b-2 border-black font-black text-black uppercase text-[10px]">
+                    <th className="p-1.5 w-7 text-center border-r border-black">No</th>
+                    <th className="p-1.5 border-r border-black">Saran/Perbaikan/Ganti Sparepart</th>
+                    <th className="p-1.5 w-9 text-center border-r border-black">QTY</th>
+                    <th className="p-1.5 w-11 text-center border-r border-black">Satuan</th>
+                    <th className="p-1.5 w-[92px] text-right border-r border-black">Hrg Satuan</th>
+                    <th className={`p-1.5 ${hasOpsi2 ? 'w-[98px]' : 'w-[110px]'} text-right border-r border-black`}>
+                      {hasOpsi2 ? 'Total Opsi 1' : 'Total Harga'}
                     </th>
-                  )}
-                </tr>
+                    {hasOpsi2 && (
+                      <th className="p-1.5 w-[98px] text-right bg-blue-50/40 text-blue-950 font-black">
+                        Total Opsi 2
+                      </th>
+                    )}
+                  </tr>
+                )}
               </thead>
               <tbody className="divide-y divide-black">
                 {/* Table 1 Slice Divider (Rendered when Double Table is enabled) */}
                 {isDoubleTable && (
                   <tr className="bg-slate-200/90 border-b-2 border-black">
                     <td
-                      colSpan={hasOpsi2 ? 7 : 6}
+                      colSpan={hasOpsi2 ? (hasOpsi2Detail ? 9 : 7) : 6}
                       className="py-1 px-4 text-center font-black text-black uppercase tracking-wider text-[11px]"
                     >
                       {table1Title}
@@ -466,8 +520,8 @@ export function PrintableEstimation({
                   const isP2Empty =
                     (item.total_opsi2 === '' || item.total_opsi2 === undefined || item.total_opsi2 === null || item.total_opsi2 === 0 || item.total_opsi2 === '0') &&
                     (item.price_opsi2 === '' || item.price_opsi2 === undefined || item.price_opsi2 === null || item.price_opsi2 === 0 || item.price_opsi2 === '0');
-                  const p2Raw = isP2Empty ? '' : (item.total_opsi2 || item.price_opsi2);
-                  const p2Info = formatEstimationRowItem(item.price_opsi2, item.total_opsi2, qty, true);
+                  const qty2 = isP2Empty ? '-' : (item.qty_opsi2 !== undefined && item.qty_opsi2 !== null && item.qty_opsi2 !== '' ? Number(item.qty_opsi2) || 1 : qty);
+                  const p2Info = formatEstimationRowItem(item.price_opsi2, item.total_opsi2, typeof qty2 === 'number' ? qty2 : qty, true);
 
                   return (
                     <tr key={`t1-${idx}`} className="hover:bg-slate-50 estimation-item-row">
@@ -492,9 +546,23 @@ export function PrintableEstimation({
                         {renderCompactPrice(p1Info.totalDisplay)}
                       </td>
                       {hasOpsi2 && (
-                        <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
-                          {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
-                        </td>
+                        hasOpsi2Detail ? (
+                          <>
+                            <td className="p-1.5 text-center font-mono font-bold border-r border-black align-middle text-blue-950 bg-blue-50/20">
+                              {qty2}
+                            </td>
+                            <td className="p-1.5 text-right border-r border-black align-middle font-mono font-bold text-blue-950 bg-blue-50/20">
+                              {renderCompactPrice(p2Info.priceDisplay, 'text-blue-950')}
+                            </td>
+                            <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
+                              {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
+                            </td>
+                          </>
+                        ) : (
+                          <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
+                            {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
+                          </td>
+                        )
                       )}
                     </tr>
                   );
@@ -512,16 +580,19 @@ export function PrintableEstimation({
                         {renderTotalCellCompact(t1Totals.tot1Min, t1Totals.tot1Max)}
                       </td>
                       {hasOpsi2 && (
-                        <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/30">
-                          {renderTotalCellCompact(t1Totals.tot2Min, t1Totals.tot2Max, 'text-blue-950')}
-                        </td>
+                        <>
+                          {hasOpsi2Detail && <td colSpan={2} className="border-r border-black bg-blue-50/10"></td>}
+                          <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/30">
+                            {renderTotalCellCompact(t1Totals.tot2Min, t1Totals.tot2Max, 'text-blue-950')}
+                          </td>
+                        </>
                       )}
                     </tr>
 
                     {/* Slice Divider */}
                     <tr className="bg-slate-200/90 border-y-2 border-black">
                       <td
-                        colSpan={hasOpsi2 ? 7 : 6}
+                        colSpan={hasOpsi2 ? (hasOpsi2Detail ? 9 : 7) : 6}
                         className="py-1 px-4 text-center font-black text-black uppercase tracking-wider text-[11px]"
                       >
                         {table2Title}
@@ -543,8 +614,8 @@ export function PrintableEstimation({
                       const isP2Empty =
                         (item.total_opsi2 === '' || item.total_opsi2 === undefined || item.total_opsi2 === null || item.total_opsi2 === 0 || item.total_opsi2 === '0') &&
                         (item.price_opsi2 === '' || item.price_opsi2 === undefined || item.price_opsi2 === null || item.price_opsi2 === 0 || item.price_opsi2 === '0');
-                      const p2Raw = isP2Empty ? '' : (item.total_opsi2 || item.price_opsi2);
-                      const p2Info = formatEstimationRowItem(item.price_opsi2, item.total_opsi2, qty, true);
+                      const qty2 = isP2Empty ? '-' : (item.qty_opsi2 !== undefined && item.qty_opsi2 !== null && item.qty_opsi2 !== '' ? Number(item.qty_opsi2) || 1 : qty);
+                      const p2Info = formatEstimationRowItem(item.price_opsi2, item.total_opsi2, typeof qty2 === 'number' ? qty2 : qty, true);
 
                       return (
                         <tr key={`t2-${idx}`} className="hover:bg-slate-50 estimation-item-row">
@@ -569,9 +640,23 @@ export function PrintableEstimation({
                             {renderCompactPrice(p1Info.totalDisplay)}
                           </td>
                           {hasOpsi2 && (
-                            <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
-                              {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
-                            </td>
+                            hasOpsi2Detail ? (
+                              <>
+                                <td className="p-1.5 text-center font-mono font-bold border-r border-black align-middle text-blue-950 bg-blue-50/20">
+                                  {qty2}
+                                </td>
+                                <td className="p-1.5 text-right border-r border-black align-middle font-mono font-bold text-blue-950 bg-blue-50/20">
+                                  {renderCompactPrice(p2Info.priceDisplay, 'text-blue-950')}
+                                </td>
+                                <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
+                                  {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
+                                </td>
+                              </>
+                            ) : (
+                              <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
+                                {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
+                              </td>
+                            )
                           )}
                         </tr>
                       );
@@ -586,9 +671,12 @@ export function PrintableEstimation({
                         {renderTotalCellCompact(t2Totals.tot1Min, t2Totals.tot1Max)}
                       </td>
                       {hasOpsi2 && (
-                        <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/30">
-                          {renderTotalCellCompact(t2Totals.tot2Min, t2Totals.tot2Max, 'text-blue-950')}
-                        </td>
+                        <>
+                          {hasOpsi2Detail && <td colSpan={2} className="border-r border-black bg-blue-50/10"></td>}
+                          <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/30">
+                            {renderTotalCellCompact(t2Totals.tot2Min, t2Totals.tot2Max, 'text-blue-950')}
+                          </td>
+                        </>
                       )}
                     </tr>
                   </>
@@ -604,9 +692,12 @@ export function PrintableEstimation({
                     {renderTotalCellCompact(grandTot1Min, grandTot1Max)}
                   </td>
                   {hasOpsi2 && (
-                    <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/40 text-xs">
-                      {renderTotalCellCompact(grandTot2Min, grandTot2Max, 'text-blue-950')}
-                    </td>
+                    <>
+                      {hasOpsi2Detail && <td colSpan={2} className="border-r border-black bg-blue-50/10"></td>}
+                      <td className="p-2 text-right font-mono font-black text-blue-950 bg-blue-50/40 text-xs">
+                        {renderTotalCellCompact(grandTot2Min, grandTot2Max, 'text-blue-950')}
+                      </td>
+                    </>
                   )}
                 </tr>
               </tbody>

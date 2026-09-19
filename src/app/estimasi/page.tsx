@@ -294,6 +294,7 @@ function EstimationBuilderContent() {
   // Switch Toggles (Default tidak menyala / off saat awal buka atau estimasi baru)
   const [showDiscount, setShowDiscount] = useState<boolean>(false);
   const [showOpsi2, setShowOpsi2] = useState<boolean>(false);
+  const [showOpsi2Detail, setShowOpsi2Detail] = useState<boolean>(false);
   const [showTax, setShowTax] = useState<boolean>(false);
   const [showRangePrice, setShowRangePrice] = useState<boolean>(false);
 
@@ -519,6 +520,7 @@ function EstimationBuilderContent() {
       setCustomerResponseNote(sourceData.customer_response_note || '');
       setShowDiscount(Boolean(sourceData.has_discount));
       setShowOpsi2(Boolean(sourceData.has_opsi2));
+      setShowOpsi2Detail(Boolean(sourceData.has_opsi2_detail || (sourceData as any).show_opsi2_detail));
       setShowTax(Boolean(sourceData.has_tax));
       setShowRangePrice(Boolean(sourceData.has_range_price));
       setDiscountAmount(sourceData.discount_amount || 0);
@@ -618,6 +620,7 @@ function EstimationBuilderContent() {
       setVehicleStatus('Di Tinggal');
       setShowDiscount(false);
       setShowOpsi2(false);
+      setShowOpsi2Detail(false);
       setShowTax(false);
       setShowRangePrice(false);
       setDiscountAmount(0);
@@ -641,7 +644,7 @@ function EstimationBuilderContent() {
         customer_signature: customerSignature, customer_signed_name: customerSignedName,
         estimated_duration: estimatedDuration,
         customer_response: customerResponse, customer_response_note: customerResponseNote,
-        has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
+        has_discount: showDiscount, has_opsi2: showOpsi2, has_opsi2_detail: showOpsi2Detail, has_tax: showTax,
         has_range_price: showRangePrice,
         has_second_table: hasSecondTable,
         table1_title: table1Title,
@@ -684,7 +687,7 @@ function EstimationBuilderContent() {
     estimationDate, estimationTime, vehicleStatus, paymentPlan,
     estimatorName, estimatorSignature, customerSignature, customerSignedName,
     estimatedDuration, customerResponse, customerResponseNote,
-    showDiscount, showOpsi2, showTax, showRangePrice, hasSecondTable, table2Title, itemsTable2,
+    showDiscount, showOpsi2, showOpsi2Detail, showTax, showRangePrice, hasSecondTable, table2Title, itemsTable2,
     discountAmount, taxPercent, adminNotes, tabList,
     availableOrders, loadEstimationForSpk
   ]);
@@ -767,6 +770,7 @@ function EstimationBuilderContent() {
                 if (latestEst.estimation_type) setEstimationType(latestEst.estimation_type);
                 if (latestEst.has_discount !== undefined) setShowDiscount(Boolean(latestEst.has_discount));
                 if (latestEst.has_opsi2 !== undefined) setShowOpsi2(Boolean(latestEst.has_opsi2));
+                if (latestEst.has_opsi2_detail !== undefined) setShowOpsi2Detail(Boolean(latestEst.has_opsi2_detail));
                 if (latestEst.has_tax !== undefined) setShowTax(Boolean(latestEst.has_tax));
                 if (latestEst.has_range_price !== undefined) setShowRangePrice(Boolean(latestEst.has_range_price));
                 if (latestEst.discount_amount !== undefined) setDiscountAmount(latestEst.discount_amount);
@@ -823,7 +827,7 @@ function EstimationBuilderContent() {
         customer_signature: customerSignature, customer_signed_name: customerSignedName,
         estimated_duration: estimatedDuration,
         customer_response: customerResponse, customer_response_note: customerResponseNote,
-        has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
+        has_discount: showDiscount, has_opsi2: showOpsi2, has_opsi2_detail: showOpsi2Detail, has_tax: showTax,
         has_range_price: showRangePrice,
         has_second_table: hasSecondTable,
         table1_title: table1Title,
@@ -860,6 +864,7 @@ function EstimationBuilderContent() {
       setCustomerResponseNote(sourceData.customer_response_note || '');
       setShowDiscount(Boolean(sourceData.has_discount));
       setShowOpsi2(Boolean(sourceData.has_opsi2));
+      setShowOpsi2Detail(Boolean(sourceData.has_opsi2_detail || (sourceData as any).show_opsi2_detail));
       setShowTax(Boolean(sourceData.has_tax));
       setShowRangePrice(Boolean(sourceData.has_range_price));
       setDiscountAmount(sourceData.discount_amount || 0);
@@ -954,12 +959,12 @@ function EstimationBuilderContent() {
       setAdminNotes('');
       setEstimationComplaints(formatComplaintsAndDiagnosis(selectedSpk?.complaints).displayText);
       setVehicleStatus('Di Tinggal');
-      setShowDiscount(false); setShowOpsi2(false); setShowTax(false); setShowRangePrice(false); setDiscountAmount(0);
+      setShowDiscount(false); setShowOpsi2(false); setShowOpsi2Detail(false); setShowTax(false); setShowRangePrice(false); setDiscountAmount(0);
     }
   }, [selectedSpkId, selectedSpk, isLocked, activeTabId, items, estimationType, estimationDate, estimationTime,
       vehicleStatus, paymentPlan, estimatorName, estimatorSignature, customerSignature, customerSignedName,
       estimatedDuration, customerResponse, customerResponseNote,
-      showDiscount, showOpsi2, showTax, showRangePrice, hasSecondTable, table1Title, table2Title, itemsTable2, discountAmount, taxPercent, adminNotes, loadTabData, invoices]);
+      showDiscount, showOpsi2, showOpsi2Detail, showTax, showRangePrice, hasSecondTable, table1Title, table2Title, itemsTable2, discountAmount, taxPercent, adminNotes, loadTabData, invoices]);
 
   // Real-time auto-save ke LocalStorage dan pembaruan indikator tersimpan otomatis (anti mati lampu / reload)
   useEffect(() => {
@@ -976,7 +981,7 @@ function EstimationBuilderContent() {
       customer_signature: customerSignature, customer_signed_name: customerSignedName,
       estimated_duration: estimatedDuration,
       customer_response: customerResponse, customer_response_note: customerResponseNote,
-      has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
+      has_discount: showDiscount, has_opsi2: showOpsi2, has_opsi2_detail: showOpsi2Detail, has_tax: showTax,
       has_range_price: showRangePrice,
       has_second_table: hasSecondTable,
       table1_title: table1Title,
@@ -1020,7 +1025,7 @@ function EstimationBuilderContent() {
     estimationDate, estimationTime, vehicleStatus, paymentPlan,
     estimatorName, estimatorSignature, customerSignature, customerSignedName,
     estimatedDuration, customerResponse, customerResponseNote,
-    showDiscount, showOpsi2, showTax, showRangePrice, hasSecondTable, table1Title, table2Title, itemsTable2, discountAmount, taxPercent, adminNotes, estimationComplaints, tabList,
+    showDiscount, showOpsi2, showOpsi2Detail, showTax, showRangePrice, hasSecondTable, table1Title, table2Title, itemsTable2, discountAmount, taxPercent, adminNotes, estimationComplaints, tabList,
   ]);
 
   // Calculations (handles string/text prices like CEK cleanly)
@@ -1032,39 +1037,79 @@ function EstimationBuilderContent() {
 
     itemList.forEach((it) => {
       const qty = it.qty || 1;
-      const isP1Empty = it.price_opsi1 === '' || it.price_opsi1 === 0 || it.price_opsi1 === '0';
-      const p1Raw = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
+      const qty2 = it.qty_opsi2 !== undefined && it.qty_opsi2 !== null && it.qty_opsi2 !== '' ? Number(it.qty_opsi2) || 1 : qty;
 
-      // Opsi 2 mengarah langsung ke total harga
-      const val2Raw = it.total_opsi2 !== undefined && it.total_opsi2 !== '' ? it.total_opsi2 : it.price_opsi2;
-      const isP2Empty = val2Raw === undefined || val2Raw === null || val2Raw === '' || val2Raw === 0 || val2Raw === '0';
+      const hasTot1 = it.total_opsi1 !== undefined && it.total_opsi1 !== null && it.total_opsi1 !== '' && it.total_opsi1 !== 0 && it.total_opsi1 !== '0';
+      const p1Raw = it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : (it.price !== undefined ? it.price : 0);
+      const isP1Empty = (it.price_opsi1 === '' || it.price_opsi1 === 0 || it.price_opsi1 === '0') && !hasTot1;
+
+      // Opsi 2
+      const hasTot2 = it.total_opsi2 !== undefined && it.total_opsi2 !== null && it.total_opsi2 !== '' && it.total_opsi2 !== 0 && it.total_opsi2 !== '0';
+      const hasP2 = it.price_opsi2 !== undefined && it.price_opsi2 !== null && it.price_opsi2 !== '' && it.price_opsi2 !== 0 && it.price_opsi2 !== '0';
+      const isP2Empty = !hasTot2 && !hasP2;
 
       if (showRangePrice) {
-        const r1 = parseRangePrice(p1Raw);
         if (!isP1Empty) {
-          tot1Min += r1.min * qty;
-          tot1Max += r1.max * qty;
+          if (hasTot1) {
+            const r1 = parseRangePrice(it.total_opsi1);
+            if (typeof it.total_opsi1 !== 'string' || !/[a-zA-Z]/.test(String(it.total_opsi1)) || r1.min > 0) {
+              tot1Min += r1.min;
+              tot1Max += r1.max;
+            }
+          } else {
+            const r1 = parseRangePrice(p1Raw);
+            if (typeof p1Raw !== 'string' || !/[a-zA-Z]/.test(String(p1Raw)) || r1.min > 0) {
+              tot1Min += r1.min * qty;
+              tot1Max += r1.max * qty;
+            }
+          }
         }
         if (!isP2Empty) {
-          const r2 = parseRangePrice(val2Raw);
-          if (typeof val2Raw !== 'string' || !/[a-zA-Z]/.test(String(val2Raw)) || r2.min > 0) {
-            tot2Min += r2.min;
-            tot2Max += r2.max;
+          if (hasTot2) {
+            const r2 = parseRangePrice(it.total_opsi2);
+            if (typeof it.total_opsi2 !== 'string' || !/[a-zA-Z]/.test(String(it.total_opsi2)) || r2.min > 0) {
+              tot2Min += r2.min;
+              tot2Max += r2.max;
+            }
+          } else {
+            const r2 = parseRangePrice(it.price_opsi2);
+            if (typeof it.price_opsi2 !== 'string' || !/[a-zA-Z]/.test(String(it.price_opsi2)) || r2.min > 0) {
+              tot2Min += r2.min * qty2;
+              tot2Max += r2.max * qty2;
+            }
           }
         }
       } else {
-        const parsed1 = parseNumericPriceValue(p1Raw);
-        if (!isP1Empty && !parsed1.isText) {
-          const t1 = typeof it.total_opsi1 === 'number' ? it.total_opsi1 : parsed1.num * qty;
-          tot1Min += Number.isNaN(t1) ? 0 : t1;
-          tot1Max += Number.isNaN(t1) ? 0 : t1;
+        if (!isP1Empty) {
+          if (hasTot1) {
+            const parsed1 = parseNumericPriceValue(it.total_opsi1);
+            if (!parsed1.isText) {
+              tot1Min += parsed1.num;
+              tot1Max += parsed1.num;
+            }
+          } else {
+            const parsed1 = parseNumericPriceValue(p1Raw);
+            if (!parsed1.isText) {
+              const t1 = parsed1.num * qty;
+              tot1Min += Number.isNaN(t1) ? 0 : t1;
+              tot1Max += Number.isNaN(t1) ? 0 : t1;
+            }
+          }
         }
         if (!isP2Empty) {
-          const parsed2 = parseNumericPriceValue(val2Raw);
-          if (!parsed2.isText) {
-            const t2 = parsed2.num;
-            tot2Min += Number.isNaN(t2) ? 0 : t2;
-            tot2Max += Number.isNaN(t2) ? 0 : t2;
+          if (hasTot2) {
+            const parsed2 = parseNumericPriceValue(it.total_opsi2);
+            if (!parsed2.isText) {
+              tot2Min += parsed2.num;
+              tot2Max += parsed2.num;
+            }
+          } else {
+            const parsed2 = parseNumericPriceValue(it.price_opsi2);
+            if (!parsed2.isText) {
+              const t2 = parsed2.num * qty2;
+              tot2Min += Number.isNaN(t2) ? 0 : t2;
+              tot2Max += Number.isNaN(t2) ? 0 : t2;
+            }
           }
         }
       }
@@ -1117,11 +1162,22 @@ function EstimationBuilderContent() {
         row.total_opsi1 = parsed1.text;
       } else if (parsed1.isRange) {
         row.total_opsi1 = parsed1.min === parsed1.max ? parsed1.min * qty : `${parsed1.min * qty} - ${parsed1.max * qty}`;
-      } else {
+      } else if (row.price_opsi1 !== undefined && row.price_opsi1 !== '' && parsed1.num > 0) {
         row.total_opsi1 = parsed1.num * qty;
       }
-      row.subtotal = row.total_opsi1;
-      // Opsi 2 langsung mengarah ke total harga yang ditentukan user
+      row.subtotal = row.total_opsi1 !== undefined ? row.total_opsi1 : 0;
+
+      // Update Opsi 2 if in detail mode and row.qty_opsi2 is not customized
+      if (showOpsi2Detail && !row.qty_opsi2) {
+        const parsed2 = parseNumericPriceValue(row.price_opsi2);
+        if (parsed2.isText) {
+          row.total_opsi2 = parsed2.text;
+        } else if (parsed2.isRange) {
+          row.total_opsi2 = parsed2.min === parsed2.max ? parsed2.min * qty : `${parsed2.min * qty} - ${parsed2.max * qty}`;
+        } else if (row.price_opsi2 !== undefined && row.price_opsi2 !== '' && parsed2.num > 0) {
+          row.total_opsi2 = parsed2.num * qty;
+        }
+      }
     } else if (field === 'price_opsi1') {
       const valStr = String(value);
       const qty = row.qty || 1;
@@ -1150,22 +1206,70 @@ function EstimationBuilderContent() {
           row.subtotal = row.total_opsi1;
         }
       }
-    } else if (field === 'total_opsi2' || field === 'price_opsi2') {
+    } else if (field === 'total_opsi1') {
+      // User can directly edit Total Opsi 1 without needing to edit or delete price_opsi1!
+      const valStr = String(value);
+      const parsed = parseNumericPriceValue(valStr);
+
+      if (valStr.trim() === '') {
+        row.total_opsi1 = '';
+        row.subtotal = 0;
+      } else if (parsed.isText) {
+        row.total_opsi1 = parsed.text;
+        row.subtotal = parsed.text;
+      } else if (parsed.isRange) {
+        row.total_opsi1 = valStr;
+        row.subtotal = valStr;
+      } else {
+        row.total_opsi1 = parsed.num > 0 ? new Intl.NumberFormat('id-ID').format(parsed.num) : valStr;
+        row.subtotal = parsed.num;
+      }
+    } else if (field === 'qty_opsi2') {
+      const q2 = Math.max(1, Number(value) || 1);
+      row.qty_opsi2 = q2;
+
+      const parsed2 = parseNumericPriceValue(row.price_opsi2);
+      if (parsed2.isText) {
+        row.total_opsi2 = parsed2.text;
+      } else if (parsed2.isRange) {
+        row.total_opsi2 = parsed2.min === parsed2.max ? parsed2.min * q2 : `${parsed2.min * q2} - ${parsed2.max * q2}`;
+      } else if (row.price_opsi2 !== undefined && row.price_opsi2 !== '' && parsed2.num > 0) {
+        row.total_opsi2 = parsed2.num * q2;
+      }
+    } else if (field === 'price_opsi2') {
+      const valStr = String(value);
+      const q2 = row.qty_opsi2 !== undefined && row.qty_opsi2 !== null && row.qty_opsi2 !== '' ? Number(row.qty_opsi2) || 1 : (row.qty || 1);
+      const parsed = parseNumericPriceValue(valStr);
+
+      if (valStr.trim() === '') {
+        row.price_opsi2 = '';
+        row.total_opsi2 = '';
+      } else if (parsed.isText) {
+        row.price_opsi2 = parsed.text;
+        row.total_opsi2 = parsed.text;
+      } else if (parsed.isRange) {
+        row.price_opsi2 = valStr;
+        row.total_opsi2 = parsed.min === parsed.max ? parsed.min * q2 : `${parsed.min * q2} - ${parsed.max * q2}`;
+      } else {
+        row.price_opsi2 = parsed.num > 0 ? new Intl.NumberFormat('id-ID').format(parsed.num) : valStr;
+        row.total_opsi2 = parsed.num * q2;
+      }
+    } else if (field === 'total_opsi2') {
       const valStr = String(value);
       const parsed = parseNumericPriceValue(valStr);
 
       if (valStr.trim() === '') {
         row.total_opsi2 = '';
-        row.price_opsi2 = '';
+        if (!showOpsi2Detail) row.price_opsi2 = '';
       } else if (parsed.isText) {
         row.total_opsi2 = parsed.text;
-        row.price_opsi2 = parsed.text;
+        if (!showOpsi2Detail) row.price_opsi2 = parsed.text;
       } else if (parsed.isRange) {
         row.total_opsi2 = valStr;
-        row.price_opsi2 = valStr;
+        if (!showOpsi2Detail) row.price_opsi2 = valStr;
       } else {
         row.total_opsi2 = parsed.num > 0 ? new Intl.NumberFormat('id-ID').format(parsed.num) : valStr;
-        row.price_opsi2 = row.total_opsi2;
+        if (!showOpsi2Detail) row.price_opsi2 = row.total_opsi2;
       }
     } else if (field === 'name') {
       row.name = String(value);
@@ -1280,15 +1384,16 @@ function EstimationBuilderContent() {
       const tot1 = it.total_opsi1 !== undefined && it.total_opsi1 !== '' ? it.total_opsi1 : (it.price_opsi1 !== undefined ? it.price_opsi1 : 0);
       return {
         ...it,
+        qty_opsi2: it.qty,
+        price_opsi2: it.price_opsi1 !== undefined && it.price_opsi1 !== '' ? it.price_opsi1 : tot1,
         total_opsi2: tot1,
-        price_opsi2: tot1,
       };
     };
     setItems((prev) => prev.map(copyFn));
     if (hasSecondTable) {
       setItemsTable2((prev) => prev.map(copyFn));
     }
-    showToast('Seluruh total Opsi 2 berhasil diselaraskan dari Opsi 1!', 'success');
+    showToast('Seluruh Opsi 2 berhasil diselaraskan dari Opsi 1!', 'success');
   };
 
   // Kosongkan / hilangkan seluruh total Opsi 2
@@ -1296,6 +1401,7 @@ function EstimationBuilderContent() {
     if (isLocked) return;
     const clearFn = (it: InvoiceItem) => ({
       ...it,
+      qty_opsi2: undefined,
       price_opsi2: '',
       total_opsi2: '',
     });
@@ -1303,7 +1409,7 @@ function EstimationBuilderContent() {
     if (hasSecondTable) {
       setItemsTable2((prev) => prev.map(clearFn));
     }
-    showToast('Seluruh total Opsi 2 berhasil dikosongkan.', 'info');
+    showToast('Seluruh Opsi 2 berhasil dikosongkan.', 'info');
   };
 
   // Add new estimate tab with unique id
@@ -1324,7 +1430,7 @@ function EstimationBuilderContent() {
         customer_signature: customerSignature, customer_signed_name: customerSignedName,
         estimated_duration: estimatedDuration,
         customer_response: customerResponse, customer_response_note: customerResponseNote,
-        has_discount: showDiscount, has_opsi2: showOpsi2, has_tax: showTax,
+        has_discount: showDiscount, has_opsi2: showOpsi2, has_opsi2_detail: showOpsi2Detail, has_tax: showTax,
         has_range_price: showRangePrice,
         has_second_table: hasSecondTable,
         table1_title: table1Title,
@@ -1350,14 +1456,14 @@ function EstimationBuilderContent() {
     setEstimatedDuration('');
     setCustomerResponse(''); setCustomerResponseNote('');
     setAdminNotes(''); setCurrentEstimationRecord(null);
-    setShowDiscount(false); setShowOpsi2(false); setShowTax(false); setShowRangePrice(false); setDiscountAmount(0);
+    setShowDiscount(false); setShowOpsi2(false); setShowOpsi2Detail(false); setShowTax(false); setShowRangePrice(false); setDiscountAmount(0);
     
     if (selectedSpkId) {
       try {
         localStorage.setItem(`mhs_est_tabs_${selectedSpkId}`, JSON.stringify(newTabs));
         const initDraft = {
           items: EMPTY_ESTIMATION_ROW, estimation_type: tabName, estimation_tab: newTabId,
-          has_discount: false, has_opsi2: false, has_tax: false, has_range_price: false,
+          has_discount: false, has_opsi2: false, has_opsi2_detail: false, has_tax: false, has_range_price: false,
           has_second_table: false, table1_title: 'BAGIAN 1', table2_title: 'BAGIAN REM', items_table2: EMPTY_ESTIMATION_ROW,
         };
         localStorage.setItem(`mhs_est_draft_${selectedSpkId}_${newTabId}`, JSON.stringify(initDraft));
@@ -1494,6 +1600,7 @@ function EstimationBuilderContent() {
         customer_response_note: customerResponseNote,
         has_discount: showDiscount,
         has_opsi2: showOpsi2,
+        has_opsi2_detail: showOpsi2Detail,
         has_tax: showTax,
         has_range_price: showRangePrice,
         total_opsi1: totalFinalOpsi1,
@@ -2218,7 +2325,9 @@ function EstimationBuilderContent() {
             <div
               onClick={() => {
                 if (!isLocked) {
-                  setShowOpsi2(!showOpsi2);
+                  const nextVal = !showOpsi2;
+                  setShowOpsi2(nextVal);
+                  if (!nextVal) setShowOpsi2Detail(false);
                 }
               }}
               className={`w-11 h-6 rounded-full transition-colors p-0.5 flex items-center ${
@@ -2235,11 +2344,41 @@ function EstimationBuilderContent() {
               <span className="text-xs font-black text-slate-800">2 Estimasi dalam 1 Lembar (Opsi 1 &amp; Opsi 2)</span>
               {showOpsi2 && (
                 <span className="text-[10px] font-black text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
-                  8 Kolom Aktif
+                  {showOpsi2Detail ? 'Rincian Lengkap' : 'Total Saja'}
                 </span>
               )}
             </div>
           </label>
+
+          {/* Toggle Rincian Opsi 2 (Munculkan QTY & Harga Satuan Opsi 2) */}
+          {showOpsi2 && (
+            <label className={`flex items-center space-x-2.5 select-none ${isLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} bg-blue-50/70 border border-blue-200 px-3 py-1 rounded-xl`}>
+              <div
+                onClick={() => {
+                  if (!isLocked) {
+                    setShowOpsi2Detail(!showOpsi2Detail);
+                  }
+                }}
+                className={`w-11 h-6 rounded-full transition-colors p-0.5 flex items-center ${
+                  showOpsi2Detail ? 'bg-blue-600' : 'bg-slate-300'
+                }`}
+              >
+                <div
+                  className={`w-5 h-5 rounded-full bg-white shadow-sm transform transition-transform ${
+                    showOpsi2Detail ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </div>
+              <div className="flex items-center space-x-1.5">
+                <span className="text-xs font-black text-blue-900">Rincian Opsi 2 (Munculkan QTY &amp; Hrg Satuan)</span>
+                {showOpsi2Detail && (
+                  <span className="text-[10px] font-black text-white bg-blue-600 px-2 py-0.5 rounded-full">
+                    Aktif
+                  </span>
+                )}
+              </div>
+            </label>
+          )}
 
           {/* Toggle Pajak */}
           <label className={`flex items-center space-x-2.5 select-none ${isLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
@@ -2336,57 +2475,114 @@ function EstimationBuilderContent() {
         <div className="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-2xs">
           <table className="w-full text-left text-xs border-collapse min-w-[820px]">
             <thead>
-              <tr className="bg-slate-50 border-b-2 border-slate-300 text-slate-800 font-black text-[10.5px] uppercase">
-                <th className="p-3 w-10 text-center border-r border-slate-200">No</th>
-                <th className="p-3 border-r border-slate-200">Saran/Perbaikan/Ganti Sparepart</th>
-                <th className="p-3 w-16 text-center border-r border-slate-200">QTY</th>
-                <th className="p-3 w-24 text-center border-r border-slate-200">Satuan</th>
-                <th className={`p-3 text-center border-r border-slate-200 ${showRangePrice ? 'w-56' : 'w-36'}`}>
-                  {showRangePrice ? 'Harga (Min – Maks)' : 'Hrg Sat (Rp)'}
-                </th>
-                <th className={`p-3 text-right border-r border-slate-200 ${showRangePrice ? 'w-56' : 'w-36'}`}>
-                  {showRangePrice ? 'Total Opsi 1 (Kisaran)' : 'Total Opsi 1'}
-                </th>
-                {showOpsi2 && (
-                  <th className={`p-3 text-center bg-blue-50/40 text-blue-950 ${showRangePrice ? 'w-56' : 'w-48'}`}>
-                    <div className="flex items-center justify-between space-x-1.5 px-1">
-                      <span className="font-black text-[10.5px]">
-                        {showRangePrice ? 'Total Opsi 2 (Kisaran)' : 'Total Opsi 2 (Rp)'}
-                      </span>
-                      {!isLocked && (
-                        <div className="flex items-center space-x-1">
-                          <button
-                            type="button"
-                            onClick={handleCopyAllFromOpsi1}
-                            className="text-[9px] bg-blue-100 hover:bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded font-bold transition flex items-center space-x-0.5 shadow-2xs cursor-pointer select-none"
-                            title="Salin seluruh total Opsi 1 ke Opsi 2"
-                          >
-                            <Copy className="w-2.5 h-2.5" />
-                            <span>Samakan</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleClearAllOpsi2}
-                            className="text-[9px] bg-rose-50 hover:bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold transition flex items-center space-x-0.5 shadow-2xs cursor-pointer select-none border border-rose-200"
-                            title="Kosongkan / hilangkan semua harga Opsi 2"
-                          >
-                            <X className="w-2.5 h-2.5" />
-                            <span>Kosongkan</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
+              {showOpsi2 && showOpsi2Detail ? (
+                <>
+                  <tr className="bg-slate-100 border-b border-slate-300 text-slate-800 font-black text-[10.5px] uppercase">
+                    <th rowSpan={2} className="p-2.5 w-10 text-center border-r border-slate-200 align-middle">No</th>
+                    <th rowSpan={2} className="p-2.5 border-r border-slate-200 align-middle">Saran/Perbaikan/Ganti Sparepart</th>
+                    <th colSpan={4} className="p-2 text-center border-r border-slate-200 bg-slate-100 text-slate-900 font-black tracking-wider text-[11px]">
+                      PILIHAN 1 (OPSI 1)
+                    </th>
+                    <th colSpan={3} className="p-2 text-center border-r border-slate-200 bg-blue-100 text-blue-950 font-black tracking-wider text-[11px]">
+                      <div className="flex items-center justify-between px-2">
+                        <span>PILIHAN 2 (OPSI 2)</span>
+                        {!isLocked && (
+                          <div className="flex items-center space-x-1">
+                            <button
+                              type="button"
+                              onClick={handleCopyAllFromOpsi1}
+                              className="text-[9px] bg-blue-200 hover:bg-blue-300 text-blue-900 px-1.5 py-0.5 rounded font-bold transition flex items-center space-x-0.5 shadow-2xs cursor-pointer select-none"
+                              title="Salin seluruh QTY, harga satuan & total Opsi 1 ke Opsi 2"
+                            >
+                              <Copy className="w-2.5 h-2.5" />
+                              <span>Samakan</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleClearAllOpsi2}
+                              className="text-[9px] bg-rose-50 hover:bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold transition flex items-center space-x-0.5 shadow-2xs cursor-pointer select-none border border-rose-200"
+                              title="Kosongkan seluruh Opsi 2"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                              <span>Kosongkan</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </th>
+                    {!isLocked && <th rowSpan={2} className="p-2.5 w-20 text-center align-middle">Aksi</th>}
+                  </tr>
+                  <tr className="bg-slate-50 border-b-2 border-slate-300 text-slate-700 font-bold text-[10px] uppercase">
+                    <th className="p-2 w-14 text-center border-r border-slate-200">QTY</th>
+                    <th className="p-2 w-20 text-center border-r border-slate-200">Satuan</th>
+                    <th className={`p-2 text-center border-r border-slate-200 ${showRangePrice ? 'w-48' : 'w-32'}`}>
+                      {showRangePrice ? 'Harga (Min–Maks)' : 'Hrg Sat (Rp)'}
+                    </th>
+                    <th className={`p-2 text-center border-r border-slate-200 ${showRangePrice ? 'w-48' : 'w-32'}`}>
+                      {showRangePrice ? 'Total Opsi 1' : 'Total (Rp)'}
+                    </th>
+                    <th className="p-2 w-14 text-center border-r border-slate-200 bg-blue-50/50 text-blue-950 font-black">QTY</th>
+                    <th className={`p-2 text-center border-r border-slate-200 bg-blue-50/50 text-blue-950 font-black ${showRangePrice ? 'w-48' : 'w-32'}`}>
+                      {showRangePrice ? 'Harga (Min–Maks)' : 'Hrg Sat (Rp)'}
+                    </th>
+                    <th className={`p-2 text-center border-r border-slate-200 bg-blue-50/50 text-blue-950 font-black ${showRangePrice ? 'w-48' : 'w-32'}`}>
+                      {showRangePrice ? 'Total Opsi 2' : 'Total (Rp)'}
+                    </th>
+                  </tr>
+                </>
+              ) : (
+                <tr className="bg-slate-50 border-b-2 border-slate-300 text-slate-800 font-black text-[10.5px] uppercase">
+                  <th className="p-3 w-10 text-center border-r border-slate-200">No</th>
+                  <th className="p-3 border-r border-slate-200">Saran/Perbaikan/Ganti Sparepart</th>
+                  <th className="p-3 w-16 text-center border-r border-slate-200">QTY</th>
+                  <th className="p-3 w-24 text-center border-r border-slate-200">Satuan</th>
+                  <th className={`p-3 text-center border-r border-slate-200 ${showRangePrice ? 'w-56' : 'w-36'}`}>
+                    {showRangePrice ? 'Harga (Min – Maks)' : 'Hrg Sat (Rp)'}
                   </th>
-                )}
-                {!isLocked && <th className="p-3 w-20 text-center">Aksi</th>}
-              </tr>
+                  <th className={`p-3 text-center border-r border-slate-200 ${showRangePrice ? 'w-56' : 'w-36'}`}>
+                    {showRangePrice ? 'Total Opsi 1 (Kisaran)' : 'Total Opsi 1'}
+                  </th>
+                  {showOpsi2 && (
+                    <th className={`p-3 text-center bg-blue-50/40 text-blue-950 ${showRangePrice ? 'w-56' : 'w-48'}`}>
+                      <div className="flex items-center justify-between space-x-1.5 px-1">
+                        <span className="font-black text-[10.5px]">
+                          {showRangePrice ? 'Total Opsi 2 (Kisaran)' : 'Total Opsi 2 (Rp)'}
+                        </span>
+                        {!isLocked && (
+                          <div className="flex items-center space-x-1">
+                            <button
+                              type="button"
+                              onClick={handleCopyAllFromOpsi1}
+                              className="text-[9px] bg-blue-100 hover:bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded font-bold transition flex items-center space-x-0.5 shadow-2xs cursor-pointer select-none"
+                              title="Salin seluruh total Opsi 1 ke Opsi 2"
+                            >
+                              <Copy className="w-2.5 h-2.5" />
+                              <span>Samakan</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleClearAllOpsi2}
+                              className="text-[9px] bg-rose-50 hover:bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold transition flex items-center space-x-0.5 shadow-2xs cursor-pointer select-none border border-rose-200"
+                              title="Kosongkan / hilangkan semua harga Opsi 2"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                              <span>Kosongkan</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </th>
+                  )}
+                  {!isLocked && <th className="p-3 w-20 text-center">Aksi</th>}
+                </tr>
+              )}
             </thead>
             <tbody className="divide-y divide-slate-200">
               {/* Table 1 Slice Divider / Title Banner */}
               {hasSecondTable && (
                 <tr className="bg-slate-100/90 border-b-2 border-slate-300">
                   <td
-                    colSpan={showOpsi2 ? (!isLocked ? 8 : 7) : (!isLocked ? 7 : 6)}
+                    colSpan={showOpsi2 ? (showOpsi2Detail ? (!isLocked ? 10 : 9) : (!isLocked ? 8 : 7)) : (!isLocked ? 7 : 6)}
                     className="py-2.5 px-4 text-center"
                   >
                     <div className="flex items-center justify-center space-x-2.5">
@@ -2408,42 +2604,12 @@ function EstimationBuilderContent() {
 
               {/* Table 1 Items */}
               {items.map((item, idx) => {
-                const tot1 = item.total_opsi1 !== undefined ? item.total_opsi1 : (typeof item.price_opsi1 === 'number' ? (item.qty || 1) * item.price_opsi1 : 0);
+                const tot1 = item.total_opsi1 !== undefined && item.total_opsi1 !== '' ? item.total_opsi1 : (typeof item.price_opsi1 === 'number' ? (item.qty || 1) * item.price_opsi1 : 0);
                 
                 // Status apakah Opsi 2 sengaja dikosongkan/dihilangkan/0
-                const isP2Empty = item.price_opsi2 === '' || item.price_opsi2 === 0 || item.price_opsi2 === '0';
-                const hasP2Val = item.price_opsi2 !== undefined && !isP2Empty;
-                const tot2 = isP2Empty
-                  ? 0
-                  : (hasP2Val && item.total_opsi2 !== undefined
-                    ? item.total_opsi2
-                    : (hasP2Val && typeof item.price_opsi2 === 'number'
-                      ? (item.qty || 1) * item.price_opsi2
-                      : (item.price_opsi2 ? parseNumericPriceValue(item.price_opsi2).num * (item.qty || 1) : 0)));
-
-                // Range calculations per row
-                const rowRange1 = showRangePrice ? parseRangePrice(item.price_opsi1 !== undefined ? item.price_opsi1 : 0) : null;
-                const rowRange2 = (showRangePrice && hasP2Val) ? parseRangePrice(item.price_opsi2) : null;
-                const rowTot1Min = rowRange1 ? rowRange1.min * (item.qty || 1) : 0;
-                const rowTot1Max = rowRange1 ? rowRange1.max * (item.qty || 1) : 0;
-                const rowTot2Min = rowRange2 ? rowRange2.min * (item.qty || 1) : 0;
-                const rowTot2Max = rowRange2 ? rowRange2.max * (item.qty || 1) : 0;
-
-                const isP1Text = (typeof item.price_opsi1 === 'string' && /[a-zA-Z]/.test(item.price_opsi1.trim())) ||
-                                 (typeof item.total_opsi1 === 'string' && /[a-zA-Z]/.test(item.total_opsi1.trim()));
-                const p1TextVal = (typeof item.price_opsi1 === 'string' && /[a-zA-Z]/.test(item.price_opsi1.trim()))
-                  ? item.price_opsi1.trim().toUpperCase()
-                  : (typeof item.total_opsi1 === 'string' && /[a-zA-Z]/.test(item.total_opsi1.trim()))
-                  ? item.total_opsi1.trim().toUpperCase()
-                  : 'CEK';
-
-                const isP2Text = !isP2Empty && ((typeof item.price_opsi2 === 'string' && /[a-zA-Z]/.test(item.price_opsi2.trim())) ||
-                                               (typeof item.total_opsi2 === 'string' && /[a-zA-Z]/.test(item.total_opsi2.trim())));
-                const p2TextVal = (typeof item.price_opsi2 === 'string' && /[a-zA-Z]/.test(item.price_opsi2.trim()))
-                  ? item.price_opsi2.trim().toUpperCase()
-                  : (typeof item.total_opsi2 === 'string' && /[a-zA-Z]/.test(item.total_opsi2.trim()))
-                  ? item.total_opsi2.trim().toUpperCase()
-                  : 'CEK';
+                const isP2Empty = (item.total_opsi2 === '' || item.total_opsi2 === undefined || item.total_opsi2 === null || item.total_opsi2 === 0 || item.total_opsi2 === '0') &&
+                                 (item.price_opsi2 === '' || item.price_opsi2 === undefined || item.price_opsi2 === null || item.price_opsi2 === 0 || item.price_opsi2 === '0');
+                const qty2Val = item.qty_opsi2 !== undefined && item.qty_opsi2 !== null && item.qty_opsi2 !== '' ? Number(item.qty_opsi2) || 1 : item.qty;
 
                 return (
                   <tr key={`t1-${idx}`} className="hover:bg-slate-50/70 transition-colors group/row">
@@ -2507,52 +2673,113 @@ function EstimationBuilderContent() {
                       </div>
                     </td>
 
-                    {/* Total Opsi 1 */}
-                    <td className="p-3 text-right border-r border-slate-200 align-middle">
-                      {isP1Text ? (
-                        <span className="font-mono font-black text-sm text-slate-900 whitespace-nowrap">
-                          {p1TextVal}
-                        </span>
-                      ) : showRangePrice ? (
-                        <span className="font-mono font-black text-sm text-slate-900 whitespace-nowrap">
-                          {rowTot1Min === rowTot1Max
-                            ? formatCurrency(rowTot1Min)
-                            : `${formatCurrency(rowTot1Min)} – ${formatCurrency(rowTot1Max)}`}
-                        </span>
-                      ) : (
-                        <span className="font-mono font-black text-sm text-slate-900 whitespace-nowrap">
-                          {formatCurrency(tot1)}
-                        </span>
-                      )}
+                    {/* Total Opsi 1 - Dapat diedit langsung tanpa menghapus/mengubah harga satuan */}
+                    <td className="p-2 text-center border-r border-slate-200 align-middle">
+                      <div className="relative flex items-center justify-center">
+                        <span className="text-[10px] font-bold text-slate-400 mr-1 select-none">Rp</span>
+                        <input
+                          type="text"
+                          disabled={isLocked}
+                          value={item.total_opsi1 !== undefined && item.total_opsi1 !== null ? String(item.total_opsi1) : ''}
+                          onChange={(e) => handleUpdateItemField(idx, 'total_opsi1', e.target.value, 1)}
+                          placeholder={showRangePrice ? '150000 - 160000' : '0 / CEK'}
+                          className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
+                            showRangePrice ? 'w-48' : 'w-28'
+                          }`}
+                        />
+                      </div>
                     </td>
 
-                    {/* Opsi 2 (if enabled): Direct Total Opsi 2 input */}
+                    {/* Opsi 2 (if enabled) */}
                     {showOpsi2 && (
-                      <td className="p-2 text-center border-r border-slate-200 align-middle bg-blue-50/20">
-                        <div className="relative flex items-center justify-center">
-                          <span className="text-[10px] font-bold text-blue-400 mr-1 select-none">Rp</span>
-                          <input
-                            type="text"
-                            disabled={isLocked}
-                            value={item.total_opsi2 !== undefined && item.total_opsi2 !== null ? String(item.total_opsi2) : ''}
-                            onChange={(e) => handleUpdateItemField(idx, 'total_opsi2', e.target.value, 1)}
-                            placeholder={showRangePrice ? '150000 - 160000' : '0 / CEK'}
-                            className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
-                              showRangePrice ? 'w-48' : 'w-32'
-                            }`}
-                          />
-                          {!isLocked && item.total_opsi2 !== undefined && item.total_opsi2 !== null && item.total_opsi2 !== '' && (
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateItemField(idx, 'total_opsi2', '', 1)}
-                              className="ml-1 p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition cursor-pointer select-none"
-                              title="Hapus / kosongkan total Opsi 2 untuk baris ini"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                      showOpsi2Detail ? (
+                        <>
+                          {/* QTY Opsi 2 */}
+                          <td className="p-2 text-center border-r border-slate-200 align-middle bg-blue-50/20">
+                            <input
+                              type="number"
+                              min="1"
+                              disabled={isLocked}
+                              value={item.qty_opsi2 !== undefined && item.qty_opsi2 !== null ? item.qty_opsi2 : item.qty}
+                              onChange={(e) => handleUpdateItemField(idx, 'qty_opsi2', e.target.value, 1)}
+                              className="w-14 text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-blue-950 disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
+                            />
+                          </td>
+
+                          {/* Harga Satuan Opsi 2 */}
+                          <td className="p-2 text-center border-r border-slate-200 align-middle bg-blue-50/20">
+                            <div className="relative flex items-center justify-center">
+                              <span className="text-[10px] font-bold text-blue-400 mr-1 select-none">Rp</span>
+                              <input
+                                type="text"
+                                disabled={isLocked}
+                                value={item.price_opsi2 !== undefined && item.price_opsi2 !== null ? String(item.price_opsi2) : ''}
+                                onChange={(e) => handleUpdateItemField(idx, 'price_opsi2', e.target.value, 1)}
+                                placeholder={showRangePrice ? '150000 - 160000' : '0 / CEK'}
+                                className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-blue-950 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
+                                  showRangePrice ? 'w-48' : 'w-28'
+                                }`}
+                              />
+                            </div>
+                          </td>
+
+                          {/* Total Opsi 2 */}
+                          <td className="p-2 text-center border-r border-slate-200 align-middle bg-blue-50/20">
+                            <div className="relative flex items-center justify-center">
+                              <span className="text-[10px] font-bold text-blue-400 mr-1 select-none">Rp</span>
+                              <input
+                                type="text"
+                                disabled={isLocked}
+                                value={item.total_opsi2 !== undefined && item.total_opsi2 !== null ? String(item.total_opsi2) : ''}
+                                onChange={(e) => handleUpdateItemField(idx, 'total_opsi2', e.target.value, 1)}
+                                placeholder={showRangePrice ? '150000 - 160000' : '0 / CEK'}
+                                className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-blue-950 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
+                                  showRangePrice ? 'w-48' : 'w-28'
+                                }`}
+                              />
+                              {!isLocked && item.total_opsi2 !== undefined && item.total_opsi2 !== null && item.total_opsi2 !== '' && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleUpdateItemField(idx, 'total_opsi2', '', 1);
+                                    handleUpdateItemField(idx, 'price_opsi2', '', 1);
+                                  }}
+                                  className="ml-1 p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition cursor-pointer select-none"
+                                  title="Kosongkan Opsi 2 untuk baris ini"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <td className="p-2 text-center border-r border-slate-200 align-middle bg-blue-50/20">
+                          <div className="relative flex items-center justify-center">
+                            <span className="text-[10px] font-bold text-blue-400 mr-1 select-none">Rp</span>
+                            <input
+                              type="text"
+                              disabled={isLocked}
+                              value={item.total_opsi2 !== undefined && item.total_opsi2 !== null ? String(item.total_opsi2) : ''}
+                              onChange={(e) => handleUpdateItemField(idx, 'total_opsi2', e.target.value, 1)}
+                              placeholder={showRangePrice ? '150000 - 160000' : '0 / CEK'}
+                              className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
+                                showRangePrice ? 'w-48' : 'w-32'
+                              }`}
+                            />
+                            {!isLocked && item.total_opsi2 !== undefined && item.total_opsi2 !== null && item.total_opsi2 !== '' && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateItemField(idx, 'total_opsi2', '', 1)}
+                                className="ml-1 p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition cursor-pointer select-none"
+                                title="Hapus / kosongkan total Opsi 2 untuk baris ini"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )
                     )}
 
                     {/* Aksi: Move Up, Move Down, Delete */}
@@ -2610,15 +2837,18 @@ function EstimationBuilderContent() {
                       )}
                     </td>
                     {showOpsi2 && (
-                      <td className="p-2.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 whitespace-nowrap">
-                        {showRangePrice ? (
-                          t1Totals.tot2Min === t1Totals.tot2Max
-                            ? formatCurrency(t1Totals.tot2Min)
-                            : `${formatCurrency(t1Totals.tot2Min)} – ${formatCurrency(t1Totals.tot2Max)}`
-                        ) : (
-                          formatCurrency(t1Totals.tot2Min)
-                        )}
-                      </td>
+                      <>
+                        {showOpsi2Detail && <td colSpan={2} className="border-r border-slate-200 bg-blue-50/10"></td>}
+                        <td className="p-2.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 whitespace-nowrap">
+                          {showRangePrice ? (
+                            t1Totals.tot2Min === t1Totals.tot2Max
+                              ? formatCurrency(t1Totals.tot2Min)
+                              : `${formatCurrency(t1Totals.tot2Min)} – ${formatCurrency(t1Totals.tot2Max)}`
+                          ) : (
+                            formatCurrency(t1Totals.tot2Min)
+                          )}
+                        </td>
+                      </>
                     )}
                     {!isLocked && <td className="p-2.5 bg-slate-100/90"></td>}
                   </tr>
@@ -2626,7 +2856,7 @@ function EstimationBuilderContent() {
                   {/* Slice Divider */}
                   <tr className="bg-slate-100/90 border-y-2 border-slate-300">
                     <td
-                      colSpan={showOpsi2 ? (!isLocked ? 8 : 7) : (!isLocked ? 7 : 6)}
+                      colSpan={showOpsi2 ? (showOpsi2Detail ? (!isLocked ? 10 : 9) : (!isLocked ? 8 : 7)) : (!isLocked ? 7 : 6)}
                       className="py-2.5 px-4 text-center"
                     >
                       <div className="flex items-center justify-center space-x-2.5">
@@ -2662,40 +2892,6 @@ function EstimationBuilderContent() {
                   {/* Table 2 Items (Continuous sequential numbering) */}
                   {itemsTable2.map((item, idx) => {
                     const displayNum = items.length + idx + 1;
-                    const tot1 = item.total_opsi1 !== undefined ? item.total_opsi1 : (typeof item.price_opsi1 === 'number' ? (item.qty || 1) * item.price_opsi1 : 0);
-                    
-                    const isP2Empty = item.price_opsi2 === '' || item.price_opsi2 === 0 || item.price_opsi2 === '0';
-                    const hasP2Val = item.price_opsi2 !== undefined && !isP2Empty;
-                    const tot2 = isP2Empty
-                      ? 0
-                      : (hasP2Val && item.total_opsi2 !== undefined
-                        ? item.total_opsi2
-                        : (hasP2Val && typeof item.price_opsi2 === 'number'
-                          ? (item.qty || 1) * item.price_opsi2
-                          : (item.price_opsi2 ? parseNumericPriceValue(item.price_opsi2).num * (item.qty || 1) : 0)));
-
-                    const rowRange1 = showRangePrice ? parseRangePrice(item.price_opsi1 !== undefined ? item.price_opsi1 : 0) : null;
-                    const rowRange2 = (showRangePrice && hasP2Val) ? parseRangePrice(item.price_opsi2) : null;
-                    const rowTot1Min = rowRange1 ? rowRange1.min * (item.qty || 1) : 0;
-                    const rowTot1Max = rowRange1 ? rowRange1.max * (item.qty || 1) : 0;
-                    const rowTot2Min = rowRange2 ? rowRange2.min * (item.qty || 1) : 0;
-                    const rowTot2Max = rowRange2 ? rowRange2.max * (item.qty || 1) : 0;
-
-                    const isP1Text = (typeof item.price_opsi1 === 'string' && /[a-zA-Z]/.test(item.price_opsi1.trim())) ||
-                                     (typeof item.total_opsi1 === 'string' && /[a-zA-Z]/.test(item.total_opsi1.trim()));
-                    const p1TextVal = (typeof item.price_opsi1 === 'string' && /[a-zA-Z]/.test(item.price_opsi1.trim()))
-                      ? item.price_opsi1.trim().toUpperCase()
-                      : (typeof item.total_opsi1 === 'string' && /[a-zA-Z]/.test(item.total_opsi1.trim()))
-                      ? item.total_opsi1.trim().toUpperCase()
-                      : 'CEK';
-
-                    const isP2Text = !isP2Empty && ((typeof item.price_opsi2 === 'string' && /[a-zA-Z]/.test(item.price_opsi2.trim())) ||
-                                                   (typeof item.total_opsi2 === 'string' && /[a-zA-Z]/.test(item.total_opsi2.trim())));
-                    const p2TextVal = (typeof item.price_opsi2 === 'string' && /[a-zA-Z]/.test(item.price_opsi2.trim()))
-                      ? item.price_opsi2.trim().toUpperCase()
-                      : (typeof item.total_opsi2 === 'string' && /[a-zA-Z]/.test(item.total_opsi2.trim()))
-                      ? item.total_opsi2.trim().toUpperCase()
-                      : 'CEK';
 
                     return (
                       <tr key={`t2-${idx}`} className="hover:bg-slate-50 transition-colors group/row">
@@ -2759,52 +2955,113 @@ function EstimationBuilderContent() {
                           </div>
                         </td>
 
-                        {/* Total Opsi 1 */}
-                        <td className="p-3 text-right border-r border-slate-200 align-middle">
-                          {isP1Text ? (
-                            <span className="font-mono font-black text-sm text-slate-900 whitespace-nowrap">
-                              {p1TextVal}
-                            </span>
-                          ) : showRangePrice ? (
-                            <span className="font-mono font-black text-sm text-slate-900 whitespace-nowrap">
-                              {rowTot1Min === rowTot1Max
-                                ? formatCurrency(rowTot1Min)
-                                : `${formatCurrency(rowTot1Min)} – ${formatCurrency(rowTot1Max)}`}
-                            </span>
-                          ) : (
-                            <span className="font-mono font-black text-sm text-slate-900 whitespace-nowrap">
-                              {formatCurrency(tot1)}
-                            </span>
-                          )}
+                        {/* Total Opsi 1 - Dapat diedit langsung tanpa menghapus/mengubah harga satuan */}
+                        <td className="p-2 text-center border-r border-slate-200 align-middle">
+                          <div className="relative flex items-center justify-center">
+                            <span className="text-[10px] font-bold text-slate-400 mr-1 select-none">Rp</span>
+                            <input
+                              type="text"
+                              disabled={isLocked}
+                              value={item.total_opsi1 !== undefined && item.total_opsi1 !== null ? String(item.total_opsi1) : ''}
+                              onChange={(e) => handleUpdateItemField(idx, 'total_opsi1', e.target.value, 2)}
+                              placeholder={showRangePrice ? '150000 - 160000' : '0 / CEK'}
+                              className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
+                                showRangePrice ? 'w-48' : 'w-28'
+                              }`}
+                            />
+                          </div>
                         </td>
 
-                        {/* Opsi 2 (if enabled): Direct Total Opsi 2 input */}
+                        {/* Opsi 2 (if enabled) */}
                         {showOpsi2 && (
-                          <td className="p-2 text-center border-r border-slate-200 align-middle bg-blue-50/20">
-                            <div className="relative flex items-center justify-center">
-                              <span className="text-[10px] font-bold text-blue-400 mr-1 select-none">Rp</span>
-                              <input
-                                type="text"
-                                disabled={isLocked}
-                                value={item.total_opsi2 !== undefined && item.total_opsi2 !== null ? String(item.total_opsi2) : ''}
-                                onChange={(e) => handleUpdateItemField(idx, 'total_opsi2', e.target.value, 2)}
-                                placeholder={showRangePrice ? '150000 - 160000' : '0 / CEK'}
-                                className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
-                                  showRangePrice ? 'w-48' : 'w-32'
-                                }`}
-                              />
-                              {!isLocked && item.total_opsi2 !== undefined && item.total_opsi2 !== null && item.total_opsi2 !== '' && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateItemField(idx, 'total_opsi2', '', 2)}
-                                  className="ml-1 p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition cursor-pointer select-none"
-                                  title="Hapus / kosongkan total Opsi 2 untuk baris ini"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
-                          </td>
+                          showOpsi2Detail ? (
+                            <>
+                              {/* QTY Opsi 2 */}
+                              <td className="p-2 text-center border-r border-slate-200 align-middle bg-blue-50/20">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  disabled={isLocked}
+                                  value={item.qty_opsi2 !== undefined && item.qty_opsi2 !== null ? item.qty_opsi2 : item.qty}
+                                  onChange={(e) => handleUpdateItemField(idx, 'qty_opsi2', e.target.value, 2)}
+                                  className="w-14 text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-blue-950 disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
+                                />
+                              </td>
+
+                              {/* Harga Satuan Opsi 2 */}
+                              <td className="p-2 text-center border-r border-slate-200 align-middle bg-blue-50/20">
+                                <div className="relative flex items-center justify-center">
+                                  <span className="text-[10px] font-bold text-blue-400 mr-1 select-none">Rp</span>
+                                  <input
+                                    type="text"
+                                    disabled={isLocked}
+                                    value={item.price_opsi2 !== undefined && item.price_opsi2 !== null ? String(item.price_opsi2) : ''}
+                                    onChange={(e) => handleUpdateItemField(idx, 'price_opsi2', e.target.value, 2)}
+                                    placeholder={showRangePrice ? '150000 - 160000' : '0 / CEK'}
+                                    className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-blue-950 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
+                                      showRangePrice ? 'w-48' : 'w-28'
+                                    }`}
+                                  />
+                                </div>
+                              </td>
+
+                              {/* Total Opsi 2 */}
+                              <td className="p-2 text-center border-r border-slate-200 align-middle bg-blue-50/20">
+                                <div className="relative flex items-center justify-center">
+                                  <span className="text-[10px] font-bold text-blue-400 mr-1 select-none">Rp</span>
+                                  <input
+                                    type="text"
+                                    disabled={isLocked}
+                                    value={item.total_opsi2 !== undefined && item.total_opsi2 !== null ? String(item.total_opsi2) : ''}
+                                    onChange={(e) => handleUpdateItemField(idx, 'total_opsi2', e.target.value, 2)}
+                                    placeholder={showRangePrice ? '150000 - 160000' : '0 / CEK'}
+                                    className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-blue-950 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
+                                      showRangePrice ? 'w-48' : 'w-28'
+                                    }`}
+                                  />
+                                  {!isLocked && item.total_opsi2 !== undefined && item.total_opsi2 !== null && item.total_opsi2 !== '' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        handleUpdateItemField(idx, 'total_opsi2', '', 2);
+                                        handleUpdateItemField(idx, 'price_opsi2', '', 2);
+                                      }}
+                                      className="ml-1 p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition cursor-pointer select-none"
+                                      title="Kosongkan Opsi 2 untuk baris ini"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </>
+                          ) : (
+                            <td className="p-2 text-center border-r border-slate-200 align-middle bg-blue-50/20">
+                              <div className="relative flex items-center justify-center">
+                                <span className="text-[10px] font-bold text-blue-400 mr-1 select-none">Rp</span>
+                                <input
+                                  type="text"
+                                  disabled={isLocked}
+                                  value={item.total_opsi2 !== undefined && item.total_opsi2 !== null ? String(item.total_opsi2) : ''}
+                                  onChange={(e) => handleUpdateItemField(idx, 'total_opsi2', e.target.value, 2)}
+                                  placeholder={showRangePrice ? '150000 - 160000' : '0 / CEK'}
+                                  className={`text-xs font-mono font-bold p-2.5 text-center rounded-xl border border-slate-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 uppercase disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
+                                    showRangePrice ? 'w-48' : 'w-32'
+                                  }`}
+                                />
+                                {!isLocked && item.total_opsi2 !== undefined && item.total_opsi2 !== null && item.total_opsi2 !== '' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateItemField(idx, 'total_opsi2', '', 2)}
+                                    className="ml-1 p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition cursor-pointer select-none"
+                                    title="Hapus / kosongkan total Opsi 2 untuk baris ini"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          )
                         )}
 
                         {/* Aksi: Move Up, Move Down, Delete */}
@@ -2859,15 +3116,18 @@ function EstimationBuilderContent() {
                       )}
                     </td>
                     {showOpsi2 && (
-                      <td className="p-2.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 whitespace-nowrap">
-                        {showRangePrice ? (
-                          t2Totals.tot2Min === t2Totals.tot2Max
-                            ? formatCurrency(t2Totals.tot2Min)
-                            : `${formatCurrency(t2Totals.tot2Min)} – ${formatCurrency(t2Totals.tot2Max)}`
-                        ) : (
-                          formatCurrency(t2Totals.tot2Min)
-                        )}
-                      </td>
+                      <>
+                        {showOpsi2Detail && <td colSpan={2} className="border-r border-slate-200 bg-blue-50/10"></td>}
+                        <td className="p-2.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 whitespace-nowrap">
+                          {showRangePrice ? (
+                            t2Totals.tot2Min === t2Totals.tot2Max
+                              ? formatCurrency(t2Totals.tot2Min)
+                              : `${formatCurrency(t2Totals.tot2Min)} – ${formatCurrency(t2Totals.tot2Max)}`
+                          ) : (
+                            formatCurrency(t2Totals.tot2Min)
+                          )}
+                        </td>
+                      </>
                     )}
                     {!isLocked && <td className="p-2.5 bg-slate-100/90"></td>}
                   </tr>
@@ -2892,17 +3152,20 @@ function EstimationBuilderContent() {
                   )}
                 </td>
                 {showOpsi2 && (
-                  <td className="p-3 text-right font-mono font-black text-blue-950 bg-blue-50/20">
-                    {showRangePrice ? (
-                      <span className="text-sm whitespace-nowrap">
-                        {totalFinalOpsi2 === totalFinalOpsi2Max
-                          ? formatCurrency(totalFinalOpsi2)
-                          : `${formatCurrency(totalFinalOpsi2)} – ${formatCurrency(totalFinalOpsi2Max)}`}
-                      </span>
-                    ) : (
-                      <span className="text-sm whitespace-nowrap">{formatCurrency(totalFinalOpsi2)}</span>
-                    )}
-                  </td>
+                  <>
+                    {showOpsi2Detail && <td colSpan={2} className="border-r border-slate-200 bg-blue-50/10"></td>}
+                    <td className="p-3 text-right font-mono font-black text-blue-950 bg-blue-50/20">
+                      {showRangePrice ? (
+                        <span className="text-sm whitespace-nowrap">
+                          {totalFinalOpsi2 === totalFinalOpsi2Max
+                            ? formatCurrency(totalFinalOpsi2)
+                            : `${formatCurrency(totalFinalOpsi2)} – ${formatCurrency(totalFinalOpsi2Max)}`}
+                        </span>
+                      ) : (
+                        <span className="text-sm whitespace-nowrap">{formatCurrency(totalFinalOpsi2)}</span>
+                      )}
+                    </td>
+                  </>
                 )}
                 {!isLocked && <td></td>}
               </tr>
@@ -3271,23 +3534,26 @@ function EstimationBuilderContent() {
                                      (typeof it.price_opsi2 === 'string' && /[a-zA-Z]/.test(it.price_opsi2));
                     const p1Text = (it.price_opsi1 || it.price || it.total_opsi1 || 'CEK').toString().trim().toUpperCase();
                     const p2Text = (it.total_opsi2 || it.price_opsi2 || 'CEK').toString().trim().toUpperCase();
-                    const p1Val = isP1Text ? p1Text : it.price_opsi1;
-                    const p2Val = isP2Text ? p2Text : (it.total_opsi2 !== undefined && it.total_opsi2 !== '' ? it.total_opsi2 : it.price_opsi2);
+                    const p1Val = isP1Text ? p1Text : (it.price_opsi1 !== undefined ? it.price_opsi1 : (it.price !== undefined ? it.price : 0));
+                    const tot1Val = isP1Text ? p1Text : (it.total_opsi1 !== undefined && it.total_opsi1 !== '' ? it.total_opsi1 : p1Val);
+                    const p2Val = isP2Text ? p2Text : (it.price_opsi2 !== undefined && it.price_opsi2 !== '' ? it.price_opsi2 : (it.total_opsi2 !== undefined ? it.total_opsi2 : ''));
+                    const tot2Val = isP2Text ? p2Text : (it.total_opsi2 !== undefined && it.total_opsi2 !== '' ? it.total_opsi2 : (it.price_opsi2 !== undefined ? it.price_opsi2 : ''));
 
                     const finalPrice: string | number = isP1Text
                       ? p1Text
-                      : (it.price !== undefined ? it.price : (it.price_opsi1 !== undefined ? it.price_opsi1 : 0));
+                      : (it.price !== undefined ? it.price : p1Val);
                     const finalSubtotal: string | number = isP1Text
                       ? p1Text
-                      : (it.subtotal !== undefined ? it.subtotal : (it.total_opsi1 !== undefined ? it.total_opsi1 : 0));
+                      : (it.subtotal !== undefined ? it.subtotal : tot1Val);
 
                     return {
                       ...it,
                       section: sec,
+                      qty_opsi2: it.qty_opsi2,
                       price_opsi1: p1Val,
-                      total_opsi1: p1Val,
+                      total_opsi1: tot1Val,
                       price_opsi2: p2Val,
-                      total_opsi2: p2Val,
+                      total_opsi2: tot2Val,
                       price: finalPrice,
                       subtotal: finalSubtotal,
                     };
@@ -3314,6 +3580,7 @@ function EstimationBuilderContent() {
                     payment_status: 'pending' as const,
                     has_discount: showDiscount,
                     has_opsi2: showOpsi2,
+                    has_opsi2_detail: showOpsi2Detail,
                     has_tax: showTax,
                     has_range_price: showRangePrice,
                     discount_amount: effectiveDiscount,
