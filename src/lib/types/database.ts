@@ -442,6 +442,18 @@ export type CRMReminderPeriod =
   | 'oil_change'
   | 'general_check';
 
+export interface FollowupHistoryEntry {
+  id: string;
+  timestamp: string;
+  period?: CRMReminderPeriod;
+  question_sent?: string;
+  customer_response?: string;
+  customer_sentiment?: 'very_satisfied' | 'satisfied' | 'complaint' | 'reschedule' | 'unresponsive';
+  contacted_by?: string;
+  scheduled_date?: string;
+  notes?: string;
+}
+
 export interface CRMLog {
   id: string;
   vehicle_id: string;
@@ -463,6 +475,7 @@ export interface CRMLog {
   notes?: string;
   whatsapp_message?: string;
   is_optional?: boolean;
+  followup_history?: FollowupHistoryEntry[];
   created_at?: string;
   updated_at?: string;
 

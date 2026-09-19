@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '@/lib/context/AppContext';
 import { useAuth } from '@/lib/context/AuthContext';
 import { DBService } from '@/lib/services/db-service';
-import { CRMLog, CRMStatus, CRMReminderPeriod } from '@/lib/types/database';
+import { CRMLog, CRMStatus, CRMReminderPeriod, FollowupHistoryEntry } from '@/lib/types/database';
 import {
   formatDate,
   formatDateTime,
@@ -43,6 +43,9 @@ import {
   X,
   MessageCircle,
   AlertTriangle,
+  Wrench,
+  Gauge,
+  Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { BranchId } from '@/lib/auth/users';
@@ -66,14 +69,20 @@ interface CRMItem {
   scheduled_date?: string;
   notes?: string;
   is_optional?: boolean;
+  followup_history?: FollowupHistoryEntry[];
 
-  // Joined vehicle info
+  // Joined vehicle & service info
   licensePlate: string;
   customerName: string;
   phoneNumber: string;
   carBrand: string;
   carModel: string;
   carYear?: number | string;
+  currentMileage?: number;
+  engineNumber?: string;
+  chassisNumber?: string;
+  complaints?: string;
+  serviceSummary?: string;
 
   // Calculation info
   daysUntilNext: number | null;
@@ -82,7 +91,7 @@ interface CRMItem {
 }
 
 export default function CRMPage() {
-  const { allCrmLogs, vehicles, refreshData, showToast } = useApp();
+  const { allCrmLogs, vehicles, allWorkOrders, allInvoices, refreshData, showToast } = useApp();
   const { activeBranch, currentUser } = useAuth();
 
   const [selectedBranch, setSelectedBranch] = useState<'ALL' | BranchId>('ALL');
@@ -90,6 +99,7 @@ export default function CRMPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [timingFilter, setTimingFilter] = useState<'all' | 'due' | 'upcoming'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
   // Modal 1: Follow-Up & Input Respon
   const [followupModalItem, setFollowupModalItem] = useState<CRMItem | null>(null);
@@ -220,8 +230,26 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
       if (seenWo.has(woKey)) return;
       seenWo.add(woKey);
 
-      const vehicle = log.vehicle || vehicles.find((v) => v.id === log.vehicle_id) || log.work_order?.vehicle;
+      const matchedWo = log.work_order || allWorkOrders.find((w) => w.id === log.work_order_id || w.spk_number === log.spk_number);
+      const vehicle = log.vehicle || vehicles.find((v) => v.id === log.vehicle_id) || matchedWo?.vehicle;
       const plate = (vehicle?.license_plate || (log as any).license_plate || '').trim().toUpperCase();
+
+      const matchedInv = allInvoices.find(
+        (i) => (matchedWo?.id && i.work_order_id === matchedWo.id) || (log.spk_number && i.invoice_number?.includes(log.spk_number))
+      );
+
+      let serviceSummary = '';
+      if (matchedInv && Array.isArray(matchedInv.items) && matchedInv.items.length > 0) {
+        serviceSummary = matchedInv.items.map((it) => it.name).filter(Boolean).slice(0, 4).join(', ');
+      } else if (matchedWo?.checklist_data?.estimation?.items && Array.isArray(matchedWo.checklist_data.estimation.items)) {
+        serviceSummary = matchedWo.checklist_data.estimation.items.map((it: any) => it.name).filter(Boolean).slice(0, 4).join(', ');
+      }
+
+      const history = (log.followup_history && log.followup_history.length > 0)
+        ? log.followup_history
+        : (matchedWo?.checklist_data?.crm?.history && Array.isArray(matchedWo.checklist_data.crm.history))
+        ? matchedWo.checklist_data.crm.history
+        : [];
 
       let daysUntilNext: number | null = null;
       let isOverdue = false;
@@ -239,10 +267,10 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
         id: log.id,
         vehicle_id: log.vehicle_id || vehicle?.id || '',
         work_order_id: log.work_order_id,
-        spk_number: log.spk_number || log.work_order?.spk_number || 'SPK',
-        invoice_number: log.invoice_number,
-        branch: log.branch || log.work_order?.received_at_branch || 'MHS 1',
-        service_date: log.service_date || log.work_order?.finish_date || log.work_order?.entry_date,
+        spk_number: log.spk_number || matchedWo?.spk_number || 'SPK',
+        invoice_number: log.invoice_number || matchedInv?.invoice_number,
+        branch: log.branch || matchedWo?.received_at_branch || 'MHS 1',
+        service_date: log.service_date || matchedWo?.finish_date || matchedWo?.entry_date,
         due_date: log.due_date,
         reminder_type: log.reminder_type || 'none',
         status: log.status || 'pending',
@@ -254,6 +282,7 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
         scheduled_date: log.scheduled_date,
         notes: log.notes,
         is_optional: log.is_optional ?? (log.reminder_type === 'none'),
+        followup_history: history,
 
         licensePlate: plate || vehicle?.license_plate || 'Tanpa Plat',
         customerName: vehicle?.customer_name || 'Pelanggan',
@@ -261,6 +290,11 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
         carBrand: vehicle?.car_brand || '',
         carModel: vehicle?.car_model || '',
         carYear: vehicle?.car_year,
+        currentMileage: vehicle?.current_mileage || matchedWo?.checklist_data?.current_mileage,
+        engineNumber: vehicle?.engine_number,
+        chassisNumber: vehicle?.chassis_number,
+        complaints: matchedWo?.complaints || '',
+        serviceSummary,
 
         daysUntilNext,
         isOverdue,
@@ -294,7 +328,7 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
 
       return new Date(b.service_date || 0).getTime() - new Date(a.service_date || 0).getTime();
     });
-  }, [sourceLogs, vehicles, todayTime]);
+  }, [sourceLogs, vehicles, allWorkOrders, allInvoices, todayTime]);
 
   // List transaksi yang jatuh tempo hari ini atau overdue (Notifikasi Utama)
   const dueNowList = useMemo(() => {
@@ -363,24 +397,29 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
   }, [crmItems, periodFilter, statusFilter, timingFilter, searchQuery]);
 
   // Ubah Jadwal Follow Up 1 Waktu Secara Langsung Dari Baris Tabel
-  const handleChangeFollowupPeriod = (item: CRMItem, newPeriod: CRMReminderPeriod) => {
+  const handleChangeFollowupPeriod = async (item: CRMItem, newPeriod: CRMReminderPeriod) => {
     if (!item.work_order_id) {
       showToast('ID Work Order tidak valid.', 'error');
       return;
     }
 
-    DBService.setTransactionFollowupPeriod(
-      item.work_order_id,
-      newPeriod,
-      undefined,
-      item.branch as BranchId
-    );
-    refreshData();
-    const opt = periodOptions.find((p) => p.id === newPeriod);
-    showToast(
-      `Jadwal follow-up ${item.licensePlate ? formatPlate(item.licensePlate) : item.customerName} diubah ke "${opt?.label || newPeriod}".`,
-      'success'
-    );
+    try {
+      await DBService.setTransactionFollowupPeriodAsync(
+        item.work_order_id,
+        newPeriod,
+        undefined,
+        item.branch as BranchId
+      );
+      refreshData();
+      const opt = periodOptions.find((p) => p.id === newPeriod);
+      showToast(
+        `Jadwal follow-up ${item.licensePlate ? formatPlate(item.licensePlate) : item.customerName} berhasil diubah ke "${opt?.label || newPeriod}" dan disimpan.`,
+        'success'
+      );
+    } catch (err) {
+      console.error('Gagal mengubah periode:', err);
+      showToast('Terjadi kesalahan saat mengubah jadwal follow-up.', 'error');
+    }
   };
 
   // Buka Modal 1: Follow Up WA & Input Respon
@@ -420,39 +459,48 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
   };
 
   // Simpan Hasil Follow Up (Pertanyaan, Respon Customer, Sentimen, PIC)
-  const handleSaveFollowupResult = (statusToSet: CRMStatus = 'contacted') => {
+  const handleSaveFollowupResult = async (statusToSet: CRMStatus = 'contacted') => {
     if (!followupModalItem) return;
 
-    // Jika periode di modal berbeda dari yang tersimpan, update periodenya juga
-    if (modalPeriod !== followupModalItem.reminder_type && followupModalItem.work_order_id) {
-      DBService.setTransactionFollowupPeriod(
-        followupModalItem.work_order_id,
-        modalPeriod,
-        undefined,
+    try {
+      setIsSaving(true);
+      // Jika periode di modal berbeda dari yang tersimpan, update periodenya juga
+      if (modalPeriod !== followupModalItem.reminder_type && followupModalItem.work_order_id) {
+        await DBService.setTransactionFollowupPeriodAsync(
+          followupModalItem.work_order_id,
+          modalPeriod,
+          undefined,
+          followupModalItem.branch as BranchId
+        );
+      }
+
+      await DBService.recordFollowupResultAsync(
+        followupModalItem.id,
+        {
+          period: modalPeriod,
+          question_sent: modalQuestion,
+          customer_response: modalResponse,
+          customer_sentiment: modalSentiment || undefined,
+          contacted_by: modalPic,
+          scheduled_date: modalScheduledDate,
+          notes: modalNotes,
+          status: modalScheduledDate ? 'scheduled' : statusToSet,
+        },
         followupModalItem.branch as BranchId
       );
+
+      refreshData();
+      showToast(
+        `Hasil follow-up untuk ${followupModalItem.licensePlate ? formatPlate(followupModalItem.licensePlate) : followupModalItem.customerName} berhasil disimpan ke database!`,
+        'success'
+      );
+      setFollowupModalItem(null);
+    } catch (err) {
+      console.error('Gagal menyimpan follow up:', err);
+      showToast('Gagal menyimpan hasil follow-up. Silakan coba lagi.', 'error');
+    } finally {
+      setIsSaving(false);
     }
-
-    DBService.recordFollowupResult(
-      followupModalItem.id,
-      {
-        question_sent: modalQuestion,
-        customer_response: modalResponse,
-        customer_sentiment: modalSentiment || undefined,
-        contacted_by: modalPic,
-        scheduled_date: modalScheduledDate,
-        notes: modalNotes,
-        status: modalScheduledDate ? 'scheduled' : statusToSet,
-      },
-      followupModalItem.branch as BranchId
-    );
-
-    refreshData();
-    showToast(
-      `Hasil follow-up untuk ${followupModalItem.licensePlate ? formatPlate(followupModalItem.licensePlate) : followupModalItem.customerName} berhasil disimpan!`,
-      'success'
-    );
-    setFollowupModalItem(null);
   };
 
   // Buka Modal 2: Buka Detail Riwayat Respon Customer
@@ -972,6 +1020,17 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
                         <div className="font-bold text-slate-900 mt-0.5">
                           {item.carBrand} {item.carModel} {item.carYear ? `(${item.carYear})` : ''}
                         </div>
+                        {item.currentMileage ? (
+                          <div className="text-[10.5px] text-slate-500 font-mono font-bold flex items-center space-x-1 mt-0.5">
+                            <Gauge className="w-3 h-3 text-slate-400" />
+                            <span>{Number(item.currentMileage).toLocaleString('id-ID')} KM</span>
+                          </div>
+                        ) : null}
+                        {item.complaints ? (
+                          <div className="text-[10px] text-slate-500 italic truncate max-w-[200px] mt-0.5" title={item.complaints}>
+                            Keluhan: {item.complaints}
+                          </div>
+                        ) : null}
                       </td>
 
                       {/* 2. Pelanggan & WhatsApp */}
@@ -1056,6 +1115,17 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
                                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                                 <span>Sudah Follow Up</span>
                               </span>
+                              {item.followup_history && item.followup_history.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenResponseDetailModal(item)}
+                                  className="inline-flex items-center space-x-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-300 hover:bg-purple-200 transition cursor-pointer"
+                                  title="Lihat riwayat tanya-jawab lengkap"
+                                >
+                                  <History className="w-3 h-3 text-purple-600" />
+                                  <span>{item.followup_history.length}x Catatan</span>
+                                </button>
+                              )}
                               {item.customer_sentiment && sentimentMap[item.customer_sentiment] && (
                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${sentimentMap[item.customer_sentiment].badgeClass}`}>
                                   <span>{sentimentMap[item.customer_sentiment].icon}</span>
@@ -1142,24 +1212,25 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
         </div>
       </div>
 
-      {/* MODAL 1: FORM FOLLOW UP & PENCATATAN RESPON CUSTOMER */}
+      {/* MODAL 1: FORM FOLLOW UP, DATA MOBIL LENGKAP & PENCATATAN RESPON CUSTOMER */}
       {followupModalItem && (
         <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 max-h-[94vh] overflow-y-auto">
             {/* Header Modal */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-maroon-100 text-maroon-800 flex items-center justify-center font-bold">
+                <div className="w-10 h-10 rounded-xl bg-maroon-100 text-maroon-800 flex items-center justify-center font-bold flex-shrink-0">
                   <Car className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-black text-base text-slate-900 flex items-center space-x-2">
-                    <span className="font-mono text-maroon-900">{followupModalItem.licensePlate ? formatPlate(followupModalItem.licensePlate) : 'Tanpa Plat'}</span>
-                    <span className="text-slate-400">·</span>
+                    <span className="font-mono bg-maroon-50 text-maroon-900 px-2 py-0.5 rounded-lg border border-maroon-200 text-sm">
+                      {followupModalItem.licensePlate ? formatPlate(followupModalItem.licensePlate) : 'Tanpa Plat'}
+                    </span>
                     <span>{followupModalItem.carBrand} {followupModalItem.carModel}</span>
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Pelanggan: <strong>{followupModalItem.customerName}</strong> ({followupModalItem.phoneNumber || 'Tanpa No HP'}) · SPK: <strong>{followupModalItem.spk_number}</strong> ({followupModalItem.branch})
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Form Follow-Up &amp; Input Catatan Respon Pelanggan
                   </p>
                 </div>
               </div>
@@ -1171,14 +1242,82 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
               </button>
             </div>
 
+            {/* PANEL INFORMASI LENGKAP KENDARAAN & SERVIS TERAKHIR */}
+            <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200 space-y-2.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center space-x-1.5">
+                  <Car className="w-4 h-4 text-maroon-700" />
+                  <span>Data Kendaraan &amp; Riwayat Servis</span>
+                </span>
+                <span className="text-[11px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                  SPK: <strong className="font-mono text-[#001F7A]">{followupModalItem.spk_number}</strong> ({followupModalItem.branch})
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div className="bg-white p-2 rounded-lg border border-slate-200">
+                  <span className="text-[10px] text-slate-400 block font-semibold">Merk &amp; Tipe Mobil:</span>
+                  <span className="font-black text-slate-900 block truncate">{followupModalItem.carBrand} {followupModalItem.carModel}</span>
+                  {followupModalItem.carYear && <span className="text-slate-500 text-[10px]">Tahun {followupModalItem.carYear}</span>}
+                </div>
+
+                <div className="bg-white p-2 rounded-lg border border-slate-200">
+                  <span className="text-[10px] text-slate-400 block font-semibold flex items-center space-x-1">
+                    <Gauge className="w-3 h-3 text-slate-400" />
+                    <span>KM Terakhir (Odo):</span>
+                  </span>
+                  <span className="font-black text-slate-900 font-mono text-[12px] block">
+                    {followupModalItem.currentMileage ? `${Number(followupModalItem.currentMileage).toLocaleString('id-ID')} KM` : '-'}
+                  </span>
+                </div>
+
+                <div className="bg-white p-2 rounded-lg border border-slate-200">
+                  <span className="text-[10px] text-slate-400 block font-semibold">Pelanggan &amp; WhatsApp:</span>
+                  <span className="font-bold text-slate-800 block truncate">{followupModalItem.customerName}</span>
+                  <span className="font-mono text-slate-600 text-[10.5px] block">{followupModalItem.phoneNumber || '-'}</span>
+                </div>
+
+                <div className="bg-white p-2 rounded-lg border border-slate-200">
+                  <span className="text-[10px] text-slate-400 block font-semibold">Tanggal Servis:</span>
+                  <span className="font-bold text-slate-800 block">
+                    {followupModalItem.service_date ? formatDate(followupModalItem.service_date) : '-'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Keluhan Kendaraan Saat Masuk */}
+              {followupModalItem.complaints && (
+                <div className="bg-amber-50/80 p-2.5 rounded-lg border border-amber-200 text-xs text-amber-950 flex items-start space-x-2">
+                  <Wrench className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-black text-[10.5px] uppercase tracking-wide text-amber-900 block">
+                      Keluhan / Kerusakan Servis Terakhir:
+                    </span>
+                    <span className="font-medium text-[11.5px] leading-relaxed">{followupModalItem.complaints}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Rincian Pekerjaan & Sparepart */}
+              {followupModalItem.serviceSummary && (
+                <div className="bg-blue-50/80 p-2 rounded-lg border border-blue-200 text-xs text-blue-950 flex items-start space-x-2">
+                  <CheckCircle className="w-3.5 h-3.5 text-blue-700 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-[10.5px] uppercase tracking-wide text-blue-900">Pekerjaan / Sparepart: </span>
+                    <span className="font-medium text-[11px] leading-relaxed text-blue-900">{followupModalItem.serviceSummary}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Pilihan Waktu Follow Up (Bisa Dipilih & Diedit) */}
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center space-x-1.5">
                   <CalendarClock className="w-4 h-4 text-maroon-700" />
-                  <span>Pilihan Waktu Follow-Up Transaksi:</span>
+                  <span>Pilihan Waktu Follow-Up:</span>
                 </label>
-                <span className="text-[10.5px] text-slate-400">Pilih 1 waktu yang berlaku</span>
+                <span className="text-[10.5px] text-slate-400">Pilih periode yang berlaku</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 {[
@@ -1207,12 +1346,12 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
               </div>
             </div>
 
-            {/* BAGIAN 1: PERTANYAAN KITA (DRAFT WA) */}
+            {/* BAGIAN 1: PERTANYAAN UNTUK CUSTOMER (DRAFT WA) */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="font-bold text-xs text-slate-800 flex items-center space-x-1.5">
                   <MessageSquare className="w-4 h-4 text-emerald-600" />
-                  <span>1. Pertanyaan / Pesan yang Dikirimkan ke Customer:</span>
+                  <span>1. Pertanyaan / Pesan untuk Customer:</span>
                 </label>
                 <button
                   type="button"
@@ -1220,9 +1359,9 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
                     const car = `${followupModalItem.carBrand} ${followupModalItem.carModel}`.trim() || 'Mobil';
                     const plate = followupModalItem.licensePlate ? formatPlate(followupModalItem.licensePlate) : '';
                     setModalQuestion(getQuestionTemplate(modalPeriod, followupModalItem.customerName, car, plate, followupModalItem.service_date));
-                    showToast('Template pesan dikembalikan ke standar.', 'info');
+                    showToast('Template pesan disesuaikan dengan periode.', 'info');
                   }}
-                  className="text-[10.5px] text-maroon-700 hover:text-maroon-900 font-bold underline"
+                  className="text-[10.5px] text-maroon-700 hover:text-maroon-900 font-bold underline cursor-pointer"
                 >
                   Muat Template Standar
                 </button>
@@ -1232,6 +1371,7 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
                 rows={4}
                 value={modalQuestion}
                 onChange={(e) => setModalQuestion(e.target.value)}
+                placeholder="Tuliskan pertanyaan yang akan diajukan ke customer..."
                 className="w-full p-3 rounded-xl border border-slate-200 bg-emerald-50/20 focus:border-emerald-600 focus:bg-white outline-none leading-relaxed font-medium text-slate-800 text-[11.5px]"
               />
 
@@ -1245,11 +1385,11 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
               </button>
             </div>
 
-            {/* BAGIAN 2: PENCATATAN RESPON CUSTOMER */}
+            {/* BAGIAN 2: JAWABAN CUSTOMER & PENCATATAN RESPON */}
             <div className="space-y-3 pt-2 border-t border-slate-200">
               <label className="font-bold text-xs text-slate-800 flex items-center space-x-1.5">
                 <UserCheck className="w-4 h-4 text-blue-600" />
-                <span>2. Keterangan Respon &amp; Hasil Jawaban Customer:</span>
+                <span>2. Jawaban Customer &amp; Keterangan Respon:</span>
               </label>
 
               <div>
@@ -1257,8 +1397,8 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
                   rows={3}
                   value={modalResponse}
                   onChange={(e) => setModalResponse(e.target.value)}
-                  placeholder="Tuliskan respon atau jawaban dari customer (misal: 'Customer puas tarikan mesin enteng, AC dingin', atau 'Ada sedikit bunyi saat rem mendadak, minta dicek minggu depan')..."
-                  className="w-full p-3 rounded-xl border border-slate-200 bg-blue-50/20 focus:border-blue-600 focus:bg-white outline-none text-xs leading-relaxed"
+                  placeholder="Tuliskan jawaban dari customer (misal: 'Customer puas tarikan mesin enteng, AC dingin', atau 'Ada sedikit bunyi saat rem mendadak, minta dicek minggu depan')..."
+                  className="w-full p-3 rounded-xl border border-slate-200 bg-blue-50/20 focus:border-blue-600 focus:bg-white outline-none text-xs leading-relaxed font-medium"
                 />
               </div>
 
@@ -1276,7 +1416,7 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
                         key={sent}
                         type="button"
                         onClick={() => setModalSentiment(sent)}
-                        className={`p-2 rounded-xl border text-center text-xs font-bold transition ${
+                        className={`p-2 rounded-xl border text-center text-xs font-bold transition cursor-pointer ${
                           isSelected
                             ? 'bg-slate-900 text-white border-slate-900 shadow-xs ring-2 ring-slate-400'
                             : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
@@ -1316,46 +1456,115 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
                   />
                 </div>
               </div>
+
+              {/* Catatan Tambahan */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Catatan Tambahan (Opsional):
+                </label>
+                <input
+                  type="text"
+                  value={modalNotes}
+                  onChange={(e) => setModalNotes(e.target.value)}
+                  placeholder="Catatan tambahan bila diperlukan..."
+                  className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-medium outline-none"
+                />
+              </div>
             </div>
+
+            {/* BAGIAN 3: HISTORI FOLLOW-UP SEBELUMNYA */}
+            {followupModalItem.followup_history && followupModalItem.followup_history.length > 0 && (
+              <div className="pt-2 border-t border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-xs text-slate-800 flex items-center space-x-1.5">
+                    <History className="w-4 h-4 text-purple-600" />
+                    <span>Riwayat Follow-Up Sebelumnya ({followupModalItem.followup_history.length} Catatan):</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">Tersimpan di cloud</span>
+                </div>
+                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                  {followupModalItem.followup_history.map((hist, hIdx) => {
+                    const sentInfo = hist.customer_sentiment && sentimentMap[hist.customer_sentiment];
+                    return (
+                      <div key={hist.id || hIdx} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
+                        <div className="flex items-center justify-between text-[10.5px]">
+                          <span className="font-mono font-bold text-slate-700">
+                            {hist.timestamp ? formatDateTime(hist.timestamp) : '-'} · PIC: <strong>{hist.contacted_by || 'Admin'}</strong>
+                          </span>
+                          {sentInfo && (
+                            <span className={`px-2 py-0.5 rounded-full font-bold border text-[10px] ${sentInfo.badgeClass}`}>
+                              {sentInfo.icon} {sentInfo.label}
+                            </span>
+                          )}
+                        </div>
+                        {hist.question_sent && (
+                          <div className="text-slate-600 bg-white p-2 rounded-lg border border-slate-100">
+                            <span className="text-[10px] font-bold text-emerald-800 block">Pertanyaan:</span>
+                            <p className="line-clamp-2 italic">{hist.question_sent}</p>
+                          </div>
+                        )}
+                        {hist.customer_response && (
+                          <div className="text-slate-900 bg-blue-50/50 p-2 rounded-lg border border-blue-100">
+                            <span className="text-[10px] font-bold text-blue-800 block">Jawaban Customer:</span>
+                            <p className="font-semibold italic">&ldquo;{hist.customer_response}&rdquo;</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Modal Actions */}
             <div className="flex flex-col sm:flex-row items-center justify-end gap-2 pt-3 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setFollowupModalItem(null)}
-                className="w-full sm:w-auto px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition"
+                disabled={isSaving}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={() => handleSaveFollowupResult('contacted')}
-                className="w-full sm:w-auto inline-flex items-center justify-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs px-5 py-2 rounded-xl shadow-xs transition cursor-pointer"
+                disabled={isSaving}
+                className="w-full sm:w-auto inline-flex items-center justify-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs px-5 py-2.5 rounded-xl shadow-xs transition cursor-pointer disabled:opacity-60"
               >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Simpan Follow-Up &amp; Tandai Selesai</span>
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Menyimpan ke Cloud...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Simpan Follow-Up &amp; Tandai Selesai</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL 2: RIWAYAT RESPON CUSTOMER (TERCANTUM DAN BISA DIBUKA) */}
+      {/* MODAL 2: RIWAYAT & HISTORI LENGKAP FOLLOW-UP PELANGGAN */}
       {responseDetailItem && (
         <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 max-h-[94vh] overflow-y-auto">
             {/* Header Modal */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center space-x-2.5">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold flex-shrink-0">
                   <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                 </div>
                 <div>
                   <h3 className="font-black text-base text-slate-900">
-                    Riwayat Follow-Up &amp; Respon Pelanggan
+                    Histori Follow-Up &amp; Respon Pelanggan
                   </h3>
                   <p className="text-xs text-slate-500">
-                    {responseDetailItem.carBrand} {responseDetailItem.carModel} · <strong className="font-mono">{responseDetailItem.licensePlate ? formatPlate(responseDetailItem.licensePlate) : '-'}</strong>
+                    {responseDetailItem.carBrand} {responseDetailItem.carModel} · <strong className="font-mono text-maroon-900">{responseDetailItem.licensePlate ? formatPlate(responseDetailItem.licensePlate) : '-'}</strong>
                   </p>
                 </div>
               </div>
@@ -1367,88 +1576,175 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
               </button>
             </div>
 
-            {/* Indikator Status Sudah Di-follow Up */}
-            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <span className="text-xs font-black text-emerald-950 uppercase tracking-wide">
-                  Indikator: Sudah Melakukan Follow-Up
+            {/* Data Ringkas Unit & Kontak */}
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div>
+                <span className="text-slate-400 text-[10px] block font-semibold">Pelanggan:</span>
+                <span className="font-bold text-slate-900 block truncate">{responseDetailItem.customerName}</span>
+                <span className="text-slate-600 font-mono text-[10.5px] block">{responseDetailItem.phoneNumber || '-'}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 text-[10px] block font-semibold">SPK &amp; Cabang:</span>
+                <span className="font-bold text-slate-900 font-mono text-[11px] block">{responseDetailItem.spk_number}</span>
+                <span className="text-slate-500 text-[10px]">{responseDetailItem.branch}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 text-[10px] block font-semibold">Tgl Servis:</span>
+                <span className="font-bold text-slate-800 block">
+                  {responseDetailItem.service_date ? formatDate(responseDetailItem.service_date) : '-'}
                 </span>
               </div>
-              <span className="text-[11px] font-mono font-bold text-emerald-800">
-                {responseDetailItem.contacted_at ? formatDateTime(responseDetailItem.contacted_at) : 'Telah Terhubung'}
-              </span>
-            </div>
-
-            {/* Data Detail Unit & PIC */}
-            <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-200">
               <div>
-                <span className="text-slate-500 text-[10.5px]">Pelanggan:</span>
-                <div className="font-bold text-slate-900">{responseDetailItem.customerName}</div>
-                <div className="text-slate-600 font-mono text-[11px]">{responseDetailItem.phoneNumber || '-'}</div>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10.5px]">Petugas PIC:</span>
-                <div className="font-bold text-slate-900">{responseDetailItem.contacted_by || 'Admin CRM'}</div>
-                <div className="text-slate-500 text-[11px]">SPK: {responseDetailItem.spk_number} ({responseDetailItem.branch})</div>
+                <span className="text-slate-400 text-[10px] block font-semibold">KM Odometer:</span>
+                <span className="font-bold text-slate-900 font-mono block">
+                  {responseDetailItem.currentMileage ? `${Number(responseDetailItem.currentMileage).toLocaleString('id-ID')} KM` : '-'}
+                </span>
               </div>
             </div>
 
-            {/* KOTAK 1: PERTANYAAN KITA */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-black text-slate-800 flex items-center space-x-1.5">
-                <MessageSquare className="w-4 h-4 text-emerald-600" />
-                <span>Pertanyaan yang Diajukan Bengkel:</span>
-              </label>
-              <div className="p-3 bg-emerald-50/40 rounded-xl border border-emerald-200 text-xs text-slate-800 whitespace-pre-line leading-relaxed font-medium">
-                {responseDetailItem.question_sent || getQuestionTemplate(
-                  responseDetailItem.reminder_type,
-                  responseDetailItem.customerName,
-                  `${responseDetailItem.carBrand} ${responseDetailItem.carModel}`,
-                  responseDetailItem.licensePlate,
-                  responseDetailItem.service_date
-                )}
-              </div>
-            </div>
-
-            {/* KOTAK 2: KETERANGAN RESPON CUSTOMER */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-slate-800 flex items-center space-x-1.5">
-                  <UserCheck className="w-4 h-4 text-blue-600" />
-                  <span>Keterangan Respon Pelanggan:</span>
-                </label>
-                {responseDetailItem.customer_sentiment && sentimentMap[responseDetailItem.customer_sentiment] && (
-                  <span className={`text-xs font-black px-2 py-0.5 rounded-full border ${sentimentMap[responseDetailItem.customer_sentiment].badgeClass}`}>
-                    {sentimentMap[responseDetailItem.customer_sentiment].icon} {sentimentMap[responseDetailItem.customer_sentiment].label}
-                  </span>
-                )}
-              </div>
-              <div className="p-3.5 bg-blue-50/40 rounded-xl border border-blue-200 text-xs text-slate-900 leading-relaxed font-medium">
-                {responseDetailItem.customer_response ? (
-                  <p className="italic text-slate-800 font-semibold text-[12.5px]">
-                    &ldquo;{responseDetailItem.customer_response}&rdquo;
-                  </p>
-                ) : (
-                  <p className="text-slate-400 italic">
-                    Belum ada catatan detail respon tertulis. Klik tombol &ldquo;Edit Respon&rdquo; di bawah untuk menambahkan.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Info Tambahan Booking */}
-            {responseDetailItem.scheduled_date && (
-              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 flex items-center justify-between text-xs">
-                <div className="flex items-center space-x-2">
-                  <CalendarClock className="w-4 h-4 text-amber-700" />
-                  <span className="font-bold text-amber-900">Jadwal Booking Servis Lanjutan:</span>
+            {/* Keluhan Servis SPK (Jika ada) */}
+            {responseDetailItem.complaints && (
+              <div className="bg-amber-50/70 p-2.5 rounded-lg border border-amber-200 text-xs text-amber-950 flex items-start space-x-2">
+                <Wrench className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-[10.5px] uppercase tracking-wide text-amber-900 block">Keluhan Saat Servis:</span>
+                  <span className="font-medium">{responseDetailItem.complaints}</span>
                 </div>
-                <span className="font-black text-amber-900 font-mono">
-                  {formatDate(responseDetailItem.scheduled_date)}
-                </span>
               </div>
             )}
+
+            {/* DAFTAR TIMELINE HISTORI FOLLOW-UP */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center space-x-1.5">
+                  <History className="w-4 h-4 text-purple-600" />
+                  <span>Timeline Riwayat Percakapan / Tanya-Jawab Customer:</span>
+                </label>
+                <span className="text-[11px] font-bold text-purple-800 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                  {responseDetailItem.followup_history && responseDetailItem.followup_history.length > 0
+                    ? `${responseDetailItem.followup_history.length} Interaksi Tersimpan`
+                    : '1 Interaksi'}
+                </span>
+              </div>
+
+              {responseDetailItem.followup_history && responseDetailItem.followup_history.length > 0 ? (
+                <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                  {responseDetailItem.followup_history.map((hist, idx) => {
+                    const sentInfo = hist.customer_sentiment && sentimentMap[hist.customer_sentiment];
+                    return (
+                      <div
+                        key={hist.id || idx}
+                        className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2.5 relative"
+                      >
+                        {/* Header Tiap Riwayat */}
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                          <div className="flex items-center space-x-2">
+                            <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-800 font-bold text-xs flex items-center justify-center">
+                              {idx + 1}
+                            </span>
+                            <span className="font-mono text-xs font-bold text-slate-800">
+                              {hist.timestamp ? formatDateTime(hist.timestamp) : '-'}
+                            </span>
+                            <span className="text-slate-300">·</span>
+                            <span className="text-xs text-slate-600">
+                              PIC: <strong>{hist.contacted_by || 'Admin CRM'}</strong>
+                            </span>
+                          </div>
+                          {sentInfo && (
+                            <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full border ${sentInfo.badgeClass}`}>
+                              {sentInfo.icon} {sentInfo.label}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Pertanyaan */}
+                        <div className="space-y-1">
+                          <span className="text-[10.5px] font-black text-emerald-800 flex items-center space-x-1">
+                            <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Pertanyaan yang Diajukan Bengkel:</span>
+                          </span>
+                          <div className="p-2.5 bg-emerald-50/40 rounded-lg border border-emerald-100 text-xs text-slate-800 whitespace-pre-line leading-relaxed">
+                            {hist.question_sent || '(Tanpa draf pertanyaan)'}
+                          </div>
+                        </div>
+
+                        {/* Jawaban Customer */}
+                        <div className="space-y-1">
+                          <span className="text-[10.5px] font-black text-blue-800 flex items-center space-x-1">
+                            <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Jawaban / Respon Customer:</span>
+                          </span>
+                          <div className="p-2.5 bg-blue-50/40 rounded-lg border border-blue-100 text-xs text-slate-900 leading-relaxed font-semibold italic">
+                            &ldquo;{hist.customer_response || 'Belum ada catatan tertulis.'}&rdquo;
+                          </div>
+                        </div>
+
+                        {/* Booking Servis Baru jika ada */}
+                        {hist.scheduled_date && (
+                          <div className="p-2 bg-amber-50 rounded-lg border border-amber-200 flex items-center justify-between text-xs">
+                            <div className="flex items-center space-x-1.5 text-amber-900 font-bold">
+                              <CalendarClock className="w-3.5 h-3.5 text-amber-700" />
+                              <span>Booking Servis Lanjutan:</span>
+                            </div>
+                            <span className="font-bold text-amber-900 font-mono">
+                              {formatDate(hist.scheduled_date)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* Fallback jika data lama belum memiliki history array */
+                <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-mono text-xs font-bold text-slate-800">
+                        {responseDetailItem.contacted_at ? formatDateTime(responseDetailItem.contacted_at) : 'Telah Terhubung'}
+                      </span>
+                      <span className="text-slate-300">·</span>
+                      <span className="text-xs text-slate-600">
+                        PIC: <strong>{responseDetailItem.contacted_by || 'Admin CRM'}</strong>
+                      </span>
+                    </div>
+                    {responseDetailItem.customer_sentiment && sentimentMap[responseDetailItem.customer_sentiment] && (
+                      <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full border ${sentimentMap[responseDetailItem.customer_sentiment].badgeClass}`}>
+                        {sentimentMap[responseDetailItem.customer_sentiment].icon} {sentimentMap[responseDetailItem.customer_sentiment].label}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Pertanyaan */}
+                  <div className="space-y-1">
+                    <span className="text-[10.5px] font-black text-emerald-800 flex items-center space-x-1">
+                      <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Pertanyaan yang Diajukan:</span>
+                    </span>
+                    <div className="p-2.5 bg-emerald-50/40 rounded-lg border border-emerald-100 text-xs text-slate-800 whitespace-pre-line leading-relaxed">
+                      {responseDetailItem.question_sent || getQuestionTemplate(
+                        responseDetailItem.reminder_type,
+                        responseDetailItem.customerName,
+                        `${responseDetailItem.carBrand} ${responseDetailItem.carModel}`,
+                        responseDetailItem.licensePlate,
+                        responseDetailItem.service_date
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Jawaban Customer */}
+                  <div className="space-y-1">
+                    <span className="text-[10.5px] font-black text-blue-800 flex items-center space-x-1">
+                      <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Jawaban / Respon Customer:</span>
+                    </span>
+                    <div className="p-2.5 bg-blue-50/40 rounded-lg border border-blue-100 text-xs text-slate-900 leading-relaxed font-semibold italic">
+                      &ldquo;{responseDetailItem.customer_response || 'Belum ada catatan detail tertulis.'}&rdquo;
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Footer Buttons */}
             <div className="flex items-center justify-between pt-3 border-t border-slate-100">
@@ -1461,7 +1757,7 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
                 }}
                 className="px-4 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 font-bold text-xs border border-indigo-200 transition cursor-pointer"
               >
-                ✏️ Edit Respon / Hubungi Ulang
+                ✏️ Input Follow-Up Baru / Hubungi Ulang
               </button>
 
               <button
