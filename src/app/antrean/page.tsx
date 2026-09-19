@@ -126,11 +126,10 @@ function QueueBoardContent() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [dbSearchQuery, setDbSearchQuery] = useState('');
 
-  // Sinkronkan data saat halaman dibuka
+  // Muat data saat halaman dibuka
   useEffect(() => {
     refreshData();
-    syncWithSupabase();
-  }, [refreshData, syncWithSupabase]);
+  }, [refreshData]);
 
   // Sinkronkan jika activeBranch berubah (misal via switcher sidebar oleh Via atau Owner)
   useEffect(() => {

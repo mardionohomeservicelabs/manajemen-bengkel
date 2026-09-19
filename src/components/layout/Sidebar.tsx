@@ -446,7 +446,7 @@ export function Sidebar() {
                   if (pendingCount > 0) {
                     await flushOfflineQueue();
                   } else {
-                    await syncWithSupabase();
+                    await syncWithSupabase(true);
                   }
                 } finally {
                   setIsFlushing(false);

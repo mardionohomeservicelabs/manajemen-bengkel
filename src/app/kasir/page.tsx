@@ -578,8 +578,7 @@ function CashierContent() {
         signature_admin_url: signatureAdmin || newInvoice.signature_admin_url,
       };
 
-      // Ambil ulang data authoritative terbaru dari Supabase
-      await syncWithSupabase();
+      // Segarkan state lokal
       refreshData();
 
       // Trigger Confetti if paid

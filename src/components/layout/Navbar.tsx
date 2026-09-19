@@ -62,8 +62,8 @@ export function Navbar() {
 
           {/* Badge Database Supabase */}
           <button
-            onClick={() => syncWithSupabase()}
-            title="Klik untuk sinkronisasi ulang dengan Supabase Database"
+            onClick={() => syncWithSupabase(true)}
+            title="Klik untuk sinkronisasi paksa ulang dengan Supabase Database"
             className={`hidden lg:flex items-center space-x-1.5 text-[10.5px] font-bold px-2.5 py-1 rounded-full border transition ${
               isSupabaseOnline
                 ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'

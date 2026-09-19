@@ -37,3 +37,7 @@ next-env.d.ts
 # IDE
 .vscode
 .idea
+
+# backups
+supabase_backup*.json
+

@@ -91,12 +91,39 @@ export function SignatureCanvas({
     ctx.stroke();
   };
 
+  const getCompressedSignature = (srcCanvas: HTMLCanvasElement): string => {
+    try {
+      const maxW = 400;
+      const maxH = 160;
+      let targetW = srcCanvas.width;
+      let targetH = srcCanvas.height;
+
+      if (targetW > maxW || targetH > maxH) {
+        const scale = Math.min(maxW / targetW, maxH / targetH);
+        targetW = Math.max(1, Math.round(targetW * scale));
+        targetH = Math.max(1, Math.round(targetH * scale));
+      }
+
+      const offscreen = document.createElement('canvas');
+      offscreen.width = targetW;
+      offscreen.height = targetH;
+      const oCtx = offscreen.getContext('2d');
+      if (oCtx) {
+        oCtx.drawImage(srcCanvas, 0, 0, targetW, targetH);
+        return offscreen.toDataURL('image/png');
+      }
+    } catch {
+      // fallback jika offscreen canvas tidak tersedia
+    }
+    return srcCanvas.toDataURL('image/png');
+  };
+
   const stopDrawing = () => {
     if (!isDrawing || readOnly) return;
     setIsDrawing(false);
     const canvas = canvasRef.current;
     if (canvas && onSave) {
-      const dataUrl = canvas.toDataURL('image/png');
+      const dataUrl = getCompressedSignature(canvas);
       onSave(dataUrl);
     }
   };

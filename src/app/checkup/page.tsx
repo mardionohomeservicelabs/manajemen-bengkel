@@ -85,11 +85,10 @@ export default function CheckupPage() {
   const [selectedPrintRecord, setSelectedPrintRecord] = useState<CheckupRecord | null>(null);
   const [editingPlateTarget, setEditingPlateTarget] = useState<{ vehicleId: string; plate: string; name: string; model: string } | null>(null);
 
-  // Sinkronkan data saat halaman checklist dibuka
+  // Muat data saat halaman checklist dibuka
   useEffect(() => {
     refreshData();
-    syncWithSupabase();
-  }, [refreshData, syncWithSupabase]);
+  }, [refreshData]);
 
   // Sinkronkan jika activeBranch berganti (misal via switcher sidebar oleh Via atau Owner)
   useEffect(() => {

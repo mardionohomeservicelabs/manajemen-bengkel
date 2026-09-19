@@ -405,6 +405,8 @@ function setLocal<T>(key: string, value: T): void {
 }
 
 export class DBService {
+  private static _lastSyncTime = 0;
+
   /**
    * Mengambil cabang aktif dari sesi login saat ini di localStorage
    */
@@ -1450,11 +1452,7 @@ export class DBService {
             orders.unshift(fullWo);
           }
           setLocal(key, orders);
-
-          // PENTING: Ambil ulang data terbaru dari database
-          await this.syncFromSupabase(targetBranch);
-
-          return this.getWorkOrderById(fullWo.id, targetBranch) || fullWo;
+          return fullWo;
         }
       } catch (err: any) {
         console.error('Supabase saveWorkOrder exception:', err);
@@ -2407,9 +2405,6 @@ export class DBService {
             console.warn('Failed to update work_order status with invoice:', woErr);
           }
         }
-
-        // PENTING: Ambil ulang data terbaru dari database
-        await this.syncFromSupabase(targetBranch);
 
         if (data && data[0]) {
           return {
@@ -3736,10 +3731,18 @@ export class DBService {
   /**
    * Mengambil data terbaru langsung dari database Supabase dan mengupdate local storage untuk semua cabang
    */
-  static async syncFromSupabase(branch?: BranchId): Promise<boolean> {
+  static async syncFromSupabase(branch?: BranchId, force = false): Promise<boolean> {
     if (!supabase || !isSupabaseConfigured) return false;
     if (this._isSyncing) return true;
+
+    const now = Date.now();
+    // Cegah spam download: minimal jeda 3 menit antar-sync penuh kecuali user klik force sync
+    if (!force && now - this._lastSyncTime < 180000) {
+      return true;
+    }
+
     this._isSyncing = true;
+    this._lastSyncTime = now;
 
     this.checkAndApplyDataResetEpoch();
 

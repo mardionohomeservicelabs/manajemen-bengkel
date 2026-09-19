@@ -222,11 +222,10 @@ function EstimationBuilderContent() {
     generateUniqueInvoiceNumberAsync,
   } = useApp();
 
-  // Sinkronkan data saat halaman dibuka
+  // Muat data saat halaman dibuka
   useEffect(() => {
     refreshData();
-    syncWithSupabase();
-  }, [refreshData, syncWithSupabase]);
+  }, [refreshData]);
 
   const { currentUser, activeBranch } = useAuth();
 
@@ -783,26 +782,14 @@ function EstimationBuilderContent() {
     }
   }, [selectedSpkId, spkIdParam, availableOrders, invoices, activeTabId, customerSignature, customerResponse, tabList, currentEstimationRecord, loadEstimationForSpk]);
 
-  // Polling sync real-time saat menunggu TTD customer dari link & instant cross-tab sync
+  // Sinkronisasi event-driven instan saat TTD customer diterima via BroadcastChannel / Storage
   useEffect(() => {
     if (!selectedSpkId) return;
-    // Jika belum ada TTD customer, lakukan sync cepat setiap 4 detik agar update langsung masuk
-    const isWaitingTtd = !customerSignature || currentEstimationRecord?.ttd_status === 'pending';
-    
-    let interval: NodeJS.Timeout | null = null;
-    if (isWaitingTtd) {
-      interval = setInterval(() => {
-        if (document.visibilityState === 'visible') {
-          syncWithSupabase();
-        }
-      }, 4000);
-    }
 
     // Listener jika TTD disimpan dari tab browser lain
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key?.startsWith('acwms_invoices') || e.key?.startsWith('acwms_work_orders') || e.key === 'mhs_last_signed_est') {
         refreshData();
-        syncWithSupabase();
       }
     };
     window.addEventListener('storage', handleStorageChange);
@@ -814,17 +801,15 @@ function EstimationBuilderContent() {
       bc.onmessage = (ev) => {
         if (ev.data?.type === 'ESTIMATION_APPROVED' || ev.data?.type === 'SIGNATURE_UPDATED') {
           refreshData();
-          syncWithSupabase();
         }
       };
     }
 
     return () => {
-      if (interval) clearInterval(interval);
       window.removeEventListener('storage', handleStorageChange);
       if (bc) bc.close();
     };
-  }, [selectedSpkId, customerSignature, currentEstimationRecord, syncWithSupabase, refreshData]);
+  }, [selectedSpkId, refreshData]);
 
   // Handler: ganti tab aktif (save current, load next)
   const handleSwitchTab = useCallback((tab: EstimationTab) => {

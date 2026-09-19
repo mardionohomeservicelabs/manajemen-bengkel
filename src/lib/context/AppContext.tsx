@@ -39,7 +39,7 @@ interface AppContextType {
   vehicles: VehicleCustomer[];
   checkups: CheckupRecord[];
   refreshData: () => void;
-  syncWithSupabase: () => Promise<void>;
+  syncWithSupabase: (force?: boolean) => Promise<void>;
   generateUniqueSpkNumberAsync: (branch?: BranchId | string) => Promise<string>;
   generateUniqueInvoiceNumberAsync: (type?: 'invoice' | 'estimation', branch?: BranchId | string) => Promise<string>;
   saveVehicleAsync: (vehicle: Omit<VehicleCustomer, 'id'> & { id?: string }) => Promise<VehicleCustomer>;
@@ -116,8 +116,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCheckups(DBService.getCheckups(activeBranch));
   }, [activeBranch]);
 
-  const syncWithSupabase = useCallback(async () => {
+  const lastSyncTimestampRef = useRef<number>(0);
+
+  const syncWithSupabase = useCallback(async (force = false) => {
     if (!supabase || !isSupabaseConfigured) return;
+    const now = Date.now();
+    // Cegah spam download: minimal jeda 3 menit antar-sync penuh kecuali jika tombol force diklik
+    if (!force && now - lastSyncTimestampRef.current < 180000) {
+      return;
+    }
+    lastSyncTimestampRef.current = now;
+
     setIsSyncing(true);
     try {
       // Flush offline queue dulu sebelum sync dari cloud
@@ -125,7 +134,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (flushed > 0) {
         console.info(`[Sync] Flushed ${flushed} offline queue entries`);
       }
-      const ok = await DBService.syncFromSupabase(activeBranch);
+      const ok = await DBService.syncFromSupabase(activeBranch, force);
       if (ok) {
         setIsSupabaseOnline(true);
         refreshData();
@@ -249,19 +258,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     DBService.init(activeBranch);
     refreshData();
+    // Initial sync sekali saat aplikasi pertama dibuka
     syncWithSupabase();
     setPendingCount(DBService.getOfflineQueueCount());
 
-    // 1. Sync ketika browser/HP dibuka kembali (visibility / focus)
-    const handleVisibilityOrFocus = () => {
-      if (document.visibilityState === 'visible') {
-        syncWithSupabase();
-      }
-    };
-    window.addEventListener('visibilitychange', handleVisibilityOrFocus);
-    window.addEventListener('focus', handleVisibilityOrFocus);
-
-    // 2. Auto-flush queue saat koneksi internet kembali
+    // Auto-flush queue saat koneksi internet kembali online
     const handleOnline = async () => {
       setIsSupabaseOnline(true);
       console.info('[Network] Kembali online — flushing offline queue...');
@@ -277,19 +278,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // 3. Background sync hemat kuota sebagai fallback santai jika ada packet drop (setiap 90 detik, bukan 12 detik)
-    const syncInterval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        syncWithSupabase();
-      }
-    }, 90000);
-
     return () => {
-      window.removeEventListener('visibilitychange', handleVisibilityOrFocus);
-      window.removeEventListener('focus', handleVisibilityOrFocus);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      clearInterval(syncInterval);
     };
   }, [activeBranch, refreshData, syncWithSupabase]);
 
