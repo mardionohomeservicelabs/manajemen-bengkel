@@ -242,34 +242,61 @@ ALTER TABLE public.crm_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workshop_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Public read access" ON public.profiles;
 CREATE POLICY "Public read access" ON public.profiles FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public write access" ON public.profiles;
 CREATE POLICY "Public write access" ON public.profiles FOR ALL USING (true);
 
+DROP POLICY IF EXISTS "Public read access" ON public.vehicles_customers;
 CREATE POLICY "Public read access" ON public.vehicles_customers FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public write access" ON public.vehicles_customers;
 CREATE POLICY "Public write access" ON public.vehicles_customers FOR ALL USING (true);
 
+DROP POLICY IF EXISTS "Public read access" ON public.inventory_items;
 CREATE POLICY "Public read access" ON public.inventory_items FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public write access" ON public.inventory_items;
 CREATE POLICY "Public write access" ON public.inventory_items FOR ALL USING (true);
 
+DROP POLICY IF EXISTS "Public read access" ON public.work_orders;
 CREATE POLICY "Public read access" ON public.work_orders FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public write access" ON public.work_orders;
 CREATE POLICY "Public write access" ON public.work_orders FOR ALL USING (true);
 
+DROP POLICY IF EXISTS "Public read access" ON public.invoices;
 CREATE POLICY "Public read access" ON public.invoices FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public write access" ON public.invoices;
 CREATE POLICY "Public write access" ON public.invoices FOR ALL USING (true);
 
+DROP POLICY IF EXISTS "Public read access" ON public.stock_movements;
 CREATE POLICY "Public read access" ON public.stock_movements FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public write access" ON public.stock_movements;
 CREATE POLICY "Public write access" ON public.stock_movements FOR ALL USING (true);
 
+DROP POLICY IF EXISTS "Public read access" ON public.crm_logs;
 CREATE POLICY "Public read access" ON public.crm_logs FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public write access" ON public.crm_logs;
 CREATE POLICY "Public write access" ON public.crm_logs FOR ALL USING (true);
 
+DROP POLICY IF EXISTS "Public read access" ON public.workshop_settings;
 CREATE POLICY "Public read access" ON public.workshop_settings FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public write access" ON public.workshop_settings;
 CREATE POLICY "Public write access" ON public.workshop_settings FOR ALL USING (true);
 
+DROP POLICY IF EXISTS "Public read access" ON public.audit_logs;
 CREATE POLICY "Public read access" ON public.audit_logs FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public write access" ON public.audit_logs;
 CREATE POLICY "Public write access" ON public.audit_logs FOR ALL USING (true);
 
 -- 14. AKTIFKAN SUPABASE REALTIME WEBSOCKET
-ALTER PUBLICATION supabase_realtime ADD TABLE public.work_orders;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.invoices;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.vehicles_customers;
+DO $$ BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.work_orders;
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.invoices;
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.vehicles_customers;
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
