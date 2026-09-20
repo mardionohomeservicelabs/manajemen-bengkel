@@ -22,6 +22,7 @@ import {
   generateInvoiceNumber,
   parseNumericPrice,
   resolveInvoiceBranch,
+  resolveWorkOrderBranch,
 } from '@/lib/utils';
 import Link from 'next/link';
 import {
@@ -83,7 +84,7 @@ function CashierContent() {
 
   // Jika cabang berganti (misal oleh Via atau Owner), reset pilihan nota / SPK cabang sebelumnya
   useEffect(() => {
-    if (selectedSpk && (selectedSpk.received_at_branch || 'MHS 1') !== activeBranch) {
+    if (selectedSpk && resolveWorkOrderBranch(selectedSpk) !== activeBranch) {
       setSelectedSpkId('');
       setSelectedSpk(null);
       setSelectedInvoiceId('');
@@ -489,7 +490,7 @@ function CashierContent() {
     showToast(isOwnerEditMode ? 'Memperbarui nota & database laporan...' : 'Menyimpan nota & pembayaran ke database cloud...', 'info');
 
     try {
-      const branch = selectedSpk.received_at_branch;
+      const branch = resolveWorkOrderBranch(selectedSpk);
       const invoiceNumber = (isOwnerEditMode && targetPaidInvoice?.invoice_number)
         ? targetPaidInvoice.invoice_number
         : await generateUniqueInvoiceNumberAsync('invoice', branch);
@@ -561,7 +562,7 @@ function CashierContent() {
             old_payment_method: targetPaidInvoice.payment_method,
             new_payment_method: paymentMethod,
           },
-          selectedSpk.received_at_branch as any
+          branch
         );
       }
 

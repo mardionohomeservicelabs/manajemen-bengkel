@@ -14,7 +14,7 @@ import {
   CheckupRecord,
   WorkOrder,
 } from '@/lib/types/database';
-import { formatDate, formatPlate, formatKM, parseKM } from '@/lib/utils';
+import { formatDate, formatPlate, formatKM, parseKM, resolveWorkOrderBranch } from '@/lib/utils';
 import {
   ShieldAlert,
   ThermometerSnowflake,
@@ -586,7 +586,7 @@ function NewCheckupPageContent() {
             .map((wo) => (
               <option key={wo.id} value={wo.id}>
                 {wo.spk_number} • Terbit: {formatDate(wo.created_at || wo.entry_date)} • {wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''} •{' '}
-                {wo.vehicle?.customer_name} ({wo.vehicle?.car_brand} {wo.vehicle?.car_model}) - [{wo.received_at_branch || 'MHS 1'}]
+                {wo.vehicle?.customer_name} ({wo.vehicle?.car_brand} {wo.vehicle?.car_model}) - [{resolveWorkOrderBranch(wo)}]
               </option>
             ))}
         </select>

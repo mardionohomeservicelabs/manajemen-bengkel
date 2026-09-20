@@ -166,6 +166,79 @@ export function generateInvoiceNumber(type: 'invoice' | 'estimation' = 'invoice'
 }
 
 /**
+ * Menentukan cabang asal sebuah Surat Perintah Kerja (SPK) / Work Order secara akurat dan definitif.
+ * Mencegah kebocoran data SPK MHS 2 ke MHS 1 dan memastikan antrean langsung sinkron ke cabang yang tepat.
+ */
+export function resolveWorkOrderBranch(wo?: any, defaultBranch?: BranchId): BranchId {
+  if (!wo) return defaultBranch || 'MHS 1';
+
+  // 1. Cek kode cabang langsung pada nomor SPK / nomor dokumen / ID (paling eksplisit dan definitif)
+  // Format standar: SPK-20260920-M2-2589, QC-20260920-M2-001, AC-20260920-M2-001, UND-20260920-M2-001
+  const spk = String(wo.spk_number || wo.document_number || wo.id || '').toUpperCase();
+  if (spk.includes('-M2-') || spk.includes('-M2') || spk.includes('MHS2') || spk.includes('MHS 2') || spk.startsWith('M2-')) {
+    return 'MHS 2';
+  }
+  if (spk.includes('-M3-') || spk.includes('-M3') || spk.includes('MHS3') || spk.includes('MHS 3') || spk.startsWith('M3-')) {
+    return 'MHS 3';
+  }
+  if (spk.includes('-M1-') || spk.includes('-M1') || spk.includes('MHS1') || spk.includes('MHS 1') || spk.startsWith('M1-')) {
+    return 'MHS 1';
+  }
+
+  // 2. Cek checklist_data jika ada (bisa berupa objek atau string JSON dari Supabase Realtime WebSocket)
+  let checklist = wo.checklist_data;
+  if (typeof checklist === 'string') {
+    try {
+      checklist = JSON.parse(checklist);
+    } catch {
+      checklist = {};
+    }
+  }
+  if (checklist && typeof checklist === 'object') {
+    const rawChecklistBranch = checklist.received_at_branch || checklist.branch;
+    if (rawChecklistBranch) {
+      const u = String(rawChecklistBranch).toUpperCase();
+      if (u.includes('2') || u.includes('TROSOBO')) return 'MHS 2';
+      if (u.includes('3') || u.includes('SURABAYA')) return 'MHS 3';
+      if (u.includes('1') || u.includes('RUNGKUT')) return 'MHS 1';
+    }
+
+    // Cek nomor SPK tersimpan di dalam checklist_data
+    const innerSpk = String(checklist.spk_number || checklist.document_number || '').toUpperCase();
+    if (innerSpk.includes('-M2-') || innerSpk.includes('-M2') || innerSpk.includes('MHS2')) return 'MHS 2';
+    if (innerSpk.includes('-M3-') || innerSpk.includes('-M3') || innerSpk.includes('MHS3')) return 'MHS 3';
+    if (innerSpk.includes('-M1-') || innerSpk.includes('-M1') || innerSpk.includes('MHS1')) return 'MHS 1';
+  }
+
+  // 3. Cek properti received_at_branch atau branch langsung pada objek
+  const directBranch = wo.received_at_branch || wo.branch;
+  if (directBranch) {
+    const u = String(directBranch).toUpperCase();
+    if (u.includes('2') || u.includes('TROSOBO')) return 'MHS 2';
+    if (u.includes('3') || u.includes('SURABAYA')) return 'MHS 3';
+    if (u.includes('1') || u.includes('RUNGKUT')) return 'MHS 1';
+  }
+
+  // 4. Cek penanggung jawab / petugas / SA / mekanik
+  // (Mey Wulandari dan Kaka bertugas di MHS 2 Trosobo; Arida dan Dito Ade bertugas di MHS 1)
+  const staff = String(
+    wo.petugas_name ||
+    checklist?.petugas_name ||
+    wo.mechanic_name ||
+    wo.sa_name ||
+    wo.created_by ||
+    ''
+  ).toLowerCase();
+  if (staff.includes('mey')) return 'MHS 2';
+  if (staff.includes('trosobo')) return 'MHS 2';
+  if (staff.includes('kaka') && !staff.includes('arida')) return 'MHS 2';
+  if (staff.includes('arida')) return 'MHS 1';
+  if (staff.includes('dito')) return 'MHS 1';
+
+  return defaultBranch || 'MHS 1';
+}
+
+/**
  * Menentukan cabang asal sebuah invoice/estimasi secara akurat.
  * Menghindari kesalahan pengkategorian pendapatan MHS 2 masuk ke MHS 1.
  */
@@ -185,28 +258,19 @@ export function resolveInvoiceBranch(inv?: any, allWorkOrders?: any[]): BranchId
     return 'MHS 1';
   }
 
-  // 2. Cek properti work_order yang sudah ter-attach
+  // 2. Cek properti work_order yang sudah ter-attach dengan resolveWorkOrderBranch
   const wo = inv.work_order;
   if (wo) {
-    const raw = wo.checklist_data?.received_at_branch || wo.received_at_branch;
-    if (raw) {
-      const u = String(raw).toUpperCase();
-      if (u.includes('2')) return 'MHS 2';
-      if (u.includes('3')) return 'MHS 3';
-      if (u.includes('1')) return 'MHS 1';
-    }
-    const spk = String(wo.spk_number || '').toUpperCase();
-    if (spk.includes('-M2-') || spk.includes('-M2') || spk.includes('MHS2')) return 'MHS 2';
-    if (spk.includes('-M3-') || spk.includes('-M3') || spk.includes('MHS3')) return 'MHS 3';
-    if (spk.includes('-M1-') || spk.includes('-M1') || spk.includes('MHS1')) return 'MHS 1';
+    const b = resolveWorkOrderBranch(wo);
+    if (b) return b;
   }
 
   // 3. Cek properti branch langsung pada invoice jika ada
   if (inv.branch) {
     const b = String(inv.branch).toUpperCase();
-    if (b.includes('2')) return 'MHS 2';
-    if (b.includes('3')) return 'MHS 3';
-    if (b.includes('1')) return 'MHS 1';
+    if (b.includes('2') || b.includes('TROSOBO')) return 'MHS 2';
+    if (b.includes('3') || b.includes('SURABAYA')) return 'MHS 3';
+    if (b.includes('1') || b.includes('RUNGKUT')) return 'MHS 1';
   }
 
   // 4. Cari dari allWorkOrders jika work_order_id tersedia
@@ -214,17 +278,7 @@ export function resolveInvoiceBranch(inv?: any, allWorkOrders?: any[]): BranchId
   if (woId && Array.isArray(allWorkOrders)) {
     const matched = allWorkOrders.find((w) => w.id === woId || w.spk_number === woId);
     if (matched) {
-      const raw = matched.checklist_data?.received_at_branch || matched.received_at_branch;
-      if (raw) {
-        const u = String(raw).toUpperCase();
-        if (u.includes('2')) return 'MHS 2';
-        if (u.includes('3')) return 'MHS 3';
-        if (u.includes('1')) return 'MHS 1';
-      }
-      const spk = String(matched.spk_number || '').toUpperCase();
-      if (spk.includes('-M2-') || spk.includes('-M2') || spk.includes('MHS2')) return 'MHS 2';
-      if (spk.includes('-M3-') || spk.includes('-M3') || spk.includes('MHS3')) return 'MHS 3';
-      if (spk.includes('-M1-') || spk.includes('-M1') || spk.includes('MHS1')) return 'MHS 1';
+      return resolveWorkOrderBranch(matched);
     }
   }
 
@@ -239,7 +293,9 @@ export function resolveInvoiceBranch(inv?: any, allWorkOrders?: any[]): BranchId
   // 6. Cek penanggung jawab (Mey Wulandari selalu MHS 2)
   const creator = String(inv.created_by || inv.estimator_name || inv.admin_notes || '').toLowerCase();
   if (creator.includes('mey')) return 'MHS 2';
+  if (creator.includes('trosobo')) return 'MHS 2';
   if (creator.includes('arida')) return 'MHS 1';
+  if (creator.includes('dito')) return 'MHS 1';
 
   return 'MHS 1';
 }

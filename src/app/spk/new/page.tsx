@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useApp } from '@/lib/context/AppContext';
 import { useAuth } from '@/lib/context/AuthContext';
 import { BRANCHES, BranchId } from '@/lib/auth/users';
@@ -23,6 +23,7 @@ import {
   Clock,
   Radio,
   FileText,
+  Building2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { SignatureCanvas } from '@/components/ui/SignatureCanvas';
@@ -31,8 +32,11 @@ import { PrintableSPK } from '@/components/ui/PrintableSPK';
 type SourceInfo = string;
 type VehicleStatus = 'Ditunggu' | 'Ditinggal';
 
-export default function NewSPKPage() {
+function NewSPKContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const branchParam = searchParams.get('branch') as BranchId | null;
+
   const {
     vehicles,
     refreshData,
@@ -42,7 +46,8 @@ export default function NewSPKPage() {
     saveWorkOrderAsync,
     generateUniqueSpkNumberAsync,
   } = useApp();
-  const { activeBranch, currentUser } = useAuth();
+  const { activeBranch, currentUser, setActiveBranch } = useAuth();
+  const canAccessAll = !!currentUser?.canAccessAllBranches;
 
   const [customerName, setCustomerName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -55,13 +60,21 @@ export default function NewSPKPage() {
   const [chassisNumber, setChassisNumber] = useState('');
   const [currentMileage, setCurrentMileage] = useState('');
 
-  const [receivedAtBranch, setReceivedAtBranch] = useState<BranchId>(activeBranch);
+  const validBranchParam = (branchParam && (branchParam === 'MHS 1' || branchParam === 'MHS 2' || branchParam === 'MHS 3'))
+    ? branchParam
+    : null;
+
+  const [receivedAtBranch, setReceivedAtBranch] = useState<BranchId>(
+    validBranchParam || activeBranch || 'MHS 1'
+  );
 
   useEffect(() => {
-    if (activeBranch) {
+    if (validBranchParam) {
+      setReceivedAtBranch(validBranchParam);
+    } else if (activeBranch) {
       setReceivedAtBranch(activeBranch);
     }
-  }, [activeBranch]);
+  }, [validBranchParam, activeBranch]);
 
   const [entryTime, setEntryTime] = useState('08:00');
   const [petugasName, setPetugasName] = useState(currentUser?.full_name || '');
@@ -136,7 +149,7 @@ export default function NewSPKPage() {
         car_year: carYear ? Number(carYear) : undefined,
         chassis_number: chassisNumber.trim().toUpperCase(),
         current_mileage: currentMileage ? parseKM(currentMileage) : 0,
-      });
+      }, receivedAtBranch);
 
       // Construct entry datetime with custom time
       const [hours, minutes] = entryTime.split(':');
@@ -159,12 +172,23 @@ export default function NewSPKPage() {
         source_info: finalSource,
         vehicle_status: (vehicleStatus || 'Ditunggu').toUpperCase(),
         received_at_branch: receivedAtBranch,
+        checklist_data: {
+          received_at_branch: receivedAtBranch,
+          source_info: finalSource,
+          vehicle_status: (vehicleStatus || 'Ditunggu').toUpperCase(),
+          petugas_name: (petugasName || '').trim().toUpperCase(),
+        },
         signature_customer_url: signatureCustomer,
         signature_mechanic_url: signatureMechanic,
         signature_sa_url: signatureSA,
         status: 'queue',
         entry_date: entryDate.toISOString(),
       });
+
+      // Sinkronkan activeBranch jika user memiliki akses lintas cabang
+      if (canAccessAll && setActiveBranch) {
+        setActiveBranch(receivedAtBranch);
+      }
 
       refreshData();
       showToast(`Tersimpan! SPK ${newWorkOrder.spk_number || spkNumber} berhasil disimpan ke database cloud.`, 'success');
@@ -203,13 +227,43 @@ export default function NewSPKPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Section 1: Customer & Vehicle */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-6 space-y-6">
-          <div className="flex items-center space-x-2 pb-3 border-b border-slate-100">
-            <div className="w-8 h-8 rounded-lg bg-maroon-100 text-maroon-800 flex items-center justify-center font-bold">
-              <User className="w-4 h-4" />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 rounded-lg bg-maroon-100 text-maroon-800 flex items-center justify-center font-bold">
+                <User className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">1. Data Pelanggan & Kendaraan</h2>
+                <p className="text-[11px] text-slate-500">Ketik plat nomor untuk auto-fill data pelanggan lama</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">1. Data Pelanggan & Kendaraan</h2>
-              <p className="text-[11px] text-slate-500">Ketik plat nomor untuk auto-fill data pelanggan lama</p>
+
+            {/* Cabang Penerimaan / Intake */}
+            <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+              <Building2 className="w-4 h-4 text-maroon-700" />
+              <span className="text-xs font-bold text-slate-700">Cabang Intake:</span>
+              {canAccessAll ? (
+                <div className="flex items-center space-x-1">
+                  {BRANCHES.map((b) => (
+                    <button
+                      key={b}
+                      type="button"
+                      onClick={() => setReceivedAtBranch(b)}
+                      className={`text-xs font-bold px-2.5 py-1 rounded-lg transition ${
+                        receivedAtBranch === b
+                          ? 'bg-maroon-700 text-white shadow-xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {b}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-xs font-black px-2 py-0.5 rounded bg-maroon-100 text-maroon-800 border border-maroon-300">
+                  {receivedAtBranch}
+                </span>
+              )}
             </div>
           </div>
 
@@ -680,5 +734,19 @@ export default function NewSPKPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function NewSPKPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-8 text-center text-xs text-slate-500 font-medium">
+          Memuat formulir penerimaan SPK...
+        </div>
+      }
+    >
+      <NewSPKContent />
+    </Suspense>
   );
 }

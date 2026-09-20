@@ -15,14 +15,14 @@ import {
   WorkOrderStatus,
   UserRole,
 } from '../types/database';
-import { BranchId, APP_USERS } from '../auth/users';
+import { BranchId, APP_USERS, BRANCHES } from '../auth/users';
 import {
   initialSettingsMHS1,
   initialSettingsMHS2,
   initialSettingsMHS3,
 } from '../data/mock-data';
 import { supabase, isSupabaseConfigured } from '../supabase/client';
-import { generateSpkNumber, generateInvoiceNumber, getBranchCode, resolveInvoiceBranch } from '../utils';
+import { generateSpkNumber, generateInvoiceNumber, getBranchCode, resolveInvoiceBranch, resolveWorkOrderBranch } from '../utils';
 
 export const SYSTEM_DATA_EPOCH = '2026-09-16T05:46:00.000Z';
 
@@ -110,7 +110,7 @@ function smartMergeWorkOrders(
   // Hanya masukkan item lokal jika memang pending di offline queue atau belum pernah terkirim ke cloud
   localItems.forEach((local) => {
     const key = local.spk_number || local.id;
-    const isUnsynced = local.id?.startsWith('wo-') || pendingKeys.has(key);
+    const isUnsynced = local.id?.startsWith('wo-') || local.id?.startsWith('spk-') || pendingKeys.has(key);
     if (isUnsynced) {
       mergedMap.set(key, local);
     }
@@ -122,7 +122,7 @@ function smartMergeWorkOrders(
     const local = mergedMap.get(key) || localItems.find((l) => l.id === cloud.id || l.spk_number === cloud.spk_number);
 
     if (!local) {
-      mergedMap.set(key, cloud);
+      mergedMap.set(key, { ...cloud, received_at_branch: resolveWorkOrderBranch(cloud, branch) });
     } else {
       // Catat pemetaan jika ID lokal sementara digantikan UUID cloud
       if (local.id && cloud.id && local.id !== cloud.id) {
@@ -681,6 +681,9 @@ export class DBService {
       localStorage.setItem(STORAGE_CLEANUP_FLAG, 'true');
     }
 
+    // Auto-heal cross-branch leakage: bersihkan order MHS 2 / MHS 3 yang nyasar di storage MHS 1
+    this.healCrossBranchStorageLeakage();
+
     // Bersihkan sisa-sisa key mhs_est_saved_ yang tidak terpakai untuk membebaskan kuota LocalStorage browser
     try {
       const savedKeysToPurge: string[] = [];
@@ -757,6 +760,52 @@ export class DBService {
         setLocal(keyCheckups, []);
       }
     });
+  }
+
+  /**
+   * Pembersihan otomatis (auto-healing) untuk mencegah dan memperbaiki kebocoran data SPK antar cabang di LocalStorage.
+   * Memastikan SPK MHS 2 / MHS 3 tidak tertinggal di storage MHS 1.
+   */
+  static healCrossBranchStorageLeakage(): void {
+    if (typeof window === 'undefined') return;
+    const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+    const branchOrders: Record<BranchId, WorkOrder[]> = {
+      'MHS 1': getLocal<WorkOrder[]>(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, 'MHS 1'), []),
+      'MHS 2': getLocal<WorkOrder[]>(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, 'MHS 2'), []),
+      'MHS 3': getLocal<WorkOrder[]>(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, 'MHS 3'), []),
+    };
+
+    let modified = false;
+    allBranches.forEach((b) => {
+      const current = branchOrders[b];
+      const valid: WorkOrder[] = [];
+      current.forEach((wo) => {
+        const correct = resolveWorkOrderBranch(wo, b);
+        if (correct !== b) {
+          modified = true;
+          const targetList = branchOrders[correct];
+          const exists = targetList.some(
+            (o) => (o.spk_number && o.spk_number === wo.spk_number) || (o.id && o.id === wo.id)
+          );
+          if (!exists) {
+            targetList.unshift({
+              ...wo,
+              received_at_branch: correct,
+              checklist_data: { ...(wo.checklist_data || {}), received_at_branch: correct },
+            });
+          }
+        } else {
+          valid.push(wo);
+        }
+      });
+      branchOrders[b] = valid;
+    });
+
+    if (modified) {
+      allBranches.forEach((b) => {
+        setLocal(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), branchOrders[b]);
+      });
+    }
   }
 
   // --- SETTINGS (PER CABANG) ---
@@ -1177,13 +1226,16 @@ export class DBService {
 
   // --- WORK ORDERS / SPK (PER CABANG) ---
   static getWorkOrders(branch?: BranchId): WorkOrder[] {
-    const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, branch);
+    const targetBranch = normalizeBranch(branch || this.getActiveBranch());
+    const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, targetBranch);
     const orders = getLocal<WorkOrder[]>(key, []);
-    const vehicles = this.getVehicles(branch);
+    const vehicles = this.getVehicles(targetBranch);
 
     return orders
+      .filter((order) => resolveWorkOrderBranch(order, targetBranch) === targetBranch)
       .map((order) => ({
         ...order,
+        received_at_branch: targetBranch,
         vehicle: vehicles.find((v) => v.id === order.vehicle_id) || order.vehicle,
       }))
       .sort((a, b) => {
@@ -1196,19 +1248,75 @@ export class DBService {
   static getAllWorkOrders(): WorkOrder[] {
     const branches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
     const map = new Map<string, WorkOrder>();
-    branches.forEach((b) => {
-      this.getWorkOrders(b).forEach((wo) => {
-        const key = wo.spk_number || wo.id;
+    let hasStorageChanges = false;
+    const branchOrdersMap: Record<BranchId, WorkOrder[]> = {
+      'MHS 1': [...getLocal<WorkOrder[]>(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, 'MHS 1'), [])],
+      'MHS 2': [...getLocal<WorkOrder[]>(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, 'MHS 2'), [])],
+      'MHS 3': [...getLocal<WorkOrder[]>(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, 'MHS 3'), [])],
+    };
+
+    // Auto-heal cross-branch leakage: pastikan setiap order di storage lokal benar-benar berada di storage cabangnya
+    branches.forEach((sourceBranch) => {
+      const currentList = branchOrdersMap[sourceBranch];
+      const retainedList: WorkOrder[] = [];
+
+      currentList.forEach((wo) => {
+        const correctBranch = resolveWorkOrderBranch(wo, sourceBranch);
+        const correctedWo: WorkOrder = {
+          ...wo,
+          received_at_branch: correctBranch,
+        };
+        if (correctedWo.checklist_data && typeof correctedWo.checklist_data === 'object') {
+          correctedWo.checklist_data.received_at_branch = correctBranch;
+        }
+
+        if (correctBranch !== sourceBranch) {
+          // Bocor di sourceBranch! Pindahkan ke correctBranch
+          hasStorageChanges = true;
+          const targetList = branchOrdersMap[correctBranch];
+          const existingTargetIdx = targetList.findIndex(
+            (o) => (o.spk_number && o.spk_number === wo.spk_number) || (o.id && o.id === wo.id)
+          );
+          if (existingTargetIdx !== -1) {
+            targetList[existingTargetIdx] = { ...targetList[existingTargetIdx], ...correctedWo };
+          } else {
+            targetList.unshift(correctedWo);
+          }
+        } else {
+          retainedList.push(correctedWo);
+        }
+
+        const key = correctedWo.spk_number || correctedWo.id;
         if (!map.has(key)) {
-          map.set(key, { ...wo, received_at_branch: wo.received_at_branch || b });
+          map.set(key, correctedWo);
+        } else {
+          const prev = map.get(key)!;
+          if (prev.received_at_branch !== correctBranch) {
+            map.set(key, { ...prev, ...correctedWo, received_at_branch: correctBranch });
+          }
         }
       });
+
+      branchOrdersMap[sourceBranch] = retainedList;
     });
-    return Array.from(map.values()).sort((a, b) => {
-      const timeA = new Date(a.created_at || a.entry_date || 0).getTime() || 0;
-      const timeB = new Date(b.created_at || b.entry_date || 0).getTime() || 0;
-      return timeB - timeA;
-    });
+
+    if (hasStorageChanges && typeof window !== 'undefined') {
+      branches.forEach((b) => {
+        setLocal(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), branchOrdersMap[b]);
+      });
+    }
+
+    const allVehicles = this.getAllVehicles();
+    return Array.from(map.values())
+      .map((wo) => ({
+        ...wo,
+        vehicle: allVehicles.find((v) => v.id === wo.vehicle_id) || wo.vehicle,
+      }))
+      .sort((a, b) => {
+        const timeA = new Date(a.created_at || a.entry_date || 0).getTime() || 0;
+        const timeB = new Date(b.created_at || b.entry_date || 0).getTime() || 0;
+        return timeB - timeA;
+      });
   }
 
   static getWorkOrderById(id: string, branch?: BranchId): WorkOrder | undefined {
@@ -1337,31 +1445,46 @@ export class DBService {
     workOrder: Omit<WorkOrder, 'id' | 'spk_number'> & { id?: string; spk_number?: string },
     branch?: BranchId
   ): WorkOrder {
-    const targetBranch: BranchId = normalizeBranch(workOrder.received_at_branch || branch || this.getActiveBranch());
+    const targetBranch: BranchId = resolveWorkOrderBranch(workOrder, branch || this.getActiveBranch());
     const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, targetBranch);
     const orders = getLocal<WorkOrder[]>(key, []);
     let saved: WorkOrder;
 
-    if (workOrder.id) {
-      // Periksa apakah order ini sebelumnya berada di cabang lain jika cabang diubah
-      const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
-      for (const b of allBranches) {
-        if (b === targetBranch) continue;
-        const bKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b);
-        const bOrders = getLocal<WorkOrder[]>(bKey, []);
-        const bIdx = bOrders.findIndex((o) => o.id === workOrder.id);
-        if (bIdx !== -1) {
-          bOrders.splice(bIdx, 1);
-          setLocal(bKey, bOrders);
-        }
+    // Periksa apakah order ini sebelumnya berada di cabang lain jika cabang diubah atau bocor
+    const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+    for (const b of allBranches) {
+      if (b === targetBranch) continue;
+      const bKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b);
+      const bOrders = getLocal<WorkOrder[]>(bKey, []);
+      const bFiltered = bOrders.filter(
+        (o) =>
+          (!workOrder.id || o.id !== workOrder.id) &&
+          (!workOrder.spk_number || o.spk_number !== workOrder.spk_number)
+      );
+      if (bFiltered.length !== bOrders.length) {
+        setLocal(bKey, bFiltered);
       }
+    }
 
-      const idx = orders.findIndex((o) => o.id === workOrder.id);
+    const mergedChecklist = sanitizeChecklistData({
+      ...(workOrder.checklist_data || {}),
+      received_at_branch: targetBranch,
+    });
+
+    if (workOrder.id) {
+      const idx = orders.findIndex(
+        (o) => o.id === workOrder.id || (workOrder.spk_number && o.spk_number === workOrder.spk_number)
+      );
       if (idx !== -1) {
         saved = {
           ...orders[idx],
           ...workOrder,
-          checklist_data: sanitizeChecklistData(workOrder.checklist_data || orders[idx].checklist_data),
+          received_at_branch: targetBranch,
+          checklist_data: sanitizeChecklistData({
+            ...(orders[idx].checklist_data || {}),
+            ...mergedChecklist,
+            received_at_branch: targetBranch,
+          }),
           updated_at: new Date().toISOString(),
         } as WorkOrder;
         orders[idx] = saved;
@@ -1370,7 +1493,8 @@ export class DBService {
           ...workOrder,
           id: workOrder.id,
           spk_number: workOrder.spk_number || generateSpkNumber(targetBranch),
-          checklist_data: sanitizeChecklistData(workOrder.checklist_data),
+          received_at_branch: targetBranch,
+          checklist_data: mergedChecklist,
           created_at: workOrder.created_at || new Date().toISOString(),
           updated_at: new Date().toISOString(),
         } as WorkOrder;
@@ -1381,7 +1505,8 @@ export class DBService {
         ...workOrder,
         id: `spk-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         spk_number: workOrder.spk_number || generateSpkNumber(targetBranch),
-        checklist_data: sanitizeChecklistData(workOrder.checklist_data),
+        received_at_branch: targetBranch,
+        checklist_data: mergedChecklist,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       } as WorkOrder;
@@ -1405,7 +1530,7 @@ export class DBService {
     workOrder: Omit<WorkOrder, 'id' | 'spk_number'> & { id?: string; spk_number?: string },
     branch?: BranchId
   ): Promise<WorkOrder> {
-    const targetBranch: BranchId = normalizeBranch(workOrder.received_at_branch || branch || this.getActiveBranch());
+    const targetBranch: BranchId = resolveWorkOrderBranch(workOrder, branch || this.getActiveBranch());
 
     // Pastikan nomor SPK unik jika belum ada
     if (!workOrder.spk_number) {
@@ -1510,7 +1635,7 @@ export class DBService {
             notes: remoteSaved.notes,
             source_info: remoteSaved.checklist_data?.source_info,
             vehicle_status: remoteSaved.checklist_data?.vehicle_status,
-            received_at_branch: remoteSaved.checklist_data?.received_at_branch,
+            received_at_branch: targetBranch,
             signature_customer_url: remoteSaved.checklist_data?.signature_customer_url,
             signature_mechanic_url: remoteSaved.checklist_data?.signature_mechanic_url,
             signature_sa_url: remoteSaved.checklist_data?.signature_sa_url,
@@ -1529,6 +1654,23 @@ export class DBService {
             orders.unshift(fullWo);
           }
           setLocal(key, orders);
+
+          // Hapus dari storage cabang lain jika ada
+          BRANCHES.forEach((b: BranchId) => {
+            if (b === targetBranch) return;
+            const bKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b);
+            const bOrders = getLocal<WorkOrder[]>(bKey, []);
+            const bFiltered = bOrders.filter(
+              (o) =>
+                o.id !== fullWo.id &&
+                (!fullWo.spk_number || o.spk_number !== fullWo.spk_number) &&
+                (!localSaved.spk_number || o.spk_number !== localSaved.spk_number)
+            );
+            if (bFiltered.length !== bOrders.length) {
+              setLocal(bKey, bFiltered);
+            }
+          });
+
           return fullWo;
         }
       } catch (err: any) {
@@ -1550,7 +1692,7 @@ export class DBService {
   static updateWorkOrderStatus(id: string, status: WorkOrderStatus, userRole: UserRole = 'sa', branch?: BranchId): boolean {
     const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, branch);
     const orders = getLocal<WorkOrder[]>(key, []);
-    let idx = orders.findIndex((o) => o.id === id);
+    let idx = orders.findIndex((o) => o.id === id || o.spk_number === id);
 
     if (idx !== -1) {
       orders[idx].status = status;
@@ -1568,7 +1710,7 @@ export class DBService {
       if (b === branch) continue;
       const bKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b);
       const bOrders = getLocal<WorkOrder[]>(bKey, []);
-      const bIdx = bOrders.findIndex((o) => o.id === id);
+      const bIdx = bOrders.findIndex((o) => o.id === id || o.spk_number === id);
       if (bIdx !== -1) {
         bOrders[bIdx].status = status;
         bOrders[bIdx].updated_at = new Date().toISOString();
@@ -3930,9 +4072,31 @@ export class DBService {
       return;
     }
 
-    // INSERT atau UPDATE
-    const rawBranch = row.checklist_data?.received_at_branch || row.received_at_branch || (row as any).branch || 'MHS 1';
-    const targetBranch = normalizeBranch(rawBranch);
+    // INSERT atau UPDATE: parse checklist_data jika string dan tentukan cabang secara definitif
+    let rawChecklist = row.checklist_data;
+    if (typeof rawChecklist === 'string') {
+      try {
+        rawChecklist = JSON.parse(rawChecklist);
+      } catch {
+        rawChecklist = {};
+      }
+    }
+    const rowWithParsedChecklist = { ...row, checklist_data: rawChecklist };
+    const targetBranch = resolveWorkOrderBranch(rowWithParsedChecklist);
+
+    // Hapus dari cabang lain jika pernah tersimpan di cabang yang salah (kebocoran)
+    allBranches.forEach((b) => {
+      if (b === targetBranch) return;
+      const bKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b);
+      const bOrders = getLocal<WorkOrder[]>(bKey, []);
+      const filtered = bOrders.filter(
+        (o) => o.id !== row.id && (!row.spk_number || o.spk_number !== row.spk_number)
+      );
+      if (filtered.length !== bOrders.length) {
+        setLocal(bKey, filtered);
+      }
+    });
+
     const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, targetBranch);
     const orders = getLocal<WorkOrder[]>(key, []);
 
@@ -3940,33 +4104,40 @@ export class DBService {
       (o) => (row.id && o.id === row.id) || (row.spk_number && o.spk_number === row.spk_number)
     );
 
+    const mergedChecklist = sanitizeChecklistData({
+      ...(existingIdx !== -1 ? (orders[existingIdx].checklist_data || {}) : {}),
+      ...(rawChecklist || {}),
+      received_at_branch: targetBranch,
+    });
+
+    const resolvedVehicle =
+      (existingIdx !== -1 ? orders[existingIdx].vehicle : null) ||
+      row.vehicle ||
+      this.getVehicles(targetBranch).find((v) => v.id === row.vehicle_id) ||
+      this.getAllVehicles().find((v) => v.id === row.vehicle_id);
+
     if (existingIdx !== -1) {
       const existing = orders[existingIdx];
-      const mergedChecklist = sanitizeChecklistData({
-        ...(existing.checklist_data || {}),
-        ...(row.checklist_data || {}),
-      });
-
       orders[existingIdx] = {
         ...existing,
         ...row,
         id: row.id || existing.id,
         spk_number: row.spk_number || existing.spk_number,
         status: row.status || existing.status,
+        received_at_branch: targetBranch,
         finish_date: row.finish_date || (row.status === 'completed' ? (existing.finish_date || new Date().toISOString()) : existing.finish_date),
         updated_at: row.updated_at || new Date().toISOString(),
         checklist_data: mergedChecklist,
-        vehicle: existing.vehicle || row.vehicle,
+        vehicle: resolvedVehicle,
       };
       setLocal(key, orders);
     } else {
-      const checklist = sanitizeChecklistData(row.checklist_data || {});
       const newWo: WorkOrder = {
         id: row.id,
         spk_number: row.spk_number,
         vehicle_id: row.vehicle_id,
         sa_id: row.sa_id,
-        petugas_name: checklist.petugas_name || row.petugas_name,
+        petugas_name: mergedChecklist.petugas_name || row.petugas_name,
         mechanic_name: row.mechanic_name,
         entry_date: row.entry_date,
         finish_date: row.finish_date,
@@ -3974,13 +4145,13 @@ export class DBService {
         fuel_level: row.fuel_level,
         status: row.status || 'queue',
         notes: row.notes,
-        source_info: checklist.source_info,
-        vehicle_status: checklist.vehicle_status,
-        received_at_branch: checklist.received_at_branch || targetBranch,
-        checklist_data: checklist,
+        source_info: mergedChecklist.source_info,
+        vehicle_status: mergedChecklist.vehicle_status,
+        received_at_branch: targetBranch,
+        checklist_data: mergedChecklist,
         created_at: row.created_at || new Date().toISOString(),
         updated_at: row.updated_at || new Date().toISOString(),
-        vehicle: row.vehicle,
+        vehicle: resolvedVehicle,
       };
       orders.unshift(newWo);
       setLocal(key, orders);
@@ -4134,9 +4305,17 @@ export class DBService {
         };
 
         woData.forEach((row: any) => {
-          const rawBranch = row.checklist_data?.received_at_branch || row.received_at_branch || (row as any).branch || 'MHS 1';
-          const targetBranch = normalizeBranch(rawBranch);
-          const branchKey = cloudWorkOrders[targetBranch] ? targetBranch : 'MHS 1';
+          let rawChecklist = row.checklist_data;
+          if (typeof rawChecklist === 'string') {
+            try {
+              rawChecklist = JSON.parse(rawChecklist);
+            } catch {
+              rawChecklist = {};
+            }
+          }
+          const rowWithParsed = { ...row, checklist_data: rawChecklist };
+          const targetBranch: BranchId = resolveWorkOrderBranch(rowWithParsed);
+          const branchKey = targetBranch;
 
           const vehicle: VehicleCustomer | undefined = row.vehicle ? {
             id: row.vehicle.id,
@@ -4153,7 +4332,8 @@ export class DBService {
             row.spk_number.startsWith('AC-') ||
             row.spk_number.startsWith('UND-');
 
-          const checklist = sanitizeChecklistData(row.checklist_data || {});
+          const checklist = sanitizeChecklistData(rawChecklist || {});
+          checklist.received_at_branch = targetBranch;
 
           if (!isStandaloneCheckup) {
             const wo: WorkOrder = {
@@ -4326,7 +4506,11 @@ export class DBService {
         // SMART MERGE: gabungkan work orders cloud dengan lokal dengan rekonsiliasi SPK number & UUID
         allBranches.forEach((b) => {
           const localWOs = getLocal<WorkOrder[]>(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), []);
-          const mergedWOs = smartMergeWorkOrders(cloudWorkOrders[b] || [], localWOs, b).sort((x, y) => {
+          // Bersihkan work order lokal yang salah cabang (misal SPK MHS 2 nyasar di storage MHS 1)
+          const validLocalWOs = localWOs.filter(
+            (wo) => resolveWorkOrderBranch(wo, b) === b
+          );
+          const mergedWOs = smartMergeWorkOrders(cloudWorkOrders[b] || [], validLocalWOs, b).sort((x, y) => {
             const timeX = new Date(x.created_at || x.entry_date || 0).getTime() || 0;
             const timeY = new Date(y.created_at || y.entry_date || 0).getTime() || 0;
             return timeY - timeX;

@@ -17,6 +17,7 @@ import { DBService } from '../services/db-service';
 import { isSupabaseConfigured, supabase } from '../supabase/client';
 import { useAuth } from './AuthContext';
 import { BranchId } from '../auth/users';
+import { resolveWorkOrderBranch } from '../utils';
 
 export interface ToastMessage {
   id: string;
@@ -42,7 +43,7 @@ interface AppContextType {
   syncWithSupabase: (force?: boolean) => Promise<void>;
   generateUniqueSpkNumberAsync: (branch?: BranchId | string) => Promise<string>;
   generateUniqueInvoiceNumberAsync: (type?: 'invoice' | 'estimation', branch?: BranchId | string) => Promise<string>;
-  saveVehicleAsync: (vehicle: Omit<VehicleCustomer, 'id'> & { id?: string }) => Promise<VehicleCustomer>;
+  saveVehicleAsync: (vehicle: Omit<VehicleCustomer, 'id'> & { id?: string }, branch?: BranchId) => Promise<VehicleCustomer>;
   saveWorkOrderAsync: (workOrder: Omit<WorkOrder, 'id' | 'spk_number'> & { id?: string; spk_number?: string }) => Promise<WorkOrder>;
   saveCheckupAsync: (checkup: Omit<CheckupRecord, 'id'> & { id?: string }) => Promise<CheckupRecord>;
   deleteCheckupAsync: (id: string) => Promise<boolean>;
@@ -290,8 +291,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     showToast(`Pengaturan bengkel (${activeBranch}) berhasil disimpan`, 'success');
   };
 
-  const saveVehicleAsync = async (vehicle: Omit<VehicleCustomer, 'id'> & { id?: string }): Promise<VehicleCustomer> => {
-    const saved = await DBService.saveVehicleAsync(vehicle, activeBranch);
+  const saveVehicleAsync = async (
+    vehicle: Omit<VehicleCustomer, 'id'> & { id?: string },
+    branch?: BranchId
+  ): Promise<VehicleCustomer> => {
+    const targetBranch = branch || activeBranch;
+    const saved = await DBService.saveVehicleAsync(vehicle, targetBranch);
     refreshData();
     return saved;
   };
@@ -307,7 +312,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const saveWorkOrderAsync = async (
     workOrder: Omit<WorkOrder, 'id' | 'spk_number'> & { id?: string; spk_number?: string }
   ): Promise<WorkOrder> => {
-    const targetBranch = (workOrder.received_at_branch as any) || activeBranch;
+    const targetBranch = resolveWorkOrderBranch(workOrder, (workOrder.received_at_branch as any) || activeBranch);
     const saved = await DBService.saveWorkOrderAsync(workOrder, targetBranch);
     refreshData();
     return saved;

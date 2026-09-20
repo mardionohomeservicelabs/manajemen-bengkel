@@ -5,7 +5,7 @@ import { useApp } from '@/lib/context/AppContext';
 import { useAuth } from '@/lib/context/AuthContext';
 import { BRANCHES, BranchId } from '@/lib/auth/users';
 import { WorkOrder } from '@/lib/types/database';
-import { formatPlate, formatKM, parseKM, formatDate } from '@/lib/utils';
+import { formatPlate, formatKM, parseKM, formatDate, resolveWorkOrderBranch } from '@/lib/utils';
 import {
   FileEdit,
   X,
@@ -57,7 +57,7 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
 
   // 3. Detail SPK & Pengerjaan
   const [receivedAtBranch, setReceivedAtBranch] = useState<BranchId>(
-    (workOrder.received_at_branch as BranchId) || 'MHS 1'
+    resolveWorkOrderBranch(workOrder)
   );
 
   // Extract initial date & time from entry_date or created_at
@@ -122,7 +122,7 @@ export function EditSPKModal({ workOrder, onClose, onSuccess }: EditSPKModalProp
         car_year: carYear ? Number(carYear) : undefined,
         chassis_number: chassisNumber.trim() ? chassisNumber.trim().toUpperCase() : undefined,
         current_mileage: currentMileage ? parseKM(currentMileage) : 0,
-      });
+      }, receivedAtBranch);
 
       // 2. Tentukan waktu entry gabungan tanggal & jam
       let finalEntryDateTime = new Date(workOrder.entry_date || new Date());

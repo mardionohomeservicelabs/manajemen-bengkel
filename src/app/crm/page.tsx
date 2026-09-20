@@ -10,6 +10,7 @@ import {
   formatDateTime,
   formatPlate,
   createWhatsAppLink,
+  resolveWorkOrderBranch,
 } from '@/lib/utils';
 import {
   MessageSquare,
@@ -269,7 +270,7 @@ Kami ingin menanyakan bagaimana kondisi dan kenyamanan mobil ${car} (${plate}) s
         work_order_id: log.work_order_id,
         spk_number: log.spk_number || matchedWo?.spk_number || 'SPK',
         invoice_number: log.invoice_number || matchedInv?.invoice_number,
-        branch: log.branch || matchedWo?.received_at_branch || 'MHS 1',
+        branch: log.branch || (matchedWo ? resolveWorkOrderBranch(matchedWo) : 'MHS 1'),
         service_date: log.service_date || matchedWo?.finish_date || matchedWo?.entry_date,
         due_date: log.due_date,
         reminder_type: log.reminder_type || 'none',

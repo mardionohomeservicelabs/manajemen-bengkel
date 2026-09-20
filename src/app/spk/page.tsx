@@ -13,6 +13,7 @@ import {
   formatPlate,
   createWhatsAppLink,
   formatKM,
+  resolveWorkOrderBranch,
 } from '@/lib/utils';
 import {
   ClipboardList,
@@ -69,20 +70,22 @@ function SPKListContent() {
   const [deletingOrder, setDeletingOrder] = useState<WorkOrder | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Sinkronkan selectedBranch saat activeBranch berganti (misal via switcher sidebar)
+  // Sinkronkan selectedBranch saat URL branchParam atau activeBranch berganti
   useEffect(() => {
-    if (!canAccessAll) {
+    if (branchParam && (branchParam === 'MHS 1' || branchParam === 'MHS 2' || branchParam === 'MHS 3')) {
+      setSelectedBranch(branchParam as BranchId);
+    } else if (!canAccessAll) {
       setSelectedBranch(activeBranch);
     } else if (activeBranch) {
       setSelectedBranch(activeBranch);
     }
-  }, [activeBranch, canAccessAll]);
+  }, [branchParam, activeBranch, canAccessAll]);
 
   const baseOrders = !canAccessAll
-    ? allWorkOrders.filter((w) => (w.received_at_branch || 'MHS 1') === activeBranch)
+    ? allWorkOrders.filter((w) => resolveWorkOrderBranch(w) === activeBranch)
     : selectedBranch === 'ALL'
     ? allWorkOrders
-    : allWorkOrders.filter((w) => (w.received_at_branch || 'MHS 1') === selectedBranch);
+    : allWorkOrders.filter((w) => resolveWorkOrderBranch(w) === selectedBranch);
 
   useEffect(() => {
     if (targetId && allWorkOrders.length > 0) {
@@ -167,7 +170,7 @@ function SPKListContent() {
         </div>
 
         <Link
-          href="/spk/new"
+          href={`/spk/new?branch=${selectedBranch === 'ALL' ? activeBranch : selectedBranch}`}
           className="inline-flex items-center space-x-2 bg-maroon-700 hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm transition"
         >
           <PlusCircle className="w-4 h-4" />
@@ -200,9 +203,9 @@ function SPKListContent() {
                 className="text-xs px-2 py-1 rounded-lg bg-white border border-slate-200 font-bold text-slate-800 outline-none cursor-pointer"
               >
                 <option value="ALL">Semua Cabang ({allWorkOrders.length})</option>
-                <option value="MHS 1">MHS 1 ({allWorkOrders.filter(w => (w.received_at_branch || 'MHS 1') === 'MHS 1').length})</option>
-                <option value="MHS 2">MHS 2 ({allWorkOrders.filter(w => (w.received_at_branch || 'MHS 1') === 'MHS 2').length})</option>
-                <option value="MHS 3">MHS 3 ({allWorkOrders.filter(w => (w.received_at_branch || 'MHS 1') === 'MHS 3').length})</option>
+                <option value="MHS 1">MHS 1 ({allWorkOrders.filter(w => resolveWorkOrderBranch(w) === 'MHS 1').length})</option>
+                <option value="MHS 2">MHS 2 ({allWorkOrders.filter(w => resolveWorkOrderBranch(w) === 'MHS 2').length})</option>
+                <option value="MHS 3">MHS 3 ({allWorkOrders.filter(w => resolveWorkOrderBranch(w) === 'MHS 3').length})</option>
               </select>
             </div>
           ) : (
@@ -261,7 +264,7 @@ function SPKListContent() {
                 filteredOrders.map((order) => {
                   const vehicle = order.vehicle;
                   const badge = statusBadgeMap[order.status] || statusBadgeMap.queue;
-                  const branchLabel = order.received_at_branch || 'MHS 1';
+                  const branchLabel = resolveWorkOrderBranch(order);
 
                   return (
                     <tr key={order.id} className="hover:bg-slate-50/80 transition">

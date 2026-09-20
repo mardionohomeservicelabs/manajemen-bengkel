@@ -6,7 +6,7 @@ import { useApp } from '@/lib/context/AppContext';
 import { useAuth } from '@/lib/context/AuthContext';
 import { DBService } from '@/lib/services/db-service';
 import { Invoice, InvoiceItem, InventoryItem, WorkOrder } from '@/lib/types/database';
-import { formatCurrency, formatPlate, generateInvoiceNumber, createWhatsAppLink } from '@/lib/utils';
+import { formatCurrency, formatPlate, generateInvoiceNumber, createWhatsAppLink, resolveWorkOrderBranch } from '@/lib/utils';
 import {
   Calculator,
   Plus,
@@ -244,7 +244,7 @@ function EstimationBuilderContent() {
   // Sumber work orders disesuaikan dengan cabang aktif (terkunci untuk staf cabang, dinamis untuk Via/Owner)
   const canAccessAll = !!currentUser?.canAccessAllBranches;
   const availableOrders = (allWorkOrders && allWorkOrders.length > 0)
-    ? allWorkOrders.filter((wo) => (wo.received_at_branch || 'MHS 1') === activeBranch)
+    ? allWorkOrders.filter((wo) => resolveWorkOrderBranch(wo) === activeBranch)
     : workOrders;
 
   // Selected SPK & Tab (tab berbentuk {id, name} agar bisa rename bebas)
@@ -270,7 +270,7 @@ function EstimationBuilderContent() {
 
   // Jika cabang aktif berganti dan mobil terpilih bukan dari cabang ini, reset pemilihan
   useEffect(() => {
-    if (selectedSpk && (selectedSpk.received_at_branch || 'MHS 1') !== activeBranch) {
+    if (selectedSpk && resolveWorkOrderBranch(selectedSpk) !== activeBranch) {
       setSelectedSpkId('');
       setSelectedSpk(null);
     }
@@ -1551,7 +1551,7 @@ function EstimationBuilderContent() {
         (inv) => inv.type === 'estimation' && inv.work_order_id === selectedSpk.id
           && ((inv as any).tab_id === activeTabId || (!((inv as any).tab_id) && activeTabId === 'tab_1'))
       );
-      const targetBranch = (selectedSpk.received_at_branch as any) || DBService.getActiveBranch();
+      const targetBranch = resolveWorkOrderBranch(selectedSpk);
       const estNumber = existingEst ? existingEst.invoice_number : await generateUniqueInvoiceNumberAsync('estimation', targetBranch);
       const activeTabObj = tabList.find((t) => t.id === activeTabId) || tabList[0];
       const activeName = (estimationType || '').trim() || activeTabObj?.name || 'Estimasi';
@@ -1774,8 +1774,9 @@ function EstimationBuilderContent() {
     return customerPhone ? createWhatsAppLink(customerPhone, msg) : '#';
   };
 
-  const currentInventoryPool = (selectedSpk?.received_at_branch && selectedSpk.received_at_branch !== DBService.getActiveBranch())
-    ? DBService.getInventory(selectedSpk.received_at_branch as any)
+  const spkBranch = selectedSpk ? resolveWorkOrderBranch(selectedSpk) : DBService.getActiveBranch();
+  const currentInventoryPool = (selectedSpk && spkBranch !== DBService.getActiveBranch())
+    ? DBService.getInventory(spkBranch)
     : inventory;
 
   const filteredInventory = currentInventoryPool.filter((item) => {
@@ -1814,7 +1815,7 @@ function EstimationBuilderContent() {
                         .filter((wo) => wo.status !== 'completed' && wo.status !== 'cancelled')
                         .map((wo) => (
                           <option key={wo.id} value={wo.id}>
-                            [{wo.received_at_branch || 'MHS 1'}] {wo.spk_number} - {wo.vehicle?.customer_name} ({wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''})
+                            [{resolveWorkOrderBranch(wo)}] {wo.spk_number} - {wo.vehicle?.customer_name} ({wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''})
                           </option>
                         ))
                     )}

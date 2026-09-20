@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useApp } from '@/lib/context/AppContext';
 import { useAuth } from '@/lib/context/AuthContext';
 import { CheckupRecord, VehicleCustomer, WorkOrder } from '@/lib/types/database';
-import { formatDate, formatPlate } from '@/lib/utils';
+import { formatDate, formatPlate, resolveWorkOrderBranch } from '@/lib/utils';
 import {
   Wrench,
   ThermometerSnowflake,
@@ -55,9 +55,8 @@ interface VehicleCheckupGroup {
 
 // Helper menentukan cabang bengkel mobil
 const resolveGroupBranch = (wo?: WorkOrder, v?: any, rec?: any): BranchId => {
-  const raw = wo?.received_at_branch || 
-              (wo?.checklist_data?.received_at_branch as string) || 
-              rec?.received_at_branch || 
+  if (wo) return resolveWorkOrderBranch(wo);
+  const raw = rec?.received_at_branch || 
               rec?.branch || 
               v?.branch || 
               v?.received_at_branch || 

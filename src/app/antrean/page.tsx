@@ -11,6 +11,7 @@ import {
   formatDate,
   formatDateTime,
   formatPlate,
+  resolveWorkOrderBranch,
 } from '@/lib/utils';
 import {
   Kanban,
@@ -131,28 +132,33 @@ function QueueBoardContent() {
     refreshData();
   }, [refreshData]);
 
-  // Sinkronkan jika activeBranch berubah (misal via switcher sidebar oleh Via atau Owner)
+  // Sinkronkan jika query param branch berubah (misal dari pembuatan SPK baru)
   useEffect(() => {
-    if (!canAccessAll) {
-      setSelectedBranch(activeBranch);
-    } else if (activeBranch) {
-      setSelectedBranch(activeBranch);
-    }
-  }, [activeBranch, canAccessAll]);
-
-  // Sinkronkan jika query param branch berubah
-  useEffect(() => {
-    if (canAccessAll && branchParam && (branchParam === 'MHS 1' || branchParam === 'MHS 2' || branchParam === 'MHS 3')) {
+    if (branchParam && (branchParam === 'MHS 1' || branchParam === 'MHS 2' || branchParam === 'MHS 3')) {
       setSelectedBranch(branchParam as BranchId);
+      if (canAccessAll && activeBranch !== branchParam) {
+        setActiveBranch(branchParam as BranchId);
+      }
     }
-  }, [branchParam, canAccessAll]);
+  }, [branchParam, canAccessAll, activeBranch, setActiveBranch]);
+
+  // Sinkronkan jika activeBranch berubah dari sidebar (hanya jika tidak ada branchParam yang memaksa)
+  useEffect(() => {
+    if (!branchParam) {
+      if (!canAccessAll) {
+        setSelectedBranch(activeBranch);
+      } else if (activeBranch) {
+        setSelectedBranch(activeBranch);
+      }
+    }
+  }, [activeBranch, canAccessAll, branchParam]);
 
   // Sumber data: Terkunci pada cabang akun staf, atau mengikuti pilihan untuk Owner/Via
   const sourceOrders = !canAccessAll
-    ? allWorkOrders.filter((w) => (w.received_at_branch || 'MHS 1') === activeBranch)
+    ? allWorkOrders.filter((w) => resolveWorkOrderBranch(w) === activeBranch)
     : selectedBranch === 'ALL'
     ? allWorkOrders
-    : allWorkOrders.filter((w) => (w.received_at_branch || 'MHS 1') === selectedBranch);
+    : allWorkOrders.filter((w) => resolveWorkOrderBranch(w) === selectedBranch);
 
   // Pisahkan antrean aktif dan pekerjaan selesai / arsip
   const activeOrders = sourceOrders.filter((w) => w.status !== 'completed' && w.status !== 'cancelled');
@@ -166,7 +172,7 @@ function QueueBoardContent() {
       const spk = (w.spk_number || '').toLowerCase();
       const car = `${w.vehicle?.car_brand || ''} ${w.vehicle?.car_model || ''}`.toLowerCase();
       const mech = (w.mechanic_name || '').toLowerCase();
-      const branch = (w.received_at_branch || '').toLowerCase();
+      const branch = resolveWorkOrderBranch(w).toLowerCase();
       return plate.includes(q) || name.includes(q) || spk.includes(q) || car.includes(q) || mech.includes(q) || branch.includes(q);
     })
     .sort((a, b) => {
@@ -233,7 +239,7 @@ function QueueBoardContent() {
 
           <div className="flex items-center space-x-3">
             <Link
-              href="/spk/new"
+              href={`/spk/new?branch=${selectedBranch === 'ALL' ? activeBranch : selectedBranch}`}
               className="inline-flex items-center space-x-1.5 bg-maroon-700 hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition"
             >
               <PlusCircle className="w-4 h-4" />
@@ -277,7 +283,7 @@ function QueueBoardContent() {
               </button>
               {(['MHS 1', 'MHS 2', 'MHS 3'] as BranchId[]).map((b) => {
                 const activeCount = allWorkOrders.filter(
-                  (w) => (w.received_at_branch || 'MHS 1') === b && w.status !== 'completed' && w.status !== 'cancelled'
+                  (w) => resolveWorkOrderBranch(w) === b && w.status !== 'completed' && w.status !== 'cancelled'
                 ).length;
                 return (
                   <button
@@ -415,7 +421,7 @@ function QueueBoardContent() {
                         ) : (
                           columnOrders.map((order) => {
                             const vehicle = order.vehicle;
-                            const branchLabel = order.received_at_branch || 'MHS 1';
+                            const branchLabel = resolveWorkOrderBranch(order);
 
                             return (
                               <div
@@ -659,7 +665,7 @@ function QueueBoardContent() {
                       ) : (
                         activeOrders.map((order) => {
                           const vehicle = order.vehicle;
-                          const branchLabel = order.received_at_branch || 'MHS 1';
+                          const branchLabel = resolveWorkOrderBranch(order);
                           return (
                             <tr key={order.id} className="hover:bg-slate-50">
                               <td className="p-3.5">
@@ -845,7 +851,7 @@ function QueueBoardContent() {
                     ) : (
                       completedOrders.map((order) => {
                         const vehicle = order.vehicle;
-                        const branchLabel = order.received_at_branch || 'MHS 1';
+                        const branchLabel = resolveWorkOrderBranch(order);
                         return (
                           <tr key={order.id} className="hover:bg-slate-50/80 transition">
                             <td className="p-3.5">
