@@ -92,7 +92,7 @@ export default function CheckupPage() {
   // Muat data saat halaman checklist dibuka & sinkronkan dari cloud Supabase
   useEffect(() => {
     refreshData();
-    syncWithSupabase(true);
+    syncWithSupabase(false);
   }, [refreshData, syncWithSupabase]);
 
   // Sinkronkan jika activeBranch berganti dari switcher sidebar oleh Via atau Owner

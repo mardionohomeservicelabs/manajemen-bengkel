@@ -169,28 +169,31 @@ function smartMergeWorkOrders(
       const cloudTime = cloud.updated_at ? new Date(cloud.updated_at).getTime() : 0;
       const localTime = local.updated_at ? new Date(local.updated_at).getTime() : 0;
 
-      // Prioritas status servis & pembayaran:
-      // Status cloud adalah sumber kebenaran (source of truth).
-      // Khusus jika status di cloud aktif ('queue', 'estimating', 'servicing', 'waiting_part', 'completed_service')
-      // dan tidak memiliki finish_date (misal baru diterbitkan atau dikembalikan ke antrean),
-      // status cloud HARUS selalu menang atas status 'completed' / 'cancelled' lokal yang usang.
-      const isCloudActiveQueue = cloud.status !== 'completed' && cloud.status !== 'cancelled' && !cloud.finish_date;
-      const isLocalFinished = local.status === 'completed' || local.status === 'cancelled';
-
-      let targetStatus = cloud.status;
-      if (isCloudActiveQueue && isLocalFinished) {
-        // Cloud menghendaki SPK aktif / berada di antrean
-        targetStatus = cloud.status;
-      } else if (cloudTime > localTime) {
-        targetStatus = cloud.status;
-      } else if (localTime > cloudTime) {
-        targetStatus = local.status;
-      } else {
-        targetStatus = cloud.status;
-      }
-
       const localChecklist = ((local as any).checklist_data || {}) as Record<string, any>;
       const cloudChecklist = ((cloud as any).checklist_data || {}) as Record<string, any>;
+
+      const effectiveCloudStatus = (cloudChecklist?.actual_status as WorkOrderStatus) || cloud.status;
+      const effectiveLocalStatus = (localChecklist?.actual_status as WorkOrderStatus) || local.status;
+
+      // Prioritas status servis & pembayaran:
+      // Status cloud adalah sumber kebenaran (source of truth).
+      // Khusus jika status di cloud aktif ('queue', 'estimating', 'servicing', 'waiting_parts', 'completed_service')
+      // dan tidak memiliki finish_date (misal baru diterbitkan atau dikembalikan ke antrean),
+      // status cloud HARUS selalu menang atas status 'completed' / 'cancelled' lokal yang usang.
+      const isCloudActiveQueue = effectiveCloudStatus !== 'completed' && effectiveCloudStatus !== 'cancelled' && !cloud.finish_date;
+      const isLocalFinished = effectiveLocalStatus === 'completed' || effectiveLocalStatus === 'cancelled';
+
+      let targetStatus = effectiveCloudStatus;
+      if (isCloudActiveQueue && isLocalFinished) {
+        // Cloud menghendaki SPK aktif / berada di antrean
+        targetStatus = effectiveCloudStatus;
+      } else if (cloudTime > localTime) {
+        targetStatus = effectiveCloudStatus;
+      } else if (localTime > cloudTime) {
+        targetStatus = effectiveLocalStatus;
+      } else {
+        targetStatus = effectiveCloudStatus;
+      }
 
       // Gabungkan crm data dengan aman (jangan biarkan crm yang sudah diset tertimpa kosong)
       const mergedCrm = {
@@ -1730,6 +1733,8 @@ export class DBService {
           };
         }
 
+        mergedChecklist.actual_status = workOrder.status || 'queue';
+
         const payload: Record<string, any> = {
           spk_number: localSaved.spk_number,
           vehicle_id: workOrder.vehicle_id,
@@ -1778,6 +1783,33 @@ export class DBService {
           }
         }
 
+        // Fallback untuk PostgreSQL enum 22P02 (misal 'completed_service' atau 'paid' belum terdaftar di enum cloud)
+        if (error && error.code === '22P02') {
+          console.warn(`[dbService] PostgreSQL enum work_order_status menolak '${payload.status}'. Menggunakan fallback kompatibel.`);
+          let fallbackStatus = 'servicing';
+          if (payload.status === 'completed_service') fallbackStatus = 'servicing';
+          else if (payload.status === 'paid') fallbackStatus = 'completed';
+          else if (payload.status === 'waiting_parts') fallbackStatus = 'servicing';
+          payload.status = fallbackStatus;
+
+          if (isExistingInDb) {
+            const retryUpdate = await supabase
+              .from('work_orders')
+              .update(payload)
+              .eq('id', workOrder.id)
+              .select('*, vehicle:vehicles_customers(*)');
+            data = retryUpdate.data;
+            error = retryUpdate.error;
+          } else {
+            const retryUpsert = await supabase
+              .from('work_orders')
+              .upsert(payload, { onConflict: 'spk_number' })
+              .select('*, vehicle:vehicles_customers(*)');
+            data = retryUpsert.data;
+            error = retryUpsert.error;
+          }
+        }
+
         if (error) {
           console.error('Supabase saveWorkOrder error:', error.message);
           throw new Error(`Gagal menyimpan ke database Supabase: ${error.message}`);
@@ -1785,6 +1817,7 @@ export class DBService {
 
         if (data && data[0]) {
           const remoteSaved = data[0];
+          const effectiveStatus = (remoteSaved.checklist_data?.actual_status as WorkOrderStatus) || remoteSaved.status || workOrder.status;
           const fullWo: WorkOrder = {
             id: remoteSaved.id,
             spk_number: remoteSaved.spk_number,
@@ -1796,7 +1829,7 @@ export class DBService {
             finish_date: remoteSaved.finish_date,
             complaints: remoteSaved.complaints,
             fuel_level: remoteSaved.fuel_level,
-            status: remoteSaved.status,
+            status: effectiveStatus,
             notes: remoteSaved.notes,
             source_info: remoteSaved.checklist_data?.source_info,
             vehicle_status: remoteSaved.checklist_data?.vehicle_status,
@@ -1873,6 +1906,8 @@ export class DBService {
     if (idx !== -1) {
       orders[idx].status = status;
       orders[idx].updated_at = nowIso;
+      if (!orders[idx].checklist_data) orders[idx].checklist_data = {};
+      orders[idx].checklist_data.actual_status = status;
       if (status === 'completed') {
         orders[idx].finish_date = nowIso;
       } else {
@@ -1891,6 +1926,8 @@ export class DBService {
         if (bIdx !== -1) {
           bOrders[bIdx].status = status;
           bOrders[bIdx].updated_at = nowIso;
+          if (!bOrders[bIdx].checklist_data) bOrders[bIdx].checklist_data = {};
+          bOrders[bIdx].checklist_data.actual_status = status;
           if (status === 'completed') {
             bOrders[bIdx].finish_date = nowIso;
           } else {
@@ -1913,6 +1950,10 @@ export class DBService {
           memList[mIdx] = {
             ...memList[mIdx],
             status,
+            checklist_data: {
+              ...(memList[mIdx].checklist_data || {}),
+              actual_status: status,
+            },
             updated_at: nowIso,
             finish_date: status === 'completed' ? nowIso : undefined,
           };
@@ -1939,19 +1980,45 @@ export class DBService {
           targetWo = allWos.find((w) => w.id === id || w.spk_number === id);
         }
 
+        const currentChecklist = (targetWo?.checklist_data || {}) as Record<string, any>;
+        const updatedChecklist = {
+          ...currentChecklist,
+          actual_status: status,
+        };
+
         const updatePayload: Record<string, any> = {
           status,
+          checklist_data: updatedChecklist,
           updated_at: new Date().toISOString(),
           finish_date: status === 'completed' ? new Date().toISOString() : null,
         };
 
         // 1. Coba update via id
-        const res = await supabase.from('work_orders').update(updatePayload).eq('id', id).select('id');
-        // 2. Jika tidak ada baris yang ter-update, coba dengan spk_number
+        let res = await supabase.from('work_orders').update(updatePayload).eq('id', id).select('id');
+
+        // Tangani PostgreSQL enum error 22P02 (invalid input value for enum work_order_status)
+        if (res.error && res.error.code === '22P02') {
+          console.warn(`[dbService] PostgreSQL enum work_order_status menolak '${status}'. Menggunakan status fallback kompatibel.`);
+          let fallbackStatus = 'servicing';
+          if (status === 'completed_service') fallbackStatus = 'servicing';
+          else if (status === 'paid') fallbackStatus = 'completed';
+          else if (status === 'waiting_parts') fallbackStatus = 'servicing';
+          updatePayload.status = fallbackStatus;
+          res = await supabase.from('work_orders').update(updatePayload).eq('id', id).select('id');
+        }
+
+        // 2. Jika tidak ada baris yang ter-update via ID, coba dengan spk_number
         if (!res.data || res.data.length === 0) {
           const spkToMatch = targetWo?.spk_number || (id.startsWith('SPK-') ? id : null);
           if (spkToMatch) {
-            await supabase.from('work_orders').update(updatePayload).eq('spk_number', spkToMatch);
+            let resSpk = await supabase.from('work_orders').update(updatePayload).eq('spk_number', spkToMatch).select('id');
+            if (resSpk.error && resSpk.error.code === '22P02') {
+              let fallbackStatus = 'servicing';
+              if (status === 'completed_service') fallbackStatus = 'servicing';
+              else if (status === 'paid') fallbackStatus = 'completed';
+              updatePayload.status = fallbackStatus;
+              await supabase.from('work_orders').update(updatePayload).eq('spk_number', spkToMatch);
+            }
           }
         }
       } catch (err) {
@@ -4383,6 +4450,8 @@ export class DBService {
       this.getVehicles(targetBranch).find((v) => v.id === row.vehicle_id) ||
       this.getAllVehicles().find((v) => v.id === row.vehicle_id);
 
+    const effectiveStatus = (rawChecklist?.actual_status as WorkOrderStatus) || row.status;
+
     let savedWo: WorkOrder;
 
     if (existingIdx !== -1) {
@@ -4392,9 +4461,9 @@ export class DBService {
         ...row,
         id: row.id || existing.id,
         spk_number: row.spk_number || existing.spk_number,
-        status: row.status || existing.status,
+        status: effectiveStatus || existing.status,
         received_at_branch: targetBranch,
-        finish_date: row.finish_date || (row.status === 'completed' ? (existing.finish_date || new Date().toISOString()) : existing.finish_date),
+        finish_date: row.finish_date || (effectiveStatus === 'completed' ? (existing.finish_date || new Date().toISOString()) : existing.finish_date),
         updated_at: row.updated_at || new Date().toISOString(),
         checklist_data: mergedChecklist,
         vehicle: resolvedVehicle,
@@ -4412,7 +4481,7 @@ export class DBService {
         finish_date: row.finish_date,
         complaints: row.complaints,
         fuel_level: row.fuel_level,
-        status: row.status || 'queue',
+        status: effectiveStatus || 'queue',
         notes: row.notes,
         source_info: mergedChecklist.source_info,
         vehicle_status: mergedChecklist.vehicle_status,
@@ -4632,7 +4701,7 @@ export class DBService {
               signature_mechanic_url: checklist.signature_mechanic_url,
               signature_sa_url: checklist.signature_sa_url,
               checklist_data: checklist,
-              status: row.status,
+              status: (checklist.actual_status as WorkOrderStatus) || row.status,
               crm_followup_period: checklist.crm?.followup_period || checklist.crm_followup_period,
               crm_followup_date: checklist.crm?.due_date || checklist.crm_followup_date,
               created_at: row.created_at,

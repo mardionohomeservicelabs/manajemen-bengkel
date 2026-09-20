@@ -77,7 +77,7 @@ function SPKListContent() {
   // Muat data & sinkronkan dari database cloud Supabase
   useEffect(() => {
     refreshData();
-    syncWithSupabase(true);
+    syncWithSupabase(false);
   }, [refreshData, syncWithSupabase]);
 
   // Sinkronkan selectedBranch saat URL branchParam atau activeBranch berganti

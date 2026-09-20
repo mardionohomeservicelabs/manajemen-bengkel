@@ -8,16 +8,19 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 2. ENUM TYPES
 DO $$ BEGIN
-    CREATE TYPE user_role AS ENUM ('owner', 'admin', 'sa', 'estimator');
+    CREATE TYPE user_role AS ENUM ('owner', 'admin', 'sa', 'mekanik', 'estimator');
 EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'mekanik';
 
 DO $$ BEGIN
-    CREATE TYPE work_order_status AS ENUM ('queue', 'estimating', 'approved', 'servicing', 'waiting_parts', 'completed', 'cancelled');
+    CREATE TYPE work_order_status AS ENUM ('queue', 'estimating', 'approved', 'servicing', 'waiting_parts', 'completed_service', 'paid', 'completed', 'cancelled');
 EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
+ALTER TYPE work_order_status ADD VALUE IF NOT EXISTS 'completed_service';
+ALTER TYPE work_order_status ADD VALUE IF NOT EXISTS 'paid';
 
 DO $$ BEGIN
     CREATE TYPE invoice_type AS ENUM ('estimation', 'invoice');

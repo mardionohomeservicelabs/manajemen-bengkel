@@ -132,7 +132,7 @@ function QueueBoardContent() {
   // Muat data saat halaman dibuka & sinkronkan dari database cloud Supabase
   useEffect(() => {
     refreshData();
-    syncWithSupabase(true);
+    syncWithSupabase(false);
   }, [refreshData, syncWithSupabase]);
 
   // Sinkronkan jika query param branch berubah (misal dari pembuatan SPK baru)
