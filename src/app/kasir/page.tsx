@@ -24,6 +24,7 @@ import {
   resolveInvoiceBranch,
   resolveWorkOrderBranch,
 } from '@/lib/utils';
+import { BranchId } from '@/lib/auth/users';
 import Link from 'next/link';
 import {
   Receipt,
@@ -42,6 +43,8 @@ import {
   AlertTriangle,
   ExternalLink,
   Building,
+  Building2,
+  Filter,
   PenTool,
   Eye,
   X,
@@ -58,6 +61,7 @@ function CashierContent() {
   const spkIdParam = searchParams.get('spkId');
   const invoiceIdParam = searchParams.get('invoiceId');
   const modeParam = searchParams.get('mode');
+  const branchParam = searchParams.get('branch');
 
   const {
     workOrders,
@@ -74,7 +78,12 @@ function CashierContent() {
     updateWorkOrderStatusAsync,
     generateUniqueInvoiceNumberAsync,
   } = useApp();
-  const { currentUser, activeBranch } = useAuth();
+  const { currentUser, activeBranch, setActiveBranch } = useAuth();
+  const canAccessAll = !!currentUser?.canAccessAllBranches;
+
+  const [selectedBranch, setSelectedBranch] = useState<'ALL' | BranchId>(
+    canAccessAll ? ((branchParam as BranchId) || 'ALL') : activeBranch
+  );
 
   const [selectedSpkId, setSelectedSpkId] = useState<string>(spkIdParam || '');
   const [selectedSpk, setSelectedSpk] = useState<WorkOrder | null>(null);
@@ -82,16 +91,43 @@ function CashierContent() {
   const [isOwnerEditMode, setIsOwnerEditMode] = useState<boolean>(Boolean(invoiceIdParam || modeParam === 'owner_edit'));
   const [targetPaidInvoice, setTargetPaidInvoice] = useState<Invoice | null>(null);
 
-  // Jika cabang berganti (misal oleh Via atau Owner), reset pilihan nota / SPK cabang sebelumnya
+  // Sinkronkan selectedBranch jika branchParam atau activeBranch berubah
   useEffect(() => {
-    if (selectedSpk && resolveWorkOrderBranch(selectedSpk) !== activeBranch) {
+    if (branchParam && ['MHS 1', 'MHS 2', 'MHS 3', 'ALL'].includes(branchParam)) {
+      setSelectedBranch(branchParam as any);
+      if (branchParam !== 'ALL' && canAccessAll && activeBranch !== branchParam && setActiveBranch) {
+        setActiveBranch(branchParam as BranchId);
+      }
+    } else if (!canAccessAll) {
+      setSelectedBranch(activeBranch);
+    }
+  }, [branchParam, activeBranch, canAccessAll, setActiveBranch]);
+
+  // Jika spkIdParam diberikan via URL, temukan dari allWorkOrders dan sesuaikan cabang
+  useEffect(() => {
+    if (spkIdParam) {
+      const allWos = allWorkOrders.length > 0 ? allWorkOrders : workOrders;
+      const found = allWos.find((w) => w.id === spkIdParam || w.spk_number === spkIdParam);
+      if (found) {
+        setSelectedSpkId(found.id);
+        if (canAccessAll) {
+          const spkBranch = resolveWorkOrderBranch(found);
+          setSelectedBranch(spkBranch);
+        }
+      }
+    }
+  }, [spkIdParam, allWorkOrders, workOrders, canAccessAll]);
+
+  // Jika cabang berganti untuk pengguna non-akses semua cabang, reset pilihan nota / SPK
+  useEffect(() => {
+    if (!canAccessAll && selectedSpk && resolveWorkOrderBranch(selectedSpk) !== activeBranch) {
       setSelectedSpkId('');
       setSelectedSpk(null);
       setSelectedInvoiceId('');
       setIsOwnerEditMode(false);
       setTargetPaidInvoice(null);
     }
-  }, [activeBranch, selectedSpk]);
+  }, [activeBranch, selectedSpk, canAccessAll]);
 
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [discountAmount, setDiscountAmount] = useState<number>(0);
@@ -128,7 +164,8 @@ function CashierContent() {
   const loadEstimationItems = useCallback(
     (targetWo: WorkOrder) => {
       // Check estimations for this SPK - prioritize approved estimation
-      const allSpkEsts = invoices.filter(
+      const allInvs = allInvoices.length > 0 ? allInvoices : invoices;
+      const allSpkEsts = allInvs.filter(
         (inv) =>
           inv.type === 'estimation' &&
           (inv.work_order_id === targetWo.id ||
@@ -213,7 +250,7 @@ function CashierContent() {
         setDownPayment(0);
       }
     },
-    [invoices]
+    [invoices, allInvoices]
   );
 
   // Load from SPK or Estimation
@@ -222,8 +259,9 @@ function CashierContent() {
       // Jangan timpa item jika sedang dalam Mode Koreksi Nota Owner
       return;
     }
-    if (selectedSpkId && workOrders.length > 0) {
-      const found = workOrders.find((w) => w.id === selectedSpkId);
+    if (selectedSpkId) {
+      const allWos = allWorkOrders.length > 0 ? allWorkOrders : workOrders;
+      const found = allWos.find((w) => w.id === selectedSpkId || w.spk_number === selectedSpkId);
       if (found) {
         setSelectedSpk(found);
 
@@ -242,7 +280,7 @@ function CashierContent() {
       setTaxPercent(0);
       setDownPayment(0);
     }
-  }, [selectedSpkId, workOrders, loadEstimationItems, isOwnerEditMode, selectedInvoiceId]);
+  }, [selectedSpkId, workOrders, allWorkOrders, loadEstimationItems, isOwnerEditMode, selectedInvoiceId]);
 
   // Load nota tersimpan untuk Mode Koreksi Nota Owner
   useEffect(() => {
@@ -538,14 +576,14 @@ function CashierContent() {
         crm_followup_period: crmFollowupPeriod,
       };
 
-      const newInvoice = await saveInvoiceAsync(invoicePayload);
+      const newInvoice = await saveInvoiceAsync(invoicePayload, branch);
 
       // Simpan jadwal follow up CRM ke WorkOrder & CRMLog (1 jadwal terpilih per mobil)
       DBService.setTransactionFollowupPeriod(selectedSpk.id, crmFollowupPeriod);
 
       // Update status SPK ke 'paid' di Supabase & local jika lunas
       if (status === 'paid' && selectedSpk.id) {
-        await updateWorkOrderStatusAsync(selectedSpk.id, 'paid');
+        await updateWorkOrderStatusAsync(selectedSpk.id, 'paid', branch);
       }
 
       if (isOwnerEditMode && targetPaidInvoice) {
@@ -610,6 +648,44 @@ function CashierContent() {
     }
   };
 
+  const cashierOrders = React.useMemo(() => {
+    const source = !canAccessAll
+      ? workOrders
+      : selectedBranch === 'ALL'
+      ? allWorkOrders
+      : allWorkOrders.filter((w) => resolveWorkOrderBranch(w) === selectedBranch);
+
+    return source
+      .filter((wo) => {
+        // Sembunyikan yang dibatalkan atau sudah selesai arsip
+        if (wo.status === 'cancelled' || wo.status === 'completed') {
+          return false;
+        }
+        // Cek apakah invoice lunas sudah terbit untuk SPK ini
+        const allInvs = allInvoices.length > 0 ? allInvoices : invoices;
+        const hasPaid = allInvs.some(
+          (inv) =>
+            inv.type === 'invoice' &&
+            inv.payment_status === 'paid' &&
+            (inv.work_order_id === wo.id || (wo.spk_number && inv.work_order_id === wo.spk_number))
+        );
+        return !hasPaid;
+      })
+      .sort((a, b) => {
+        const priority = (s: string) => {
+          if (s === 'completed_service') return 0;
+          if (s === 'paid') return 1;
+          if (s === 'servicing') return 2;
+          return 3;
+        };
+        const pDiff = priority(a.status) - priority(b.status);
+        if (pDiff !== 0) return pDiff;
+        const timeA = new Date(a.created_at || a.entry_date || 0).getTime() || 0;
+        const timeB = new Date(b.created_at || b.entry_date || 0).getTime() || 0;
+        return timeB - timeA;
+      });
+  }, [canAccessAll, selectedBranch, workOrders, allWorkOrders, allInvoices, invoices]);
+
   return (
     <div>
       <div className="no-print space-y-6">
@@ -620,20 +696,51 @@ function CashierContent() {
             <Receipt className="w-6 h-6 text-maroon-700" />
             <span>Kasir &amp; Pembuatan Nota Servis (Invoicing)</span>
             <span className="ml-2 px-2.5 py-0.5 rounded-lg text-xs font-black bg-maroon-100 text-maroon-900 border border-maroon-200">
-              {activeBranch}
+              {canAccessAll ? (selectedBranch === 'ALL' ? 'Semua Cabang' : selectedBranch) : activeBranch}
             </span>
           </h1>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            Penyelesaian transaksi pengerjaan, verifikasi nota + tanda tangan digital (Customer & Admin), dan cetak nota resmi.
+            Penyelesaian transaksi pengerjaan, verifikasi nota + tanda tangan digital (Customer &amp; Admin), dan cetak nota resmi.
           </p>
         </div>
 
-        {currentRole === 'admin' && (
-          <div className="inline-flex items-center space-x-1.5 bg-amber-50 text-amber-900 text-xs font-bold px-3 py-1.5 rounded-xl border border-amber-200">
-            <Lock className="w-3.5 h-3.5 text-amber-700" />
-            <span>Role Admin: Nominal Harga Satuan Terkunci</span>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {canAccessAll ? (
+            <div className="flex items-center space-x-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200 text-xs">
+              <Building2 className="w-3.5 h-3.5 text-slate-400 ml-1.5" />
+              <span className="text-[11px] font-bold text-slate-500">Cabang:</span>
+              <select
+                value={selectedBranch}
+                onChange={(e) => {
+                  const b = e.target.value as any;
+                  setSelectedBranch(b);
+                  if (b !== 'ALL' && setActiveBranch) {
+                    setActiveBranch(b);
+                  }
+                }}
+                className="text-xs px-2 py-1 rounded-lg bg-white border border-slate-200 font-bold text-slate-800 outline-none cursor-pointer"
+              >
+                <option value="ALL">Semua Cabang ({allWorkOrders.length})</option>
+                <option value="MHS 1">MHS 1 ({allWorkOrders.filter(w => resolveWorkOrderBranch(w) === 'MHS 1').length})</option>
+                <option value="MHS 2">MHS 2 ({allWorkOrders.filter(w => resolveWorkOrderBranch(w) === 'MHS 2').length})</option>
+                <option value="MHS 3">MHS 3 ({allWorkOrders.filter(w => resolveWorkOrderBranch(w) === 'MHS 3').length})</option>
+              </select>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
+              <Building2 className="w-3.5 h-3.5 text-maroon-700" />
+              <span className="text-[11px] font-bold text-slate-500">Cabang:</span>
+              <span className="text-xs font-black text-slate-900 bg-white px-2 py-0.5 rounded-md border border-slate-200">{activeBranch}</span>
+            </div>
+          )}
+
+          {currentRole === 'admin' && (
+            <div className="inline-flex items-center space-x-1.5 bg-amber-50 text-amber-900 text-xs font-bold px-3 py-1.5 rounded-xl border border-amber-200">
+              <Lock className="w-3.5 h-3.5 text-amber-700" />
+              <span>Role Admin: Nominal Harga Satuan Terkunci</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Select SPK Card */}
@@ -659,36 +766,23 @@ function CashierContent() {
           className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-maroon-600/20 focus:border-maroon-600 outline-none font-bold"
         >
           <option value="">-- Pilih SPK / Kendaraan --</option>
-          <optgroup label="Antrean Kendaraan Siap Ditagih">
-            {[...workOrders]
-              .filter((wo) => {
-                // Sembunyikan yang dibatalkan, sudah selesai (completed), atau sudah lunas (paid)
-                if (wo.status === 'cancelled' || wo.status === 'completed' || wo.status === 'paid') {
-                  return false;
-                }
-                // Cek juga apakah sudah ada invoice lunas
-                const hasPaid = invoices.some(
-                  (inv) =>
-                    inv.type === 'invoice' &&
-                    inv.payment_status === 'paid' &&
-                    (inv.work_order_id === wo.id || (wo.spk_number && inv.work_order_id === wo.spk_number))
-                );
-                return !hasPaid;
-              })
-              .sort((a, b) => {
-                const priority = (s: string) => (s === 'completed_service' ? 0 : s === 'servicing' ? 1 : 2);
-                return priority(a.status) - priority(b.status);
-              })
-              .map((wo) => {
+          <optgroup label={`Antrean Kendaraan Siap Ditagih (${selectedBranch === 'ALL' ? 'Semua Cabang' : selectedBranch} - ${cashierOrders.length} Unit)`}>
+            {cashierOrders.length === 0 ? (
+              <option value="" disabled>-- Tidak ada kendaraan antrean yang menunggu pembayaran --</option>
+            ) : (
+              cashierOrders.map((wo) => {
                 const isReadyToPay = wo.status === 'completed_service';
+                const isMarkedPaid = wo.status === 'paid';
+                const branchBadge = canAccessAll ? `[${resolveWorkOrderBranch(wo)}] ` : '';
                 return (
                   <option key={wo.id} value={wo.id}>
-                    {isReadyToPay ? '⭐ [SELESAI SERVIS - SIAP BAYAR] ' : ''}
-                    {wo.spk_number} • {wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''} •{' '}
-                    {wo.vehicle?.customer_name} ({wo.vehicle?.car_brand} {wo.vehicle?.car_model}) - Status: {wo.status}
+                    {isReadyToPay ? '💳 [SELESAI SERVIS - SIAP BAYAR] ' : isMarkedPaid ? '💰 [MENUNGGU NOTA KASIR] ' : ''}
+                    {branchBadge}{wo.spk_number} • {wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''} •{' '}
+                    {wo.vehicle?.customer_name} ({wo.vehicle?.car_brand} {wo.vehicle?.car_model})
                   </option>
                 );
-              })}
+              })
+            )}
           </optgroup>
           {currentRole === 'owner' && (
             <optgroup label={`🔧 Koreksi Nota Laporan (${activeBranch} - Khusus Owner)`}>

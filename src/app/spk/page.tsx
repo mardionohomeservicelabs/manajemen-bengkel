@@ -36,6 +36,7 @@ import {
   Trash2,
   AlertTriangle,
   RefreshCw,
+  Receipt,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PrintableSPK } from '@/components/ui/PrintableSPK';
@@ -349,26 +350,36 @@ function SPKListContent() {
                       <td className="p-3.5 align-top text-center">
                         <select
                           value={order.status}
-                          disabled={(order.status === 'completed' || order.status === 'paid') && currentRole !== 'owner'}
+                          disabled={order.status === 'completed' && currentRole !== 'owner'}
                           onChange={(e) => handleUpdateStatus(order.id, e.target.value as WorkOrderStatus)}
                           className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
-                            (order.status === 'completed' || order.status === 'paid') && currentRole !== 'owner' ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'
+                            order.status === 'completed' && currentRole !== 'owner' ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'
                           } ${badge.class}`}
-                          title={(order.status === 'completed' || order.status === 'paid') && currentRole !== 'owner' ? 'Pekerjaan Selesai / Terkunci (Hanya Owner yang dapat mengubah status)' : 'Ubah Status'}
+                          title={order.status === 'completed' && currentRole !== 'owner' ? 'Pekerjaan Selesai / Terkunci di Arsip (Hanya Owner yang dapat mengubah status)' : 'Ubah Status'}
                         >
                           <option value="queue">Antrean Masuk</option>
-                          <option value="estimating">Estimasi</option>
+                          <option value="estimating">Proses Estimasi</option>
                           <option value="approved">Disetujui</option>
-                          <option value="servicing">Dikerjakan</option>
-                          <option value="waiting_parts">Tunggu Part</option>
-                          <option value="completed_service">Selesai Servis</option>
-                          <option value="paid">Sudah Pembayaran</option>
-                          <option value="completed">Selesai (Database)</option>
-                          <option value="cancelled">Batal</option>
+                          <option value="servicing">Sedang Dikerjakan</option>
+                          <option value="waiting_parts">Menunggu Part</option>
+                          <option value="completed_service">Selesai Servis (Siap Bayar Kasir)</option>
+                          <option value="paid">Sudah Bayar di Kasir (Lunas)</option>
+                          <option value="completed">Selesai (Masuk Arsip)</option>
+                          <option value="cancelled">Dibatalkan</option>
                         </select>
                       </td>
 
                       <td className="p-3.5 align-top text-right space-x-1.5 whitespace-nowrap">
+                        {(order.status === 'completed_service' || order.status === 'paid') && (
+                          <Link
+                            href={`/kasir?spkId=${order.id}`}
+                            className="inline-flex items-center space-x-1 bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold px-2.5 py-1.5 rounded-lg text-xs transition border border-teal-300 shadow-xs cursor-pointer"
+                            title="Buka SPK di Kasir untuk proses pembayaran / cek nota"
+                          >
+                            <Receipt className="w-3.5 h-3.5 text-teal-700" />
+                            <span>Ke Kasir</span>
+                          </Link>
+                        )}
                         {(order.status !== 'completed' || currentRole === 'owner') && (
                           <button
                             type="button"
@@ -380,7 +391,7 @@ function SPKListContent() {
                             <span>Edit SPK</span>
                           </button>
                         )}
-                        {(order.status === 'completed' || order.status === 'paid') && currentRole === 'owner' && (
+                        {order.status === 'completed' && currentRole === 'owner' && (
                           <button
                             type="button"
                             onClick={() => unlockWorkOrderAsync(order.id, 'servicing')}

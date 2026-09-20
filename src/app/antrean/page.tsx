@@ -84,14 +84,14 @@ const ACTIVE_COLUMNS: { id: WorkOrderStatus; title: string; color: string; borde
   },
   {
     id: 'completed_service',
-    title: 'Selesai Servis',
+    title: 'Selesai Servis (Siap Kasir)',
     color: 'text-teal-800',
     border: 'border-teal-300',
     bg: 'bg-teal-50/50',
   },
   {
     id: 'paid',
-    title: 'Sudah Pembayaran',
+    title: 'Sudah Pembayaran (Kasir)',
     color: 'text-emerald-800',
     border: 'border-emerald-300',
     bg: 'bg-emerald-50/50',
@@ -581,21 +581,32 @@ function QueueBoardContent() {
                                   )}
 
                                   {order.status === 'paid' && (
-                                    <div className="space-y-1 pt-0.5">
+                                    <div className="space-y-1.5 pt-0.5">
                                       <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-1.5 text-center">
                                         <div className="text-[10px] font-black uppercase text-emerald-800 flex items-center justify-center space-x-1">
                                           <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
                                           <span>Lunas • Siap Arsip</span>
                                         </div>
                                       </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleMarkAsComplete(order)}
-                                        className="w-full inline-flex items-center justify-center space-x-1.5 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 px-2 rounded-lg font-black shadow-xs transition cursor-pointer"
-                                      >
-                                        <FolderCheck className="w-3.5 h-3.5" />
-                                        <span>Masuk ke Arsip</span>
-                                      </button>
+                                      <div className="grid grid-cols-2 gap-1.5">
+                                        <Link
+                                          href={`/kasir?spkId=${order.id}`}
+                                          className="inline-flex items-center justify-center space-x-1 text-[10.5px] bg-teal-700 hover:bg-teal-800 text-white py-1.5 px-2 rounded-lg font-bold shadow-xs transition"
+                                          title="Buka / Cek di Kasir"
+                                        >
+                                          <Receipt className="w-3.5 h-3.5" />
+                                          <span>Kasir</span>
+                                        </Link>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleMarkAsComplete(order)}
+                                          className="inline-flex items-center justify-center space-x-1 text-[10.5px] bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 px-2 rounded-lg font-black shadow-xs transition cursor-pointer"
+                                          title="Pindahkan ke Database Arsip"
+                                        >
+                                          <FolderCheck className="w-3.5 h-3.5" />
+                                          <span>Arsip</span>
+                                        </button>
+                                      </div>
                                     </div>
                                   )}
 
@@ -634,8 +645,8 @@ function QueueBoardContent() {
                                     <option value="approved">Pindah: Disetujui</option>
                                     <option value="servicing">Pindah: Dikerjakan</option>
                                     <option value="waiting_parts">Pindah: Tunggu Part</option>
-                                    <option value="completed_service">Pindah: Selesai Servis</option>
-                                    <option value="paid">Pindah: Sudah Pembayaran</option>
+                                    <option value="completed_service">Pindah: Selesai Servis (Siap Kasir)</option>
+                                    <option value="paid">Pindah: Sudah Bayar (Kasir)</option>
                                     <option value="completed">Pindah: Masuk ke Arsip</option>
                                     <option value="cancelled">Pindah: Batal</option>
                                   </select>
@@ -718,8 +729,8 @@ function QueueBoardContent() {
                                   <option value="approved">Disetujui</option>
                                   <option value="servicing">Sedang Dikerjakan</option>
                                   <option value="waiting_parts">Menunggu Part</option>
-                                  <option value="completed_service">Selesai Servis</option>
-                                  <option value="paid">Sudah Pembayaran</option>
+                                  <option value="completed_service">Selesai Servis (Siap Kasir)</option>
+                                  <option value="paid">Sudah Bayar di Kasir (Lunas)</option>
                                   <option value="completed">Masuk ke Arsip</option>
                                   <option value="cancelled">Batal</option>
                                 </select>
@@ -733,13 +744,22 @@ function QueueBoardContent() {
                                     <span>💳 Bayar Kasir</span>
                                   </Link>
                                 ) : order.status === 'paid' ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleMarkAsComplete(order)}
-                                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-xs transition cursor-pointer inline-flex items-center space-x-1"
-                                  >
-                                    <span>📁 Masuk Arsip</span>
-                                  </button>
+                                  <>
+                                    <Link
+                                      href={`/kasir?spkId=${order.id}`}
+                                      className="px-2.5 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-black text-xs shadow-xs transition inline-flex items-center space-x-1"
+                                      title="Buka SPK di Kasir"
+                                    >
+                                      <span>💳 Kasir</span>
+                                    </Link>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleMarkAsComplete(order)}
+                                      className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-xs transition cursor-pointer inline-flex items-center space-x-1"
+                                    >
+                                      <span>📁 Masuk Arsip</span>
+                                    </button>
+                                  </>
                                 ) : order.status === 'servicing' ? (
                                   <button
                                     type="button"

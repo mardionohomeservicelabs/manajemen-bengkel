@@ -543,18 +543,27 @@ export class DBService {
 
   private static mergeWorkOrdersMemory(local: WorkOrder[], mem: WorkOrder[]): WorkOrder[] {
     const map = new Map<string, WorkOrder>();
-    (local || []).forEach((w) => {
+    // 1. Muat memori cloud terlebih dahulu
+    (mem || []).forEach((w) => {
       const k = w.spk_number || w.id;
       if (k) map.set(k, w);
     });
-    (mem || []).forEach((w) => {
+    // 2. Tumpuk dengan data lokal, bandingkan waktu updated_at
+    (local || []).forEach((w) => {
       const k = w.spk_number || w.id;
       if (k) {
         if (!map.has(k)) {
           map.set(k, w);
         } else {
-          const loc = map.get(k)!;
-          map.set(k, { ...loc, ...w });
+          const m = map.get(k)!;
+          const localTime = new Date(w.updated_at || w.created_at || 0).getTime();
+          const memTime = new Date(m.updated_at || m.created_at || 0).getTime();
+          // Jika update lokal sama baru atau lebih baru, data lokal harus menang
+          if (localTime >= memTime) {
+            map.set(k, { ...m, ...w });
+          } else {
+            map.set(k, { ...w, ...m });
+          }
         }
       }
     });
@@ -1853,39 +1862,65 @@ export class DBService {
   }
 
   static updateWorkOrderStatus(id: string, status: WorkOrderStatus, userRole: UserRole = 'sa', branch?: BranchId): boolean {
+    const nowIso = new Date().toISOString();
+    let updatedTarget: WorkOrder | null = null;
+
+    // 1. Update di LocalStorage untuk target branch
     const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, branch);
     const orders = getLocal<WorkOrder[]>(key, []);
     let idx = orders.findIndex((o) => o.id === id || o.spk_number === id);
 
     if (idx !== -1) {
       orders[idx].status = status;
-      orders[idx].updated_at = new Date().toISOString();
+      orders[idx].updated_at = nowIso;
       if (status === 'completed') {
-        orders[idx].finish_date = new Date().toISOString();
+        orders[idx].finish_date = nowIso;
+      } else {
+        orders[idx].finish_date = undefined;
       }
       setLocal(key, orders);
-      return true;
-    }
-
-    // Jika tidak ditemukan di cabang yang diminta, cari di semua cabang
-    const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
-    for (const b of allBranches) {
-      if (b === branch) continue;
-      const bKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b);
-      const bOrders = getLocal<WorkOrder[]>(bKey, []);
-      const bIdx = bOrders.findIndex((o) => o.id === id || o.spk_number === id);
-      if (bIdx !== -1) {
-        bOrders[bIdx].status = status;
-        bOrders[bIdx].updated_at = new Date().toISOString();
-        if (status === 'completed') {
-          bOrders[bIdx].finish_date = new Date().toISOString();
+      updatedTarget = orders[idx];
+    } else {
+      // Jika tidak ditemukan di cabang yang diminta, cari di semua cabang
+      const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+      for (const b of allBranches) {
+        if (b === branch) continue;
+        const bKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b);
+        const bOrders = getLocal<WorkOrder[]>(bKey, []);
+        const bIdx = bOrders.findIndex((o) => o.id === id || o.spk_number === id);
+        if (bIdx !== -1) {
+          bOrders[bIdx].status = status;
+          bOrders[bIdx].updated_at = nowIso;
+          if (status === 'completed') {
+            bOrders[bIdx].finish_date = nowIso;
+          } else {
+            bOrders[bIdx].finish_date = undefined;
+          }
+          setLocal(bKey, bOrders);
+          updatedTarget = bOrders[bIdx];
+          break;
         }
-        setLocal(bKey, bOrders);
-        return true;
       }
     }
 
-    return false;
+    // 2. SINKRONISASI IN-MEMORY CACHE di seluruh cabang agar refreshData() tidak menimpa status baru
+    const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+    allBranches.forEach((b) => {
+      const memList = this._inMemoryWorkOrders[b];
+      if (memList && memList.length > 0) {
+        const mIdx = memList.findIndex((o) => o.id === id || o.spk_number === id);
+        if (mIdx !== -1) {
+          memList[mIdx] = {
+            ...memList[mIdx],
+            status,
+            updated_at: nowIso,
+            finish_date: status === 'completed' ? nowIso : undefined,
+          };
+        }
+      }
+    });
+
+    return updatedTarget !== null;
   }
 
   static async updateWorkOrderStatusAsync(
@@ -1907,10 +1942,8 @@ export class DBService {
         const updatePayload: Record<string, any> = {
           status,
           updated_at: new Date().toISOString(),
+          finish_date: status === 'completed' ? new Date().toISOString() : null,
         };
-        if (status === 'completed') {
-          updatePayload.finish_date = new Date().toISOString();
-        }
 
         // 1. Coba update via id
         const res = await supabase.from('work_orders').update(updatePayload).eq('id', id).select('id');
@@ -1943,17 +1976,18 @@ export class DBService {
       return false;
     }
 
+    const nowIso = new Date().toISOString();
     const allBranches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
     let targetKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, branch);
     let orders = getLocal<WorkOrder[]>(targetKey, []);
-    let idx = orders.findIndex((o) => o.id === id);
+    let idx = orders.findIndex((o) => o.id === id || o.spk_number === id);
 
     if (idx === -1) {
       for (const b of allBranches) {
         if (b === branch) continue;
         const bKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b);
         const bOrders = getLocal<WorkOrder[]>(bKey, []);
-        const bIdx = bOrders.findIndex((o) => o.id === id);
+        const bIdx = bOrders.findIndex((o) => o.id === id || o.spk_number === id);
         if (bIdx !== -1) {
           targetKey = bKey;
           orders = bOrders;
@@ -1967,8 +2001,25 @@ export class DBService {
 
     const oldStatus = orders[idx].status;
     orders[idx].status = targetStatus;
-    orders[idx].updated_at = new Date().toISOString();
+    orders[idx].finish_date = undefined;
+    orders[idx].updated_at = nowIso;
     setLocal(targetKey, orders);
+
+    // Update _inMemoryWorkOrders across all branches
+    allBranches.forEach((b) => {
+      const memList = this._inMemoryWorkOrders[b];
+      if (memList && memList.length > 0) {
+        const mIdx = memList.findIndex((o) => o.id === id || o.spk_number === id);
+        if (mIdx !== -1) {
+          memList[mIdx] = {
+            ...memList[mIdx],
+            status: targetStatus,
+            finish_date: undefined,
+            updated_at: nowIso,
+          };
+        }
+      }
+    });
 
     this.logAudit(
       'Owner',
@@ -1984,7 +2035,8 @@ export class DBService {
       try {
         const updatePayload = {
           status: targetStatus,
-          updated_at: new Date().toISOString(),
+          finish_date: null,
+          updated_at: nowIso,
         };
         const res = await supabase
           .from('work_orders')
@@ -2610,7 +2662,9 @@ export class DBService {
   }
 
   static saveInvoice(invoice: Omit<Invoice, 'id'> & { id?: string }, branch?: BranchId): Invoice {
-    const key = getBranchKey(BASE_STORAGE_KEYS.INVOICES, branch);
+    const targetBranch = resolveInvoiceBranch(invoice, this.getAllWorkOrders());
+    const finalBranch = normalizeBranch(branch || targetBranch);
+    const key = getBranchKey(BASE_STORAGE_KEYS.INVOICES, finalBranch);
     const invoices = getLocal<Invoice[]>(key, []);
     let saved: Invoice;
     let wasAlreadyPaid = false;
@@ -2629,7 +2683,7 @@ export class DBService {
       saved = {
         ...invoice,
         id: `inv-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        invoice_number: invoice.invoice_number || generateInvoiceNumber(invoice.type || 'invoice', branch),
+        invoice_number: invoice.invoice_number || generateInvoiceNumber(invoice.type || 'invoice', finalBranch),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       } as Invoice;
@@ -2650,22 +2704,22 @@ export class DBService {
               saved.invoice_number,
               `Penjualan via ${saved.invoice_number}`,
               'owner',
-              branch
+              finalBranch
             );
           }
         });
       }
 
       if (saved.work_order_id) {
-        this.updateWorkOrderStatus(saved.work_order_id, 'paid', 'admin', branch);
+        this.updateWorkOrderStatus(saved.work_order_id, 'paid', 'admin', finalBranch);
       }
     }
 
-    return this.getInvoiceById(saved.id, branch) || saved;
+    return this.getInvoiceById(saved.id, finalBranch) || saved;
   }
 
   static async saveInvoiceAsync(invoice: Omit<Invoice, 'id'> & { id?: string }, branch?: BranchId): Promise<Invoice> {
-    const targetBranch = normalizeBranch(branch || this.getActiveBranch());
+    const targetBranch = normalizeBranch(branch || resolveInvoiceBranch(invoice, this.getAllWorkOrders()));
 
     // Validasi aturan SOP bengkel: Estimasi yang belum disetujui tidak dapat diproses menjadi nota servis
     if (invoice.type === 'invoice' && invoice.work_order_id) {

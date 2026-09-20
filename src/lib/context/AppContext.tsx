@@ -17,7 +17,7 @@ import { DBService } from '../services/db-service';
 import { isSupabaseConfigured, supabase } from '../supabase/client';
 import { useAuth } from './AuthContext';
 import { BranchId } from '../auth/users';
-import { resolveWorkOrderBranch } from '../utils';
+import { resolveWorkOrderBranch, resolveInvoiceBranch } from '../utils';
 
 export interface ToastMessage {
   id: string;
@@ -48,14 +48,14 @@ interface AppContextType {
   saveWorkOrderAsync: (workOrder: Omit<WorkOrder, 'id' | 'spk_number'> & { id?: string; spk_number?: string }) => Promise<WorkOrder>;
   saveCheckupAsync: (checkup: Omit<CheckupRecord, 'id'> & { id?: string }) => Promise<CheckupRecord>;
   deleteCheckupAsync: (id: string) => Promise<boolean>;
-  saveInvoiceAsync: (invoice: Omit<Invoice, 'id'> & { id?: string }) => Promise<Invoice>;
+  saveInvoiceAsync: (invoice: Omit<Invoice, 'id'> & { id?: string }, branch?: BranchId) => Promise<Invoice>;
   approveEstimationSignatureAsync: (
     idOrToken: string,
     signatureDataUrl: string,
     customerName: string,
     approvedOption: 'opsi1' | 'opsi2'
   ) => Promise<Invoice | null>;
-  updateWorkOrderStatusAsync: (id: string, status: WorkOrderStatus) => Promise<boolean>;
+  updateWorkOrderStatusAsync: (id: string, status: WorkOrderStatus, branch?: BranchId) => Promise<boolean>;
   unlockWorkOrderAsync: (id: string, targetStatus?: WorkOrderStatus) => Promise<boolean>;
   deleteWorkOrderAsync: (id: string) => Promise<boolean>;
   deleteInvoiceAsync: (invoiceId: string) => Promise<boolean>;
@@ -334,8 +334,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return ok;
   };
 
-  const saveInvoiceAsync = async (invoice: Omit<Invoice, 'id'> & { id?: string }): Promise<Invoice> => {
-    const saved = await DBService.saveInvoiceAsync(invoice, activeBranch);
+  const saveInvoiceAsync = async (invoice: Omit<Invoice, 'id'> & { id?: string }, branch?: BranchId): Promise<Invoice> => {
+    const targetBranch = branch || (invoice.work_order_id ? resolveInvoiceBranch(invoice, DBService.getAllWorkOrders()) : activeBranch);
+    const saved = await DBService.saveInvoiceAsync(invoice, targetBranch);
     refreshData();
     return saved;
   };
@@ -357,8 +358,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return updated;
   };
 
-  const updateWorkOrderStatusAsync = async (id: string, status: WorkOrderStatus): Promise<boolean> => {
-    const ok = await DBService.updateWorkOrderStatusAsync(id, status, currentRole, activeBranch);
+  const updateWorkOrderStatusAsync = async (id: string, status: WorkOrderStatus, branch?: BranchId): Promise<boolean> => {
+    const ok = await DBService.updateWorkOrderStatusAsync(id, status, currentRole, branch || activeBranch);
     refreshData();
     return ok;
   };
