@@ -916,39 +916,8 @@ export class DBService {
       branchOrders[b] = valid;
     });
 
-    // Auto-heal spesifik: Pastikan 4 SPK MHS 2 (Bapak Arifin, Arfianto, Ilham, Bapak Ragil)
-    // selalu berada di storage MHS 2, berstatus 'queue' (Antrean Masuk), dan finish_date kosong
-    const targetSpksM2 = [
-      'SPK-20260920-M2-2589',
-      'SPK-20260920-M2-4770',
-      'SPK-20260920-M2-8016',
-      'SPK-20260920-M2-2231',
-    ];
-    // Bersihkan dari MHS 1 dan MHS 3
-    ['MHS 1', 'MHS 3'].forEach((otherBranch) => {
-      const bKey = otherBranch as BranchId;
-      const initialLen = branchOrders[bKey].length;
-      branchOrders[bKey] = branchOrders[bKey].filter(
-        (o) => !targetSpksM2.includes(o.spk_number || '')
-      );
-      if (branchOrders[bKey].length !== initialLen) {
-        modified = true;
-      }
-    });
-    // Pastikan di MHS 2 statusnya 'queue' dan tidak ada finish_date
-    branchOrders['MHS 2'].forEach((o) => {
-      if (targetSpksM2.includes(o.spk_number || '')) {
-        if (o.status !== 'queue' || o.finish_date) {
-          o.status = 'queue';
-          delete o.finish_date;
-          o.received_at_branch = 'MHS 2';
-          if (o.checklist_data) {
-            o.checklist_data.received_at_branch = 'MHS 2';
-          }
-          modified = true;
-        }
-      }
-    });
+    // (Blok hardcoded status-reset dihapus — tidak boleh ada kode yang memaksa status SPK tertentu
+    // kembali ke 'queue' secara paksa karena akan memblokir semua perubahan status dari user)
 
     if (modified) {
       allBranches.forEach((b) => {
