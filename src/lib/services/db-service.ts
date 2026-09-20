@@ -81,11 +81,45 @@ export function sanitizeChecklistData(checklist: any): any {
       }
     } else if (key === 'work_order' || key === 'workOrders' || key === 'allWorkOrders') {
       continue;
+    } else if (key === 'checkup_record') {
+      // Hapus duplikasi checkup_record tunggal jika sudah ada di checklist
+      continue;
     } else {
       clean[key] = value;
     }
   }
 
+  // Jika ada estimation utama, bersihkan duplikasi tab 1/2/3 yang identik
+  if (clean.estimation) {
+    delete clean.estimation_tab_1;
+    delete clean.estimation_tab_2;
+    delete clean.estimation_tab_3;
+  }
+
+  // Ringankan checkup_records: buang duplicate temporary checkup IDs
+  if (clean.checkup_records && typeof clean.checkup_records === 'object') {
+    const leanRecords: Record<string, any> = {};
+    for (const [k, v] of Object.entries(clean.checkup_records)) {
+      if (k === 'qc_general' || k === 'ac_specialist' || k === 'understeel') {
+        leanRecords[k] = v;
+      }
+    }
+    clean.checkup_records = leanRecords;
+  }
+
+  return clean;
+}
+
+/**
+ * Sanitasi WorkOrder sebelum disimpan ke LocalStorage browser agar tidak melebihi kuota 5MB.
+ * Menghapus nested duplication tanpa menghilangkan informasi utama SPK.
+ */
+export function sanitizeWorkOrderForStorage(wo: WorkOrder): WorkOrder {
+  if (!wo) return wo;
+  const clean: WorkOrder = { ...wo };
+  if (clean.checklist_data && typeof clean.checklist_data === 'object') {
+    clean.checklist_data = sanitizeChecklistData(clean.checklist_data);
+  }
   return clean;
 }
 
@@ -453,7 +487,8 @@ function setLocal<T>(key: string, value: T): void {
           if (
             k.startsWith('mhs_est_draft_') ||
             k.startsWith('mhs_est_saved_') ||
-            k.startsWith('mhs_est_tabs_')
+            k.startsWith('mhs_est_tabs_') ||
+            k.startsWith('acwms_temp_')
           ) {
             localStorage.removeItem(k);
           }
@@ -462,6 +497,26 @@ function setLocal<T>(key: string, value: T): void {
         console.info(`Berhasil menyimpan ${key} setelah pembersihan cache.`);
       } catch (retryErr) {
         console.error('Storage masih penuh setelah pembersihan cache:', retryErr);
+        // Fallback darurat: Jika ini array data (work_orders, checkups, invoices), simpan versi trimmed
+        if (Array.isArray(value) && value.length > 0) {
+          try {
+            if (key.includes('work_orders')) {
+              const trimmed = (value as any[]).slice(0, 30).map(sanitizeWorkOrderForStorage);
+              localStorage.setItem(key, JSON.stringify(trimmed));
+              console.info(`Berhasil menyimpan fallback 30 work orders terbaru ke ${key}.`);
+            } else if (key.includes('checkups')) {
+              const trimmed = (value as any[]).slice(0, 30);
+              localStorage.setItem(key, JSON.stringify(trimmed));
+              console.info(`Berhasil menyimpan fallback 30 checkups terbaru ke ${key}.`);
+            } else if (key.includes('invoices')) {
+              const trimmed = (value as any[]).slice(0, 30);
+              localStorage.setItem(key, JSON.stringify(trimmed));
+              console.info(`Berhasil menyimpan fallback 30 invoices terbaru ke ${key}.`);
+            }
+          } catch (fallbackErr) {
+            console.error('Fallback penyimpanan storage juga gagal:', fallbackErr);
+          }
+        }
       }
     }
   }
@@ -469,6 +524,42 @@ function setLocal<T>(key: string, value: T): void {
 
 export class DBService {
   private static _lastSyncTime = 0;
+  private static _isSyncing = false;
+  private static _inMemoryWorkOrders: Record<BranchId, WorkOrder[]> = {
+    'MHS 1': [],
+    'MHS 2': [],
+    'MHS 3': [],
+  };
+  private static _inMemoryCheckups: Record<BranchId, CheckupRecord[]> = {
+    'MHS 1': [],
+    'MHS 2': [],
+    'MHS 3': [],
+  };
+  private static _inMemoryInvoices: Record<BranchId, Invoice[]> = {
+    'MHS 1': [],
+    'MHS 2': [],
+    'MHS 3': [],
+  };
+
+  private static mergeWorkOrdersMemory(local: WorkOrder[], mem: WorkOrder[]): WorkOrder[] {
+    const map = new Map<string, WorkOrder>();
+    (local || []).forEach((w) => {
+      const k = w.spk_number || w.id;
+      if (k) map.set(k, w);
+    });
+    (mem || []).forEach((w) => {
+      const k = w.spk_number || w.id;
+      if (k) {
+        if (!map.has(k)) {
+          map.set(k, w);
+        } else {
+          const loc = map.get(k)!;
+          map.set(k, { ...loc, ...w });
+        }
+      }
+    });
+    return Array.from(map.values());
+  }
 
   /**
    * Mengambil cabang aktif dari sesi login saat ini di localStorage
@@ -673,13 +764,14 @@ export class DBService {
     }
 
     // Pastikan storage lokal bersih dari data circular legacy yang melebihi kuota 5MB browser
-    const STORAGE_CLEANUP_FLAG = 'acwms_quota_fix_v5';
+    const STORAGE_CLEANUP_FLAG = 'acwms_quota_fix_v8';
     if (!localStorage.getItem(STORAGE_CLEANUP_FLAG)) {
       Object.keys(localStorage).forEach((k) => {
         if (
           k.startsWith('mhs_est_draft_') ||
           k.startsWith('mhs_est_saved_') ||
-          k.startsWith('mhs_est_tabs_')
+          k.startsWith('mhs_est_tabs_') ||
+          k.startsWith('acwms_temp_')
         ) {
           localStorage.removeItem(k);
         }
@@ -687,6 +779,7 @@ export class DBService {
       ['MHS 1', 'MHS 2', 'MHS 3'].forEach((b) => {
         localStorage.removeItem(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b as BranchId));
         localStorage.removeItem(getBranchKey(BASE_STORAGE_KEYS.INVOICES, b as BranchId));
+        localStorage.removeItem(getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, b as BranchId));
       });
       localStorage.setItem(STORAGE_CLEANUP_FLAG, 'true');
     }
@@ -1272,7 +1365,9 @@ export class DBService {
   static getWorkOrders(branch?: BranchId): WorkOrder[] {
     const targetBranch = normalizeBranch(branch || this.getActiveBranch());
     const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, targetBranch);
-    const orders = getLocal<WorkOrder[]>(key, []);
+    const localOrders = getLocal<WorkOrder[]>(key, []);
+    const memOrders = this._inMemoryWorkOrders[targetBranch] || [];
+    const orders = this.mergeWorkOrdersMemory(localOrders, memOrders);
     const vehicles = this.getVehicles(targetBranch);
 
     return orders
@@ -1294,9 +1389,18 @@ export class DBService {
     const map = new Map<string, WorkOrder>();
     let hasStorageChanges = false;
     const branchOrdersMap: Record<BranchId, WorkOrder[]> = {
-      'MHS 1': [...getLocal<WorkOrder[]>(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, 'MHS 1'), [])],
-      'MHS 2': [...getLocal<WorkOrder[]>(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, 'MHS 2'), [])],
-      'MHS 3': [...getLocal<WorkOrder[]>(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, 'MHS 3'), [])],
+      'MHS 1': this.mergeWorkOrdersMemory(
+        getLocal<WorkOrder[]>(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, 'MHS 1'), []),
+        this._inMemoryWorkOrders['MHS 1']
+      ),
+      'MHS 2': this.mergeWorkOrdersMemory(
+        getLocal<WorkOrder[]>(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, 'MHS 2'), []),
+        this._inMemoryWorkOrders['MHS 2']
+      ),
+      'MHS 3': this.mergeWorkOrdersMemory(
+        getLocal<WorkOrder[]>(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, 'MHS 3'), []),
+        this._inMemoryWorkOrders['MHS 3']
+      ),
     };
 
     // Auto-heal cross-branch leakage: pastikan setiap order di storage lokal benar-benar berada di storage cabangnya
@@ -1346,7 +1450,8 @@ export class DBService {
 
     if (hasStorageChanges && typeof window !== 'undefined') {
       branches.forEach((b) => {
-        setLocal(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), branchOrdersMap[b]);
+        const sanitized = branchOrdersMap[b].map(sanitizeWorkOrderForStorage);
+        setLocal(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), sanitized);
       });
     }
 
@@ -1563,7 +1668,14 @@ export class DBService {
       return timeB - timeA;
     });
 
-    setLocal(key, orders);
+    const mem = this._inMemoryWorkOrders[targetBranch] || [];
+    const mIdx = mem.findIndex((o) => o.id === saved.id || (saved.spk_number && o.spk_number === saved.spk_number));
+    if (mIdx !== -1) mem[mIdx] = saved;
+    else mem.unshift(saved);
+    this._inMemoryWorkOrders[targetBranch] = mem;
+
+    const sanitizedOrders = orders.map(sanitizeWorkOrderForStorage);
+    setLocal(key, sanitizedOrders);
     return this.getWorkOrderById(saved.id, targetBranch) || saved;
   }
 
@@ -1697,7 +1809,14 @@ export class DBService {
           } else {
             orders.unshift(fullWo);
           }
-          setLocal(key, orders);
+          const mem = this._inMemoryWorkOrders[targetBranch] || [];
+          const mIdx = mem.findIndex((o) => o.spk_number === localSaved.spk_number || o.id === fullWo.id);
+          if (mIdx !== -1) mem[mIdx] = fullWo;
+          else mem.unshift(fullWo);
+          this._inMemoryWorkOrders[targetBranch] = mem;
+
+          const sanitized = orders.map(sanitizeWorkOrderForStorage);
+          setLocal(key, sanitized);
 
           // Hapus dari storage cabang lain jika ada
           BRANCHES.forEach((b: BranchId) => {
@@ -2136,10 +2255,24 @@ export class DBService {
 
   // --- GENERAL CHECKUPS (PER CABANG) ---
   static getCheckups(branch?: BranchId): CheckupRecord[] {
-    const key = getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, branch);
-    const checkups = getLocal<CheckupRecord[]>(key, []);
-    const vehicles = this.getVehicles(branch);
-    const workOrders = this.getWorkOrders(branch);
+    const targetBranch = normalizeBranch(branch || this.getActiveBranch());
+    const key = getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, targetBranch);
+    const localCheckups = getLocal<CheckupRecord[]>(key, []);
+    const memCheckups = this._inMemoryCheckups[targetBranch] || [];
+
+    const map = new Map<string, CheckupRecord>();
+    localCheckups.forEach((c) => {
+      const k = c.document_number || c.id;
+      if (k) map.set(k, c);
+    });
+    memCheckups.forEach((c) => {
+      const k = c.document_number || c.id;
+      if (k) map.set(k, c);
+    });
+
+    const checkups = Array.from(map.values());
+    const vehicles = this.getVehicles(targetBranch);
+    const workOrders = this.getWorkOrders(targetBranch);
 
     return checkups
       .map((rec) => {
@@ -2166,6 +2299,24 @@ export class DBService {
         const timeB = new Date(b.created_at || b.check_date || 0).getTime() || 0;
         return timeB - timeA;
       });
+  }
+
+  static getAllCheckups(): CheckupRecord[] {
+    const branches: BranchId[] = ['MHS 1', 'MHS 2', 'MHS 3'];
+    const map = new Map<string, CheckupRecord>();
+    branches.forEach((b) => {
+      this.getCheckups(b).forEach((rec) => {
+        const k = rec.document_number || rec.id;
+        if (k && !map.has(k)) {
+          map.set(k, rec);
+        }
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => {
+      const timeA = new Date(a.created_at || a.check_date || 0).getTime() || 0;
+      const timeB = new Date(b.created_at || b.check_date || 0).getTime() || 0;
+      return timeB - timeA;
+    });
   }
 
   static getCheckupById(id: string, branch?: BranchId): CheckupRecord | undefined {
@@ -2366,10 +2517,24 @@ export class DBService {
 
   // --- INVOICES & ESTIMATIONS (PER CABANG) ---
   static getInvoices(branch?: BranchId): Invoice[] {
-    const key = getBranchKey(BASE_STORAGE_KEYS.INVOICES, branch);
-    const invoices = getLocal<Invoice[]>(key, []);
-    const vehicles = branch ? this.getVehicles(branch) : this.getAllVehicles();
-    const workOrders = branch ? this.getWorkOrders(branch) : this.getAllWorkOrders();
+    const targetBranch = branch ? normalizeBranch(branch) : undefined;
+    const key = getBranchKey(BASE_STORAGE_KEYS.INVOICES, targetBranch);
+    const localInvoices = getLocal<Invoice[]>(key, []);
+    const memInvoices = targetBranch ? (this._inMemoryInvoices[targetBranch] || []) : [];
+
+    const map = new Map<string, Invoice>();
+    localInvoices.forEach((i) => {
+      const k = i.invoice_number || i.id;
+      if (k) map.set(k, i);
+    });
+    memInvoices.forEach((i) => {
+      const k = i.invoice_number || i.id;
+      if (k) map.set(k, i);
+    });
+
+    const invoices = Array.from(map.values());
+    const vehicles = targetBranch ? this.getVehicles(targetBranch) : this.getAllVehicles();
+    const workOrders = targetBranch ? this.getWorkOrders(targetBranch) : this.getAllWorkOrders();
     const allWos = this.getAllWorkOrders();
 
     return invoices
@@ -4092,8 +4257,6 @@ export class DBService {
     setLocal(key, logs.slice(0, 200));
   }
 
-  private static _isSyncing = false;
-
   /**
    * Terapkan pembaruan instan dari event Supabase Realtime WebSocket (0ms, 0 Egress).
    * Mengupdate LocalStorage secara langsung tanpa perlu mendownload ulang seluruh database.
@@ -4106,6 +4269,9 @@ export class DBService {
       const targetId = row.id;
       const targetSpk = row.spk_number;
       allBranches.forEach((b) => {
+        this._inMemoryWorkOrders[b] = (this._inMemoryWorkOrders[b] || []).filter(
+          (o) => o.id !== targetId && (!targetSpk || o.spk_number !== targetSpk)
+        );
         const key = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b);
         const orders = getLocal<WorkOrder[]>(key, []);
         const filtered = orders.filter((o) => o.id !== targetId && (!targetSpk || o.spk_number !== targetSpk));
@@ -4131,6 +4297,9 @@ export class DBService {
     // Hapus dari cabang lain jika pernah tersimpan di cabang yang salah (kebocoran)
     allBranches.forEach((b) => {
       if (b === targetBranch) return;
+      this._inMemoryWorkOrders[b] = (this._inMemoryWorkOrders[b] || []).filter(
+        (o) => o.id !== row.id && (!row.spk_number || o.spk_number !== row.spk_number)
+      );
       const bKey = getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b);
       const bOrders = getLocal<WorkOrder[]>(bKey, []);
       const filtered = bOrders.filter(
@@ -4160,9 +4329,11 @@ export class DBService {
       this.getVehicles(targetBranch).find((v) => v.id === row.vehicle_id) ||
       this.getAllVehicles().find((v) => v.id === row.vehicle_id);
 
+    let savedWo: WorkOrder;
+
     if (existingIdx !== -1) {
       const existing = orders[existingIdx];
-      orders[existingIdx] = {
+      savedWo = {
         ...existing,
         ...row,
         id: row.id || existing.id,
@@ -4174,9 +4345,9 @@ export class DBService {
         checklist_data: mergedChecklist,
         vehicle: resolvedVehicle,
       };
-      setLocal(key, orders);
+      orders[existingIdx] = savedWo;
     } else {
-      const newWo: WorkOrder = {
+      savedWo = {
         id: row.id,
         spk_number: row.spk_number,
         vehicle_id: row.vehicle_id,
@@ -4197,9 +4368,17 @@ export class DBService {
         updated_at: row.updated_at || new Date().toISOString(),
         vehicle: resolvedVehicle,
       };
-      orders.unshift(newWo);
-      setLocal(key, orders);
+      orders.unshift(savedWo);
     }
+
+    const mem = this._inMemoryWorkOrders[targetBranch] || [];
+    const mIdx = mem.findIndex((o) => (savedWo.id && o.id === savedWo.id) || (savedWo.spk_number && o.spk_number === savedWo.spk_number));
+    if (mIdx !== -1) mem[mIdx] = savedWo;
+    else mem.unshift(savedWo);
+    this._inMemoryWorkOrders[targetBranch] = mem;
+
+    const sanitized = orders.map(sanitizeWorkOrderForStorage);
+    setLocal(key, sanitized);
   }
 
   /**
@@ -4559,7 +4738,11 @@ export class DBService {
             const timeY = new Date(y.created_at || y.entry_date || 0).getTime() || 0;
             return timeY - timeX;
           });
-          setLocal(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), mergedWOs);
+          // Simpan ke in-memory cache runtime
+          DBService._inMemoryWorkOrders[b] = mergedWOs;
+          // Sanitasi untuk storage lokal browser
+          const sanitizedWOs = mergedWOs.map(sanitizeWorkOrderForStorage);
+          setLocal(getBranchKey(BASE_STORAGE_KEYS.WORK_ORDERS, b), sanitizedWOs);
 
           const localCheckups = getLocal<CheckupRecord[]>(getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, b), []);
           const mergedCheckups = smartMergeCheckups(cloudCheckups[b] || [], localCheckups).sort((x, y) => {
@@ -4567,6 +4750,7 @@ export class DBService {
             const timeY = new Date(y.created_at || y.check_date || 0).getTime() || 0;
             return timeY - timeX;
           });
+          DBService._inMemoryCheckups[b] = mergedCheckups;
           setLocal(getBranchKey(BASE_STORAGE_KEYS.CHECKUPS, b), mergedCheckups);
         });
       }
@@ -4672,6 +4856,7 @@ export class DBService {
             (inv) => resolveInvoiceBranch(inv, allCloudWos) === b
           );
           const mergedInvs = smartMergeInvoices(branchCloudInvoices, validLocalInvs);
+          DBService._inMemoryInvoices[b] = mergedInvs;
           setLocal(getBranchKey(BASE_STORAGE_KEYS.INVOICES, b), mergedInvs);
         });
       }

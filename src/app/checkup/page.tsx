@@ -57,6 +57,10 @@ interface VehicleCheckupGroup {
 // Helper menentukan cabang bengkel mobil
 const resolveGroupBranch = (wo?: WorkOrder, v?: any, rec?: any): BranchId => {
   if (wo) return resolveWorkOrderBranch(wo);
+  const plate = (v?.license_plate || rec?.license_plate || '').replace(/\s+/g, '').toUpperCase();
+  if (['N1640CY', 'B1747SYB', 'N1220EV', 'L1609WK'].includes(plate)) {
+    return 'MHS 2';
+  }
   const raw = rec?.received_at_branch || 
               rec?.branch || 
               v?.branch || 
@@ -72,7 +76,7 @@ const resolveGroupBranch = (wo?: WorkOrder, v?: any, rec?: any): BranchId => {
 };
 
 export default function CheckupPage() {
-  const { checkups, workOrders, allWorkOrders, vehicles, settings, deleteCheckupAsync, showToast, currentRole, refreshData, syncWithSupabase, isSyncing } = useApp();
+  const { checkups, allCheckups, workOrders, allWorkOrders, vehicles, settings, deleteCheckupAsync, showToast, currentRole, refreshData, syncWithSupabase, isSyncing } = useApp();
   const { currentUser, activeBranch } = useAuth();
   const canAccessAll = !!currentUser?.canAccessAllBranches;
 
@@ -113,7 +117,16 @@ export default function CheckupPage() {
       if (!normPlate) return;
 
       const latestWo = allWorkOrders
-        .filter((w) => w.vehicle_id === v.id || (w.vehicle?.license_plate && w.vehicle.license_plate.toUpperCase().replace(/\s+/g, '') === normPlate))
+        .filter((w) => {
+          if (w.vehicle_id && v.id && w.vehicle_id === v.id) return true;
+          const wPlate = (
+            w.vehicle?.license_plate ||
+            (w.checklist_data as any)?.license_plate ||
+            (w.checklist_data as any)?.vehicle?.license_plate ||
+            ''
+          ).trim().toUpperCase().replace(/\s+/g, '');
+          return Boolean(wPlate && wPlate === normPlate);
+        })
         .sort((a, b) => new Date(b.created_at || b.entry_date || 0).getTime() - new Date(a.created_at || a.entry_date || 0).getTime())[0];
 
       map.set(key, {
@@ -224,7 +237,8 @@ export default function CheckupPage() {
     };
 
     // 3. Attach checkups dari database storage
-    checkups.forEach(attachCheckupToGroup);
+    const sourceCheckups = selectedBranch === 'ALL' ? (allCheckups || checkups) : checkups;
+    sourceCheckups.forEach(attachCheckupToGroup);
 
     // 4. Attach checkups langsung dari work_orders (sinkronisasi instan antar device)
     allWorkOrders.forEach((wo) => {

@@ -39,6 +39,7 @@ interface AppContextType {
   allCrmLogs: CRMLog[];
   vehicles: VehicleCustomer[];
   checkups: CheckupRecord[];
+  allCheckups: CheckupRecord[];
   refreshData: () => void;
   syncWithSupabase: (force?: boolean) => Promise<void>;
   generateUniqueSpkNumberAsync: (branch?: BranchId | string) => Promise<string>;
@@ -92,6 +93,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [allCrmLogs, setAllCrmLogs] = useState<CRMLog[]>([]);
   const [vehicles, setVehicles] = useState<VehicleCustomer[]>([]);
   const [checkups, setCheckups] = useState<CheckupRecord[]>([]);
+  const [allCheckups, setAllCheckups] = useState<CheckupRecord[]>([]);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [isSupabaseOnline, setIsSupabaseOnline] = useState<boolean>(isSupabaseConfigured);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -115,6 +117,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAllCrmLogs(DBService.getAllCRMLogs());
     setVehicles(DBService.getVehicles(activeBranch));
     setCheckups(DBService.getCheckups(activeBranch));
+    setAllCheckups(DBService.getAllCheckups());
   }, [activeBranch]);
 
   const lastSyncTimestampRef = useRef<Record<string, number>>({});
@@ -482,6 +485,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         allCrmLogs,
         vehicles,
         checkups,
+        allCheckups,
         refreshData,
         syncWithSupabase,
         generateUniqueSpkNumberAsync,
