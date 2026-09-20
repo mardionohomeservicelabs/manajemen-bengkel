@@ -26,6 +26,7 @@ import {
   AlertCircle,
   PlusCircle,
   Edit3,
+  RefreshCw,
 } from 'lucide-react';
 import { PrintableGeneralCheckup } from '@/components/ui/PrintableGeneralCheckup';
 import { PrintableACCheckup } from '@/components/ui/PrintableACCheckup';
@@ -71,7 +72,7 @@ const resolveGroupBranch = (wo?: WorkOrder, v?: any, rec?: any): BranchId => {
 };
 
 export default function CheckupPage() {
-  const { checkups, workOrders, allWorkOrders, vehicles, settings, deleteCheckupAsync, showToast, currentRole, refreshData, syncWithSupabase } = useApp();
+  const { checkups, workOrders, allWorkOrders, vehicles, settings, deleteCheckupAsync, showToast, currentRole, refreshData, syncWithSupabase, isSyncing } = useApp();
   const { currentUser, activeBranch } = useAuth();
   const canAccessAll = !!currentUser?.canAccessAllBranches;
 
@@ -84,16 +85,19 @@ export default function CheckupPage() {
   const [selectedPrintRecord, setSelectedPrintRecord] = useState<CheckupRecord | null>(null);
   const [editingPlateTarget, setEditingPlateTarget] = useState<{ vehicleId: string; plate: string; name: string; model: string } | null>(null);
 
-  // Muat data saat halaman checklist dibuka
+  // Muat data saat halaman checklist dibuka & sinkronkan dari cloud Supabase
   useEffect(() => {
     refreshData();
-  }, [refreshData]);
+    syncWithSupabase(true);
+  }, [refreshData, syncWithSupabase]);
 
-  // Sinkronkan jika activeBranch berganti (misal via switcher sidebar oleh Via atau Owner)
+  // Sinkronkan jika activeBranch berganti dari switcher sidebar oleh Via atau Owner
+  const prevActiveBranchRef = React.useRef(activeBranch);
   useEffect(() => {
     if (!canAccessAll) {
       setSelectedBranch(activeBranch);
-    } else if (activeBranch) {
+    } else if (prevActiveBranchRef.current !== activeBranch) {
+      prevActiveBranchRef.current = activeBranch;
       setSelectedBranch(activeBranch);
     }
   }, [activeBranch, canAccessAll]);
@@ -410,13 +414,25 @@ export default function CheckupPage() {
             </p>
           </div>
 
-          <Link
-            href="/checkup/new"
-            className="inline-flex items-center justify-center space-x-2 bg-maroon-700 hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ Input Checkup Baru</span>
-          </Link>
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => syncWithSupabase(true)}
+              disabled={isSyncing}
+              className="inline-flex items-center space-x-1.5 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 shadow-xs transition cursor-pointer disabled:opacity-50"
+              title="Sinkronkan data langsung dari Supabase Cloud"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-maroon-700' : 'text-slate-500'}`} />
+              <span>{isSyncing ? 'Menyinkronkan...' : 'Sinkronkan'}</span>
+            </button>
+            <Link
+              href="/checkup/new"
+              className="inline-flex items-center justify-center space-x-2 bg-maroon-700 hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Input Checkup Baru</span>
+            </Link>
+          </div>
         </div>
 
         {/* Filter Cabang & Filter Status Checklist */}

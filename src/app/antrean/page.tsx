@@ -38,6 +38,7 @@ import {
   Trash2,
   Unlock,
   AlertTriangle,
+  RefreshCw,
   X,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -109,6 +110,7 @@ function QueueBoardContent() {
     deleteWorkOrderAsync,
     refreshData,
     syncWithSupabase,
+    isSyncing,
   } = useApp();
   const { activeBranch, setActiveBranch, currentUser } = useAuth();
   const searchParams = useSearchParams();
@@ -127,10 +129,11 @@ function QueueBoardContent() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [dbSearchQuery, setDbSearchQuery] = useState('');
 
-  // Muat data saat halaman dibuka
+  // Muat data saat halaman dibuka & sinkronkan dari database cloud Supabase
   useEffect(() => {
     refreshData();
-  }, [refreshData]);
+    syncWithSupabase(true);
+  }, [refreshData, syncWithSupabase]);
 
   // Sinkronkan jika query param branch berubah (misal dari pembuatan SPK baru)
   useEffect(() => {
@@ -237,7 +240,16 @@ function QueueBoardContent() {
             </p>
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => syncWithSupabase(true)}
+              disabled={isSyncing}
+              className="inline-flex items-center space-x-1.5 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 shadow-xs transition cursor-pointer disabled:opacity-50"
+              title="Sinkronkan data langsung dari Supabase Cloud"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-maroon-700' : 'text-slate-500'}`} />
+              <span>{isSyncing ? 'Menyinkronkan...' : 'Sinkronkan'}</span>
+            </button>
             <Link
               href={`/spk/new?branch=${selectedBranch === 'ALL' ? activeBranch : selectedBranch}`}
               className="inline-flex items-center space-x-1.5 bg-maroon-700 hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition"

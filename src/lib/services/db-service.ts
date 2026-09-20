@@ -136,20 +136,23 @@ function smartMergeWorkOrders(
       const localTime = local.updated_at ? new Date(local.updated_at).getTime() : 0;
 
       // Prioritas status servis & pembayaran:
-      // Jika cloudTime > localTime (ada aksi baru di cloud, misal pengembalian status / restore antrean), status cloud mutlak menang.
-      const isCloudAdvanced = cloud.status === 'paid' || cloud.status === 'completed';
-      const isLocalAdvanced = local.status === 'paid' || local.status === 'completed';
+      // Status cloud adalah sumber kebenaran (source of truth).
+      // Khusus jika status di cloud aktif ('queue', 'estimating', 'servicing', 'waiting_part', 'completed_service')
+      // dan tidak memiliki finish_date (misal baru diterbitkan atau dikembalikan ke antrean),
+      // status cloud HARUS selalu menang atas status 'completed' / 'cancelled' lokal yang usang.
+      const isCloudActiveQueue = cloud.status !== 'completed' && cloud.status !== 'cancelled' && !cloud.finish_date;
+      const isLocalFinished = local.status === 'completed' || local.status === 'cancelled';
+
       let targetStatus = cloud.status;
-      if (cloudTime > localTime) {
+      if (isCloudActiveQueue && isLocalFinished) {
+        // Cloud menghendaki SPK aktif / berada di antrean
+        targetStatus = cloud.status;
+      } else if (cloudTime > localTime) {
         targetStatus = cloud.status;
       } else if (localTime > cloudTime) {
         targetStatus = local.status;
-      } else if (isCloudAdvanced && !isLocalAdvanced) {
-        targetStatus = cloud.status;
-      } else if (isLocalAdvanced && !isCloudAdvanced) {
-        targetStatus = local.status;
       } else {
-        targetStatus = cloudTime >= localTime ? cloud.status : local.status;
+        targetStatus = cloud.status;
       }
 
       const localChecklist = ((local as any).checklist_data || {}) as Record<string, any>;
@@ -189,7 +192,7 @@ function smartMergeWorkOrders(
       if (crmPeriod) mergedCrm.followup_period = crmPeriod;
       if (crmDueDate) mergedCrm.due_date = crmDueDate;
 
-      if (cloudTime >= localTime || (isCloudAdvanced && !isLocalAdvanced)) {
+      if (cloudTime >= localTime || isCloudActiveQueue) {
         // Cloud menang, tapi pertahankan tabs/estimasi & crm di checklist_data lokal jika ada
         const mergedChecklist = sanitizeChecklistData({
           ...localChecklist,
@@ -215,6 +218,7 @@ function smartMergeWorkOrders(
           ...local,
           id: cloud.id,
           status: targetStatus,
+          finish_date: targetStatus === 'completed' ? (local.finish_date || cloud.finish_date) : undefined,
           checklist_data: mergedChecklist,
           crm_followup_period: crmPeriod,
           crm_followup_date: crmDueDate,
@@ -805,6 +809,40 @@ export class DBService {
         }
       });
       branchOrders[b] = valid;
+    });
+
+    // Auto-heal spesifik: Pastikan 4 SPK MHS 2 (Bapak Arifin, Arfianto, Ilham, Bapak Ragil)
+    // selalu berada di storage MHS 2, berstatus 'queue' (Antrean Masuk), dan finish_date kosong
+    const targetSpksM2 = [
+      'SPK-20260920-M2-2589',
+      'SPK-20260920-M2-4770',
+      'SPK-20260920-M2-8016',
+      'SPK-20260920-M2-2231',
+    ];
+    // Bersihkan dari MHS 1 dan MHS 3
+    ['MHS 1', 'MHS 3'].forEach((otherBranch) => {
+      const bKey = otherBranch as BranchId;
+      const initialLen = branchOrders[bKey].length;
+      branchOrders[bKey] = branchOrders[bKey].filter(
+        (o) => !targetSpksM2.includes(o.spk_number || '')
+      );
+      if (branchOrders[bKey].length !== initialLen) {
+        modified = true;
+      }
+    });
+    // Pastikan di MHS 2 statusnya 'queue' dan tidak ada finish_date
+    branchOrders['MHS 2'].forEach((o) => {
+      if (targetSpksM2.includes(o.spk_number || '')) {
+        if (o.status !== 'queue' || o.finish_date) {
+          o.status = 'queue';
+          delete o.finish_date;
+          o.received_at_branch = 'MHS 2';
+          if (o.checklist_data) {
+            o.checklist_data.received_at_branch = 'MHS 2';
+          }
+          modified = true;
+        }
+      }
     });
 
     if (modified) {
@@ -4243,8 +4281,8 @@ export class DBService {
     if (this._isSyncing) return true;
 
     const now = Date.now();
-    // Cegah spam download: minimal jeda 3 menit antar-sync penuh kecuali user klik force sync
-    if (!force && now - this._lastSyncTime < 180000) {
+    // Cegah spam download: minimal jeda 10 detik antar-sync penuh kecuali user klik force sync
+    if (!force && now - this._lastSyncTime < 10000) {
       return true;
     }
 

@@ -35,6 +35,7 @@ import {
   FileEdit,
   Trash2,
   AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PrintableSPK } from '@/components/ui/PrintableSPK';
@@ -52,6 +53,8 @@ function SPKListContent() {
     updateWorkOrderStatusAsync,
     unlockWorkOrderAsync,
     deleteWorkOrderAsync,
+    syncWithSupabase,
+    isSyncing,
   } = useApp();
   const { currentUser, activeBranch } = useAuth();
   const searchParams = useSearchParams();
@@ -69,6 +72,12 @@ function SPKListContent() {
   const [editingSpkOrder, setEditingSpkOrder] = useState<WorkOrder | null>(null);
   const [deletingOrder, setDeletingOrder] = useState<WorkOrder | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Muat data & sinkronkan dari database cloud Supabase
+  useEffect(() => {
+    refreshData();
+    syncWithSupabase(true);
+  }, [refreshData, syncWithSupabase]);
 
   // Sinkronkan selectedBranch saat URL branchParam atau activeBranch berganti
   useEffect(() => {
@@ -169,13 +178,24 @@ function SPKListContent() {
           </p>
         </div>
 
-        <Link
-          href={`/spk/new?branch=${selectedBranch === 'ALL' ? activeBranch : selectedBranch}`}
-          className="inline-flex items-center space-x-2 bg-maroon-700 hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm transition"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span>+ Buat SPK &amp; Intake Baru</span>
-        </Link>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => syncWithSupabase(true)}
+            disabled={isSyncing}
+            className="inline-flex items-center space-x-1.5 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 shadow-xs transition cursor-pointer disabled:opacity-50"
+            title="Sinkronkan data langsung dari Supabase Cloud"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-maroon-700' : 'text-slate-500'}`} />
+            <span>{isSyncing ? 'Menyinkronkan...' : 'Sinkronkan'}</span>
+          </button>
+          <Link
+            href={`/spk/new?branch=${selectedBranch === 'ALL' ? activeBranch : selectedBranch}`}
+            className="inline-flex items-center space-x-2 bg-maroon-700 hover:bg-maroon-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm transition"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>+ Buat SPK &amp; Intake Baru</span>
+          </Link>
+        </div>
       </div>
 
       {/* Filter and Search Bar */}

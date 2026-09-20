@@ -123,8 +123,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!supabase || !isSupabaseConfigured) return;
     const now = Date.now();
     const lastSync = lastSyncTimestampRef.current[activeBranch] || 0;
-    // Jeda 60 detik antar-sync untuk cabang yang sama kecuali jika force atau cabang baru dibuka
-    if (!force && now - lastSync < 60000) {
+    // Jeda 10 detik antar-sync untuk cabang yang sama kecuali jika force atau cabang baru dibuka
+    if (!force && now - lastSync < 10000) {
       return;
     }
     lastSyncTimestampRef.current[activeBranch] = now;
@@ -260,8 +260,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     DBService.init(activeBranch);
     refreshData();
-    // Initial sync sekali saat aplikasi pertama dibuka
-    syncWithSupabase();
+    // Initial sync sekali saat aplikasi pertama dibuka (force fresh cloud data)
+    syncWithSupabase(true);
     setPendingCount(DBService.getOfflineQueueCount());
 
     // Auto-flush queue saat koneksi internet kembali online
