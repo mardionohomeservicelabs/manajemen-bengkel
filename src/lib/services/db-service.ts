@@ -135,11 +135,16 @@ function smartMergeWorkOrders(
       const cloudTime = cloud.updated_at ? new Date(cloud.updated_at).getTime() : 0;
       const localTime = local.updated_at ? new Date(local.updated_at).getTime() : 0;
 
-      // Prioritas status servis & pembayaran: status 'paid' / 'completed' tidak boleh ditimpa status lama
+      // Prioritas status servis & pembayaran:
+      // Jika cloudTime > localTime (ada aksi baru di cloud, misal pengembalian status / restore antrean), status cloud mutlak menang.
       const isCloudAdvanced = cloud.status === 'paid' || cloud.status === 'completed';
       const isLocalAdvanced = local.status === 'paid' || local.status === 'completed';
       let targetStatus = cloud.status;
-      if (isCloudAdvanced && !isLocalAdvanced) {
+      if (cloudTime > localTime) {
+        targetStatus = cloud.status;
+      } else if (localTime > cloudTime) {
+        targetStatus = local.status;
+      } else if (isCloudAdvanced && !isLocalAdvanced) {
         targetStatus = cloud.status;
       } else if (isLocalAdvanced && !isCloudAdvanced) {
         targetStatus = local.status;
@@ -194,6 +199,7 @@ function smartMergeWorkOrders(
         mergedMap.set(key, {
           ...cloud,
           status: targetStatus,
+          finish_date: targetStatus === 'completed' ? (cloud.finish_date || local.finish_date) : undefined,
           checklist_data: mergedChecklist,
           crm_followup_period: crmPeriod,
           crm_followup_date: crmDueDate,

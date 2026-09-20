@@ -117,16 +117,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCheckups(DBService.getCheckups(activeBranch));
   }, [activeBranch]);
 
-  const lastSyncTimestampRef = useRef<number>(0);
+  const lastSyncTimestampRef = useRef<Record<string, number>>({});
 
   const syncWithSupabase = useCallback(async (force = false) => {
     if (!supabase || !isSupabaseConfigured) return;
     const now = Date.now();
-    // Cegah spam download: minimal jeda 3 menit antar-sync penuh kecuali jika tombol force diklik
-    if (!force && now - lastSyncTimestampRef.current < 180000) {
+    const lastSync = lastSyncTimestampRef.current[activeBranch] || 0;
+    // Jeda 60 detik antar-sync untuk cabang yang sama kecuali jika force atau cabang baru dibuka
+    if (!force && now - lastSync < 60000) {
       return;
     }
-    lastSyncTimestampRef.current = now;
+    lastSyncTimestampRef.current[activeBranch] = now;
 
     setIsSyncing(true);
     try {
