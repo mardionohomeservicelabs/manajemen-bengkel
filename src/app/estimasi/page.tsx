@@ -912,47 +912,47 @@ function EstimationBuilderContent() {
           ? i.price_opsi2
           : p1;
 
-        // Selalu hitung ulang total_opsi1 dari price_opsi1 × qty agar tidak salah baca data lama
-        // yang menyimpan harga satuan sebagai total_opsi1
+        // Hitung total_opsi1:
+        // - Jika tersimpan undefined → hitung dari price × qty (data belum pernah di-set)
+        // - Jika tersimpan 0 / kosong → biarkan 0/kosong (user sengaja mengosongkan)
+        // - Jika tersimpan > 0 → pakai nilai tersimpan KECUALI jika == price padahal qty > 1 (bug data lama)
         let tot1: any;
+        const savedTot1 = i.total_opsi1;
         const parsedP1 = parseNumericPriceValue(p1);
         const hasValidP1 = p1 !== 0 && p1 !== '' && p1 !== undefined;
-        if (hasValidP1) {
-          // Punya harga satuan → hitung total = harga × qty
-          if (parsedP1.isText) {
-            tot1 = parsedP1.text;
-          } else if (parsedP1.isRange) {
-            tot1 = parsedP1.min === parsedP1.max
-              ? parsedP1.min * qty
-              : `${parsedP1.min * qty} - ${parsedP1.max * qty}`;
-          } else {
-            // Jika total_opsi1 tersimpan berbeda dari price × qty (misal diedit manual), pakai total tersimpan
-            const savedTot1 = i.total_opsi1;
-            const recalcTot1 = parsedP1.num * qty;
-            if (savedTot1 !== undefined && savedTot1 !== null && savedTot1 !== '') {
-              const parsedSaved = parseNumericPriceValue(savedTot1);
-              // Gunakan total tersimpan HANYA jika memang berbeda dari price_opsi1 saja
-              // (artinya sudah diperhitungkan qty atau diedit manual)
-              // Jika total == price (harga satuan saja, qty diabaikan), gunakan recalcTot1
-              if (!parsedSaved.isText && Math.abs(parsedSaved.num - parsedP1.num) < 1 && qty > 1) {
-                // total_opsi1 == price_opsi1 padahal qty > 1 → ini bug lama, recalculate
-                tot1 = recalcTot1;
-              } else {
-                // total_opsi1 sudah benar (bisa jadi diedit manual atau sudah × qty)
-                tot1 = savedTot1;
-              }
+
+        if (savedTot1 === undefined || savedTot1 === null) {
+          // Belum pernah disimpan → hitung dari price × qty jika ada price
+          if (hasValidP1) {
+            if (parsedP1.isText) {
+              tot1 = parsedP1.text;
+            } else if (parsedP1.isRange) {
+              tot1 = parsedP1.min === parsedP1.max
+                ? parsedP1.min * qty
+                : `${parsedP1.min * qty} - ${parsedP1.max * qty}`;
             } else {
-              tot1 = recalcTot1;
+              tot1 = parsedP1.num * qty;
             }
+          } else {
+            tot1 = i.subtotal !== undefined ? i.subtotal : 0;
           }
         } else {
-          // Tidak ada price_opsi1 → fallback ke total_opsi1 tersimpan atau subtotal
-          tot1 =
-            i.total_opsi1 !== undefined
-              ? i.total_opsi1
-              : i.subtotal !== undefined
-              ? i.subtotal
-              : 0;
+          // Nilai total tersimpan → pakai apa adanya
+          // Kecuali jika total == price padahal qty > 1 (bug lama: qty terabaikan saat simpan)
+          const parsedSaved = parseNumericPriceValue(savedTot1);
+          if (
+            hasValidP1 &&
+            !parsedSaved.isText &&
+            !parsedP1.isText &&
+            parsedSaved.num > 0 &&
+            Math.abs(parsedSaved.num - parsedP1.num) < 1 &&
+            qty > 1
+          ) {
+            // total_opsi1 == price_opsi1 padahal qty > 1 → recalculate
+            tot1 = parsedP1.num * qty;
+          } else {
+            tot1 = savedTot1;
+          }
         }
 
         const tot2 = isP2ExplicitlyEmpty
@@ -1100,19 +1100,12 @@ function EstimationBuilderContent() {
       const isP2Empty = !hasTot2 && !hasP2;
 
       if (showRangePrice) {
-        if (!isP1Empty) {
-          if (hasTot1) {
-            const r1 = parseRangePrice(it.total_opsi1);
-            if (typeof it.total_opsi1 !== 'string' || !/[a-zA-Z]/.test(String(it.total_opsi1)) || r1.min > 0) {
-              tot1Min += r1.min;
-              tot1Max += r1.max;
-            }
-          } else {
-            const r1 = parseRangePrice(p1Raw);
-            if (typeof p1Raw !== 'string' || !/[a-zA-Z]/.test(String(p1Raw)) || r1.min > 0) {
-              tot1Min += r1.min * qty;
-              tot1Max += r1.max * qty;
-            }
+        // Range price: HANYA sum jika total_opsi1 terisi
+        if (hasTot1) {
+          const r1 = parseRangePrice(it.total_opsi1);
+          if (typeof it.total_opsi1 !== 'string' || !/[a-zA-Z]/.test(String(it.total_opsi1)) || r1.min > 0) {
+            tot1Min += r1.min;
+            tot1Max += r1.max;
           }
         }
         if (!isP2Empty) {
@@ -1131,30 +1124,18 @@ function EstimationBuilderContent() {
           }
         }
       } else {
-        if (!isP1Empty) {
-          const parsedP1 = parseNumericPriceValue(p1Raw);
-          if (!parsedP1.isText) {
-            // Selalu recalculate dari price_opsi1 × qty sebagai dasar
-            let t1 = parsedP1.num * qty;
-            // Jika total_opsi1 tersimpan dan berbeda dari price saja (artinya sudah benar atau diedit manual),
-            // gunakan total tersimpan. Tapi jika total == price (bug data lama), pakai recalc.
-            if (hasTot1) {
-              const parsedTot1 = parseNumericPriceValue(it.total_opsi1);
-              if (!parsedTot1.isText) {
-                // Jika total_opsi1 == price_opsi1 padahal qty > 1 → data lama yang salah, pakai recalc
-                if (Math.abs(parsedTot1.num - parsedP1.num) < 1 && qty > 1) {
-                  t1 = parsedP1.num * qty;
-                } else {
-                  t1 = parsedTot1.num;
-                }
-              }
-            }
-            tot1Min += Number.isNaN(t1) ? 0 : t1;
-            tot1Max += Number.isNaN(t1) ? 0 : t1;
-          } else if (hasTot1) {
-            // Price adalah teks (CEK dll) → gunakan total_opsi1 apa adanya (tidak di-sum)
+        // Grand total HANYA menghitung baris yang total_opsi1-nya terisi (non-zero, non-empty).
+        // Kolom HRG SAT (price_opsi1) adalah referensi harga satuan, BUKAN otomatis masuk total.
+        // total_opsi1 diisi otomatis saat user mengetik di kolom HRG SAT (via handleUpdateItemField).
+        if (hasTot1) {
+          const parsedTot1 = parseNumericPriceValue(it.total_opsi1);
+          if (!parsedTot1.isText) {
+            tot1Min += parsedTot1.num;
+            tot1Max += parsedTot1.num;
           }
         }
+        // Jika hasTot1 = false (total_opsi1 = 0 atau kosong), baris ini tidak dijumlahkan ke grand total
+        // meski price_opsi1 ada nilainya.
         if (!isP2Empty) {
           if (hasTot2) {
             const parsed2 = parseNumericPriceValue(it.total_opsi2);
