@@ -903,6 +903,7 @@ function EstimationBuilderContent() {
             : i.price !== undefined
             ? i.price
             : 0;
+        const qty = i.qty || 1;
         const isP2ExplicitlyEmpty =
           i.price_opsi2 === '' || i.price_opsi2 === 0 || i.price_opsi2 === '0';
         const p2 = isP2ExplicitlyEmpty
@@ -910,12 +911,50 @@ function EstimationBuilderContent() {
           : i.price_opsi2 !== undefined
           ? i.price_opsi2
           : p1;
-        const tot1 =
-          i.total_opsi1 !== undefined
-            ? i.total_opsi1
-            : i.subtotal !== undefined
-            ? i.subtotal
-            : 0;
+
+        // Selalu hitung ulang total_opsi1 dari price_opsi1 × qty agar tidak salah baca data lama
+        // yang menyimpan harga satuan sebagai total_opsi1
+        let tot1: any;
+        const parsedP1 = parseNumericPriceValue(p1);
+        const hasValidP1 = p1 !== 0 && p1 !== '' && p1 !== undefined;
+        if (hasValidP1) {
+          // Punya harga satuan → hitung total = harga × qty
+          if (parsedP1.isText) {
+            tot1 = parsedP1.text;
+          } else if (parsedP1.isRange) {
+            tot1 = parsedP1.min === parsedP1.max
+              ? parsedP1.min * qty
+              : `${parsedP1.min * qty} - ${parsedP1.max * qty}`;
+          } else {
+            // Jika total_opsi1 tersimpan berbeda dari price × qty (misal diedit manual), pakai total tersimpan
+            const savedTot1 = i.total_opsi1;
+            const recalcTot1 = parsedP1.num * qty;
+            if (savedTot1 !== undefined && savedTot1 !== null && savedTot1 !== '') {
+              const parsedSaved = parseNumericPriceValue(savedTot1);
+              // Gunakan total tersimpan HANYA jika memang berbeda dari price_opsi1 saja
+              // (artinya sudah diperhitungkan qty atau diedit manual)
+              // Jika total == price (harga satuan saja, qty diabaikan), gunakan recalcTot1
+              if (!parsedSaved.isText && Math.abs(parsedSaved.num - parsedP1.num) < 1 && qty > 1) {
+                // total_opsi1 == price_opsi1 padahal qty > 1 → ini bug lama, recalculate
+                tot1 = recalcTot1;
+              } else {
+                // total_opsi1 sudah benar (bisa jadi diedit manual atau sudah × qty)
+                tot1 = savedTot1;
+              }
+            } else {
+              tot1 = recalcTot1;
+            }
+          }
+        } else {
+          // Tidak ada price_opsi1 → fallback ke total_opsi1 tersimpan atau subtotal
+          tot1 =
+            i.total_opsi1 !== undefined
+              ? i.total_opsi1
+              : i.subtotal !== undefined
+              ? i.subtotal
+              : 0;
+        }
+
         const tot2 = isP2ExplicitlyEmpty
           ? 0
           : i.total_opsi2 !== undefined
@@ -925,14 +964,14 @@ function EstimationBuilderContent() {
         return {
           name: i.name || '',
           is_service: Boolean(i.is_service),
-          qty: i.qty || 1,
+          qty,
           unit: i.unit || 'PCS',
           price_opsi1: p1,
           total_opsi1: tot1,
           price_opsi2: p2,
           total_opsi2: tot2,
           price: i.price !== undefined ? i.price : 0,
-          subtotal: i.subtotal !== undefined ? i.subtotal : 0,
+          subtotal: tot1,
         };
       };
 
@@ -1093,19 +1132,27 @@ function EstimationBuilderContent() {
         }
       } else {
         if (!isP1Empty) {
-          if (hasTot1) {
-            const parsed1 = parseNumericPriceValue(it.total_opsi1);
-            if (!parsed1.isText) {
-              tot1Min += parsed1.num;
-              tot1Max += parsed1.num;
+          const parsedP1 = parseNumericPriceValue(p1Raw);
+          if (!parsedP1.isText) {
+            // Selalu recalculate dari price_opsi1 × qty sebagai dasar
+            let t1 = parsedP1.num * qty;
+            // Jika total_opsi1 tersimpan dan berbeda dari price saja (artinya sudah benar atau diedit manual),
+            // gunakan total tersimpan. Tapi jika total == price (bug data lama), pakai recalc.
+            if (hasTot1) {
+              const parsedTot1 = parseNumericPriceValue(it.total_opsi1);
+              if (!parsedTot1.isText) {
+                // Jika total_opsi1 == price_opsi1 padahal qty > 1 → data lama yang salah, pakai recalc
+                if (Math.abs(parsedTot1.num - parsedP1.num) < 1 && qty > 1) {
+                  t1 = parsedP1.num * qty;
+                } else {
+                  t1 = parsedTot1.num;
+                }
+              }
             }
-          } else {
-            const parsed1 = parseNumericPriceValue(p1Raw);
-            if (!parsed1.isText) {
-              const t1 = parsed1.num * qty;
-              tot1Min += Number.isNaN(t1) ? 0 : t1;
-              tot1Max += Number.isNaN(t1) ? 0 : t1;
-            }
+            tot1Min += Number.isNaN(t1) ? 0 : t1;
+            tot1Max += Number.isNaN(t1) ? 0 : t1;
+          } else if (hasTot1) {
+            // Price adalah teks (CEK dll) → gunakan total_opsi1 apa adanya (tidak di-sum)
           }
         }
         if (!isP2Empty) {
