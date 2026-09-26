@@ -196,7 +196,7 @@ export function PrintableEstimation({
     return `${formatCurrency(min)} – ${formatCurrency(max)}`;
   }
 
-  // Helper render harga kompak: bila harga panjang (terutama rentang/range), otomatis mengarah ke bawah (stacked)
+  // Helper render harga: jika rentang/range, tampilkan inline satu baris dengan separator "–"
   function renderCompactPrice(priceStr: string | number, customColor?: string) {
     if (priceStr === undefined || priceStr === null || priceStr === '') {
       return <span className={`font-mono ${customColor || ''}`}>Rp 0</span>;
@@ -206,35 +206,23 @@ export function PrintableEstimation({
       return <span className={`font-mono ${customColor || ''}`}>{str}</span>;
     }
 
-    if (str.includes('–') || (str.includes(' - ') && str.includes('Rp'))) {
-      const parts = str.includes('–') ? str.split('–') : str.split(' - ');
-      if (parts.length >= 2) {
-        const p1 = parts[0].trim();
-        const p2 = parts[1].trim();
-        return (
-          <div className={`flex flex-col items-end leading-tight text-right ${customColor || ''}`}>
-            <span className="font-mono whitespace-nowrap text-[10px]">{p1}</span>
-            <span className="font-mono text-[9px] opacity-80 whitespace-nowrap">– {p2}</span>
-          </div>
-        );
-      }
-    }
-
+    // Tampilkan range harga inline (satu baris), bukan ditumpuk, ukuran font sama
     return (
-      <span className={`font-mono text-right break-words leading-tight ${customColor || ''}`}>
+      <span className={`font-mono text-right whitespace-nowrap leading-tight ${customColor || ''}`}>
         {str}
       </span>
     );
   }
 
-  // Helper render subtotal/grand total kompak: bila angka rentang, otomatis mengarah ke bawah agar muat di kertas
+  // Helper render subtotal/grand total: bila angka rentang, tampilkan stacked dua baris (di sel total bawah agar rapi)
   function renderTotalCellCompact(min: number, max: number, customColor?: string) {
     if (min === 0 && max === 0) return <span className={`font-mono ${customColor || ''}`}>Rp 0</span>;
     if (min === max) return <span className={`font-mono ${customColor || ''}`}>{formatCurrency(min)}</span>;
+    // Untuk total/subtotal cell: tampilkan dua baris agar rapi
     return (
-      <div className={`flex flex-col items-end leading-tight text-right ${customColor || ''}`}>
-        <span className="font-mono whitespace-nowrap text-[10px]">{formatCurrency(min)}</span>
-        <span className="font-mono text-[9px] opacity-80 whitespace-nowrap">– {formatCurrency(max)}</span>
+      <div className={`flex flex-col items-end leading-snug text-right ${customColor || ''}`}>
+        <span className="font-mono font-black whitespace-nowrap">{formatCurrency(min)}</span>
+        <span className="font-mono font-semibold whitespace-nowrap opacity-75">– {formatCurrency(max)}</span>
       </div>
     );
   }
@@ -455,38 +443,38 @@ export function PrintableEstimation({
               <thead className="estimation-items-thead" style={{ display: 'table-row-group' }}>
                 {hasOpsi2 && hasOpsi2Detail ? (
                   <>
-                    <tr className="bg-slate-100 border-b border-black font-black text-black uppercase text-[10px]">
-                      <th rowSpan={2} className="p-1.5 w-7 text-center border-r border-black align-middle">No</th>
-                      <th rowSpan={2} className="p-1.5 border-r border-black align-middle">Saran/Perbaikan/Ganti Sparepart</th>
-                      <th colSpan={4} className="p-1 text-center border-r border-black bg-slate-200/80 text-black font-black text-[10.5px] uppercase tracking-wider">
+                    <tr className="bg-slate-100 border-b border-black font-black text-black uppercase text-[9.5px]">
+                      <th rowSpan={2} className="p-1 w-6 text-center border-r border-black align-middle">No</th>
+                      <th rowSpan={2} className="p-1.5 border-r border-black align-middle min-w-[100px]">Saran / Perbaikan / Ganti Sparepart</th>
+                      <th colSpan={4} className="p-1 text-center border-r border-black bg-slate-200/80 text-black font-black text-[10px] uppercase tracking-wider">
                         PILIHAN 1 (OPSI 1)
                       </th>
-                      <th colSpan={3} className="p-1 text-center bg-blue-100/70 text-blue-950 font-black text-[10.5px] uppercase tracking-wider">
+                      <th colSpan={3} className="p-1 text-center bg-blue-100/70 text-blue-950 font-black text-[10px] uppercase tracking-wider">
                         PILIHAN 2 (OPSI 2)
                       </th>
                     </tr>
-                    <tr className="bg-slate-50 border-b-2 border-black font-bold text-black uppercase text-[9.5px]">
-                      <th className="p-1 w-8 text-center border-r border-black">QTY</th>
-                      <th className="p-1 w-10 text-center border-r border-black">Satuan</th>
-                      <th className="p-1 w-[82px] text-right border-r border-black">Hrg Satuan</th>
-                      <th className="p-1 w-[88px] text-right border-r border-black">Total Opsi 1</th>
-                      <th className="p-1 w-8 text-center border-r border-black bg-blue-50/40 text-blue-950 font-black">QTY</th>
-                      <th className="p-1 w-[82px] text-right border-r border-black bg-blue-50/40 text-blue-950 font-black">Hrg Satuan</th>
-                      <th className="p-1 w-[88px] text-right bg-blue-50/40 text-blue-950 font-black">Total Opsi 2</th>
+                    <tr className="bg-slate-50 border-b-2 border-black font-bold text-black uppercase text-[9px]">
+                      <th className="p-1 w-7 text-center border-r border-black">QTY</th>
+                      <th className="p-1 w-9 text-center border-r border-black">SAT</th>
+                      <th className="p-1 w-[78px] text-right border-r border-black">HRG SAT</th>
+                      <th className="p-1 w-[84px] text-right border-r border-black">TOTAL 1</th>
+                      <th className="p-1 w-7 text-center border-r border-black bg-blue-50/40 text-blue-950 font-black">QTY</th>
+                      <th className="p-1 w-[78px] text-right border-r border-black bg-blue-50/40 text-blue-950 font-black">HRG SAT</th>
+                      <th className="p-1 w-[84px] text-right bg-blue-50/40 text-blue-950 font-black">TOTAL 2</th>
                     </tr>
                   </>
                 ) : (
                   <tr className="bg-slate-100 border-b-2 border-black font-black text-black uppercase text-[10px]">
                     <th className="p-1.5 w-7 text-center border-r border-black">No</th>
-                    <th className="p-1.5 border-r border-black">Saran/Perbaikan/Ganti Sparepart</th>
+                    <th className="p-1.5 border-r border-black">Saran / Perbaikan / Ganti Sparepart</th>
                     <th className="p-1.5 w-9 text-center border-r border-black">QTY</th>
                     <th className="p-1.5 w-11 text-center border-r border-black">Satuan</th>
                     <th className="p-1.5 w-[92px] text-right border-r border-black">Hrg Satuan</th>
-                    <th className={`p-1.5 ${hasOpsi2 ? 'w-[98px]' : 'w-[110px]'} text-right border-r border-black`}>
+                    <th className={`p-1.5 ${hasOpsi2 ? 'w-[100px]' : 'w-[110px]'} text-right border-r border-black`}>
                       {hasOpsi2 ? 'Total Opsi 1' : 'Total Harga'}
                     </th>
                     {hasOpsi2 && (
-                      <th className="p-1.5 w-[98px] text-right bg-blue-50/40 text-blue-950 font-black">
+                      <th className="p-1.5 w-[100px] text-right bg-blue-50/40 text-blue-950 font-black">
                         Total Opsi 2
                       </th>
                     )}
@@ -525,24 +513,24 @@ export function PrintableEstimation({
 
                   return (
                     <tr key={`t1-${idx}`} className="hover:bg-slate-50 estimation-item-row">
-                      <td className="p-1.5 text-center font-bold border-r border-black align-middle text-black">
+                      <td className="p-1 text-center font-bold border-r border-black align-middle text-black">
                         {idx + 1}
                       </td>
-                      <td className="p-1.5 border-r border-black align-middle">
+                      <td className="p-1 border-r border-black align-middle min-w-[90px]">
                         <div className="font-bold text-black uppercase break-words whitespace-normal leading-snug">
                           {item.name}
                         </div>
                       </td>
-                      <td className="p-1.5 text-center font-mono font-bold border-r border-black align-middle text-black">
+                      <td className="p-1 text-center font-mono font-bold border-r border-black align-middle text-black">
                         {qty}
                       </td>
-                      <td className="p-1.5 text-center text-[10px] font-black uppercase text-black border-r border-black align-middle">
+                      <td className="p-1 text-center text-[10px] font-black uppercase text-black border-r border-black align-middle">
                         {item.unit || 'PCS'}
                       </td>
-                      <td className="p-1.5 text-right border-r border-black align-middle font-mono font-bold text-black">
+                      <td className="p-1 text-right border-r border-black align-middle font-mono font-bold text-black">
                         {renderCompactPrice(p1Info.priceDisplay)}
                       </td>
-                      <td className="p-1.5 text-right font-mono font-black text-black border-r border-black align-middle">
+                      <td className="p-1 text-right font-mono font-black text-black border-r border-black align-middle">
                         {renderCompactPrice(p1Info.totalDisplay)}
                       </td>
                       {hasOpsi2 && (
@@ -619,24 +607,24 @@ export function PrintableEstimation({
 
                       return (
                         <tr key={`t2-${idx}`} className="hover:bg-slate-50 estimation-item-row">
-                          <td className="p-1.5 text-center font-bold border-r border-black align-middle text-black">
+                          <td className="p-1 text-center font-bold border-r border-black align-middle text-black">
                             {displayNum}
                           </td>
-                          <td className="p-1.5 border-r border-black align-middle">
+                          <td className="p-1 border-r border-black align-middle min-w-[90px]">
                             <div className="font-bold text-black uppercase break-words whitespace-normal leading-snug">
                               {item.name}
                             </div>
                           </td>
-                          <td className="p-1.5 text-center font-mono font-bold border-r border-black align-middle text-black">
+                          <td className="p-1 text-center font-mono font-bold border-r border-black align-middle text-black">
                             {qty}
                           </td>
-                          <td className="p-1.5 text-center text-[10px] font-black uppercase text-black border-r border-black align-middle">
+                          <td className="p-1 text-center text-[10px] font-black uppercase text-black border-r border-black align-middle">
                             {item.unit || 'PCS'}
                           </td>
-                          <td className="p-1.5 text-right border-r border-black align-middle font-mono font-bold text-black">
+                          <td className="p-1 text-right border-r border-black align-middle font-mono font-bold text-black">
                             {renderCompactPrice(p1Info.priceDisplay)}
                           </td>
-                          <td className="p-1.5 text-right font-mono font-black text-black border-r border-black align-middle">
+                          <td className="p-1 text-right font-mono font-black text-black border-r border-black align-middle">
                             {renderCompactPrice(p1Info.totalDisplay)}
                           </td>
                           {hasOpsi2 && (

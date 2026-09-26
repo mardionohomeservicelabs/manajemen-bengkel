@@ -2854,6 +2854,41 @@ export class DBService {
           paid_at: localSaved.payment_status === 'paid' ? (localSaved.paid_at || nowIso) : null,
           admin_notes: localSaved.admin_notes || null,
           updated_at: nowIso,
+          // ── Field Estimasi Lengkap (wajib agar lembar estimasi tidak hilang saat sync) ──
+          estimation_type: localSaved.estimation_type || null,
+          estimation_tab: localSaved.estimation_tab || null,
+          estimation_date: localSaved.estimation_date || null,
+          estimation_time: localSaved.estimation_time || null,
+          vehicle_status: (localSaved as any).vehicle_status || null,
+          payment_plan: (localSaved as any).payment_plan || null,
+          has_discount: localSaved.has_discount ?? false,
+          has_opsi2: localSaved.has_opsi2 ?? false,
+          has_opsi2_detail: localSaved.has_opsi2_detail ?? false,
+          has_tax: localSaved.has_tax ?? false,
+          has_range_price: (localSaved as any).has_range_price ?? false,
+          total_opsi1: localSaved.total_opsi1 ?? null,
+          total_opsi2: localSaved.total_opsi2 ?? null,
+          total_opsi1_max: (localSaved as any).total_opsi1_max ?? null,
+          total_opsi2_max: (localSaved as any).total_opsi2_max ?? null,
+          estimator_name: (localSaved as any).estimator_name || null,
+          estimator_signature: (localSaved as any).estimator_signature || null,
+          // ── Double Estimasi (Tabel 1 & Tabel 2) ──
+          has_second_table: localSaved.has_second_table ?? false,
+          table1_title: localSaved.table1_title || null,
+          table2_title: localSaved.table2_title || null,
+          items_table2: localSaved.items_table2 || null,
+          table1_total_opsi1: localSaved.table1_total_opsi1 ?? null,
+          table1_total_opsi2: localSaved.table1_total_opsi2 ?? null,
+          table2_total_opsi1: localSaved.table2_total_opsi1 ?? null,
+          table2_total_opsi2: localSaved.table2_total_opsi2 ?? null,
+          // ── Approval & TTD ──
+          ttd_status: localSaved.ttd_status || null,
+          ttd_token: (localSaved as any).ttd_token || null,
+          customer_approved_option: localSaved.customer_approved_option || null,
+          customer_response: localSaved.customer_response || null,
+          customer_response_note: localSaved.customer_response_note || null,
+          customer_signed_name: localSaved.customer_signed_name || null,
+          customer_signed_at: localSaved.customer_signed_at || null,
         };
 
         const client = supabase;
@@ -2901,23 +2936,47 @@ export class DBService {
         }
 
         // Perbarui status work_order di cloud secara instan
-        const nextStatus = (localSaved.type === 'invoice' && localSaved.payment_status === 'paid')
-          ? 'paid'
-          : (localSaved.type === 'estimation' ? 'estimating' : undefined);
+        let nextStatus: string | undefined;
+        if (localSaved.type === 'invoice') {
+          // Nota servis dibuat: jika sudah lunas → 'completed', jika belum → 'completed_service'
+          nextStatus = localSaved.payment_status === 'paid' ? 'completed' : 'completed_service';
+        } else if (localSaved.type === 'estimation') {
+          // Estimasi dibuat/diupdate: set status ke 'estimating'
+          nextStatus = 'estimating';
+        }
 
         if (nextStatus) {
           try {
+            // Tangani status enum: 'completed_service' mungkin tidak ada di DB lama, fallback ke 'servicing'
+            const updateWoPayload = { status: nextStatus, updated_at: nowIso };
             if (validWorkOrderId) {
-              await client
+              const resWo = await client
                 .from('work_orders')
-                .update({ status: nextStatus, updated_at: nowIso })
+                .update(updateWoPayload)
                 .eq('id', validWorkOrderId);
+              if (resWo.error?.code === '22P02') {
+                // Enum tidak dikenali DB → fallback
+                const fallback = nextStatus === 'completed_service' ? 'servicing' : nextStatus;
+                await client.from('work_orders').update({ status: fallback, updated_at: nowIso }).eq('id', validWorkOrderId);
+              }
             }
             if (spkNumberTarget) {
-              await client
+              const resWoSpk = await client
                 .from('work_orders')
-                .update({ status: nextStatus, updated_at: nowIso })
+                .update(updateWoPayload)
                 .eq('spk_number', spkNumberTarget);
+              if (resWoSpk.error?.code === '22P02') {
+                const fallback = nextStatus === 'completed_service' ? 'servicing' : nextStatus;
+                await client.from('work_orders').update({ status: fallback, updated_at: nowIso }).eq('spk_number', spkNumberTarget);
+              }
+            }
+            // Update juga status lokal supaya UI langsung sinkron tanpa perlu tunggu Realtime event
+            if (validWorkOrderId || spkNumberTarget) {
+              const allWosLocal = this.getAllWorkOrders();
+              const woLocal = allWosLocal.find((w) => w.id === validWorkOrderId || w.spk_number === spkNumberTarget);
+              if (woLocal) {
+                this.updateWorkOrderStatus(woLocal.id, nextStatus as WorkOrderStatus, 'sa', branch);
+              }
             }
           } catch (woErr) {
             console.warn('Failed to update work_order status with invoice:', woErr);
@@ -4893,13 +4952,31 @@ export class DBService {
             has_opsi2: row.has_opsi2,
             has_opsi2_detail: row.has_opsi2_detail,
             has_tax: row.has_tax,
+            has_range_price: row.has_range_price,
             total_opsi1: row.total_opsi1,
             total_opsi2: row.total_opsi2,
+            total_opsi1_max: row.total_opsi1_max,
+            total_opsi2_max: row.total_opsi2_max,
             ttd_status: row.ttd_status,
+            ttd_token: row.ttd_token,
             customer_signature: row.signature_customer_url || row.customer_signature,
             customer_signed_at: row.customer_signed_at,
             customer_signed_name: row.customer_signed_name,
             customer_approved_option: row.customer_approved_option,
+            paid_at: row.paid_at || undefined,
+            // ── Double Estimasi (Tabel 1 & Tabel 2) ──
+            has_second_table: row.has_second_table ?? false,
+            table1_title: row.table1_title || undefined,
+            table2_title: row.table2_title || undefined,
+            items_table2: Array.isArray(row.items_table2) ? row.items_table2 : (row.items_table2 || undefined),
+            table1_total_opsi1: row.table1_total_opsi1 ?? undefined,
+            table1_total_opsi1_max: row.table1_total_opsi1_max ?? undefined,
+            table1_total_opsi2: row.table1_total_opsi2 ?? undefined,
+            table1_total_opsi2_max: row.table1_total_opsi2_max ?? undefined,
+            table2_total_opsi1: row.table2_total_opsi1 ?? undefined,
+            table2_total_opsi1_max: row.table2_total_opsi1_max ?? undefined,
+            table2_total_opsi2: row.table2_total_opsi2 ?? undefined,
+            table2_total_opsi2_max: row.table2_total_opsi2_max ?? undefined,
           };
           cloudInvoicesMap.set(inv.invoice_number || inv.id, inv);
         });

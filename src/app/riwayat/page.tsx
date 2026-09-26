@@ -14,7 +14,6 @@ import {
   ClipboardList,
   Receipt,
   Search,
-  Filter,
   Calendar,
   Car,
   Unlock,
@@ -60,7 +59,6 @@ function HistoryArchiveContent() {
   const { workOrders, invoices, settings, currentRole, unlockWorkOrderAsync, deleteVehicleArchiveAsync } = useApp();
 
   const [searchQuery, setSearchQuery] = useState(initialSearch);
-  const [statusFilter, setStatusFilter] = useState('all');
 
   // Delete modal state (Owner)
   const [deletingEntry, setDeletingEntry] = useState<VehicleArchiveEntry | null>(null);
@@ -123,25 +121,30 @@ function HistoryArchiveContent() {
     return null;
   };
 
-  // Build unified Vehicle Archive Entries (murni per data mobil)
+  // Build unified Vehicle Archive Entries (hanya mobil yang sudah selesai & lunas)
   const archiveEntries = useMemo(() => {
     const entries: VehicleArchiveEntry[] = [];
-    const matchedInvoiceIds = new Set<string>();
+    const seenSpkNumbers = new Set<string>();
 
-    // 1. Map from work orders
+    // Hanya dari work orders yang statusnya completed ATAU sudah ada nota yang paid
     workOrders.forEach((wo) => {
-      const est = findEstimation(wo);
       const inv = findInvoice(wo);
+      const isPaid = inv?.payment_status === 'paid';
+      const isCompleted = wo.status === 'completed';
 
-      if (est?.id) matchedInvoiceIds.add(est.id);
-      if (inv?.id) matchedInvoiceIds.add(inv.id);
+      // Hanya masukkan arsip jika sudah selesai servis DAN sudah pembayaran nota
+      if (!isPaid && !isCompleted) return;
 
-      const isPaid = inv?.payment_status === 'paid' || wo.status === 'completed';
+      // Hindari double entry berdasarkan nomor SPK
+      if (seenSpkNumbers.has(wo.spk_number)) return;
+      seenSpkNumbers.add(wo.spk_number);
+
+      const est = findEstimation(wo);
 
       entries.push({
         id: wo.id,
         spkNumber: wo.spk_number,
-        entryDate: wo.created_at || wo.entry_date || '',
+        entryDate: inv?.paid_at || wo.created_at || wo.entry_date || '',
         licensePlate: wo.vehicle?.license_plate || '',
         carBrand: wo.vehicle?.car_brand || '',
         carModel: wo.vehicle?.car_model || '',
@@ -157,31 +160,7 @@ function HistoryArchiveContent() {
       });
     });
 
-    // 2. Check for unmatched invoices
-    invoices.forEach((inv) => {
-      if (!matchedInvoiceIds.has(inv.id)) {
-        const isEstimation = inv.type === 'estimation';
-        entries.push({
-          id: inv.id,
-          spkNumber: inv.work_order?.spk_number || inv.work_order_id || '-',
-          entryDate: inv.created_at || '',
-          licensePlate: inv.vehicle?.license_plate || '',
-          carBrand: inv.vehicle?.car_brand || '',
-          carModel: inv.vehicle?.car_model || '',
-          customerName: inv.vehicle?.customer_name || '',
-          phoneNumber: inv.vehicle?.phone_number || '',
-          complaints: inv.admin_notes || '',
-          status: inv.payment_status === 'paid' ? 'completed' : 'servicing',
-          isPaid: inv.payment_status === 'paid',
-          totalInvoice: inv.total_amount,
-          workOrder: inv.work_order || null,
-          estimation: isEstimation ? inv : null,
-          invoice: !isEstimation ? inv : null,
-        });
-      }
-    });
-
-    // Sort by entryDate descending
+    // Sort by entryDate descending (terbaru di atas)
     return entries.sort((a, b) => {
       const timeA = new Date(a.entryDate || 0).getTime() || 0;
       const timeB = new Date(b.entryDate || 0).getTime() || 0;
@@ -189,15 +168,14 @@ function HistoryArchiveContent() {
     });
   }, [workOrders, invoices]);
 
-  // Filtered Archive
+  // Filtered Archive (hanya mobil selesai & lunas, filter hanya pencarian)
   const filteredEntries = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     const cleanQ = q.replace(/\s+/g, '');
 
     return archiveEntries.filter((entry) => {
-      // Search matching
       const cleanPlate = (entry.licensePlate || '').toLowerCase().replace(/\s+/g, '');
-      const matchesSearch =
+      return (
         !q ||
         entry.spkNumber.toLowerCase().includes(q) ||
         (entry.customerName || '').toLowerCase().includes(q) ||
@@ -205,32 +183,17 @@ function HistoryArchiveContent() {
         (entry.carBrand || '').toLowerCase().includes(q) ||
         (entry.carModel || '').toLowerCase().includes(q) ||
         cleanPlate.includes(cleanQ) ||
-        (entry.complaints || '').toLowerCase().includes(q);
-
-      // Status matching
-      let matchesStatus = true;
-      if (statusFilter === 'completed') {
-        matchesStatus = entry.status === 'completed' || entry.isPaid;
-      } else if (statusFilter === 'servicing') {
-        matchesStatus = entry.status === 'servicing';
-      } else if (statusFilter === 'estimating') {
-        matchesStatus = entry.status === 'estimating';
-      } else if (statusFilter === 'queue') {
-        matchesStatus = entry.status === 'queue';
-      } else if (statusFilter === 'cancelled') {
-        matchesStatus = entry.status === 'cancelled';
-      }
-
-      return matchesSearch && matchesStatus;
+        (entry.complaints || '').toLowerCase().includes(q)
+      );
     });
-  }, [archiveEntries, searchQuery, statusFilter]);
+  }, [archiveEntries, searchQuery]);
 
-  // Statistics Summary (khusus data mobil)
+  // Statistics Summary
   const stats = useMemo(() => {
     const total = archiveEntries.length;
-    const completed = archiveEntries.filter((e) => e.status === 'completed' || e.isPaid).length;
-    const active = archiveEntries.filter((e) => e.status === 'servicing' || e.status === 'estimating' || e.status === 'queue').length;
-    return { total, completed, active };
+    const withInvoice = archiveEntries.filter((e) => Boolean(e.invoice)).length;
+    const withEstimation = archiveEntries.filter((e) => Boolean(e.estimation)).length;
+    return { total, withInvoice, withEstimation };
   }, [archiveEntries]);
 
   // Helper for status badge
@@ -291,42 +254,41 @@ function HistoryArchiveContent() {
           </div>
         </div>
 
-        {/* Quick Stats Banner (Khusus Data Mobil) */}
+        {/* Quick Stats Banner — Arsip Mobil Lunas */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
           <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center space-x-3">
             <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold">
               <Car className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-[11px] font-medium text-slate-500">Total Riwayat Mobil</div>
+              <div className="text-[11px] font-medium text-slate-500">Total Mobil Selesai</div>
               <div className="text-lg font-black text-slate-900">{stats.total} Mobil</div>
             </div>
           </div>
 
           <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center space-x-3">
             <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-              <CheckCircle2 className="w-4 h-4" />
+              <Receipt className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-[11px] font-medium text-slate-500">Mobil Selesai & Lunas</div>
-              <div className="text-lg font-black text-emerald-700">{stats.completed} Mobil</div>
+              <div className="text-[11px] font-medium text-slate-500">Memiliki Nota Pembayaran</div>
+              <div className="text-lg font-black text-emerald-700">{stats.withInvoice} Mobil</div>
             </div>
           </div>
 
           <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
-              <Clock className="w-4 h-4" />
+            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
+              <Calculator className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-[11px] font-medium text-slate-500">Mobil Masih Aktif</div>
-              <div className="text-lg font-black text-blue-700">{stats.active} Mobil</div>
+              <div className="text-[11px] font-medium text-slate-500">Memiliki Estimasi Biaya</div>
+              <div className="text-lg font-black text-amber-700">{stats.withEstimation} Mobil</div>
             </div>
           </div>
         </div>
 
-        {/* Search & Status Filter Bar */}
+        {/* Search Bar */}
         <div className="mt-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-card flex flex-col sm:flex-row gap-3 items-center justify-between">
-          {/* Search Input */}
           <div className="relative w-full sm:w-96">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
@@ -346,23 +308,8 @@ function HistoryArchiveContent() {
               </button>
             )}
           </div>
-
-          {/* Status Dropdown */}
-          <div className="flex items-center space-x-2 w-full sm:w-auto">
-            <Filter className="w-4 h-4 text-slate-400" />
-            <span className="text-xs text-slate-500 font-medium whitespace-nowrap">Filter Status:</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="text-xs px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 outline-none focus:ring-1 focus:ring-maroon-600 font-medium"
-            >
-              <option value="all">Semua Status Mobil</option>
-              <option value="completed">Selesai & Lunas</option>
-              <option value="servicing">Sedang Dikerjakan</option>
-              <option value="estimating">Dalam Estimasi</option>
-              <option value="queue">Antrean Masuk</option>
-              <option value="cancelled">Dibatalkan</option>
-            </select>
+          <div className="text-xs text-slate-400 font-medium whitespace-nowrap hidden sm:block">
+            Menampilkan mobil yang sudah selesai servis &amp; pembayaran
           </div>
         </div>
       </div>
@@ -374,9 +321,9 @@ function HistoryArchiveContent() {
             <Car className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <h3 className="text-base font-bold text-slate-800">Tidak ada riwayat kendaraan ditemukan</h3>
             <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-              {searchQuery || statusFilter !== 'all'
-                ? 'Coba sesuaikan kata kunci pencarian atau filter status untuk menemukan data mobil.'
-                : 'Belum ada data riwayat kendaraan yang tercatat di sistem.'}
+              {searchQuery
+                ? 'Coba sesuaikan kata kunci pencarian untuk menemukan data mobil.'
+                : 'Belum ada data riwayat kendaraan selesai & lunas yang tercatat di sistem.'}
             </p>
           </div>
         ) : (
