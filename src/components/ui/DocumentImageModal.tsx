@@ -65,6 +65,12 @@ export function DocumentImageModal({
         await document.fonts.ready;
       }
 
+      const isWideDocument = Boolean(
+        documentRef.current.querySelector('th[colspan="4"], th[colspan="3"], .estimation-items-table')
+      );
+      const exportWidth = isWideDocument ? 940 : 820;
+      const exportWidthPx = `${exportWidth}px`;
+
       const targetHeight = Math.max(
         documentRef.current.scrollHeight || 0,
         documentRef.current.offsetHeight || 0,
@@ -79,7 +85,7 @@ export function DocumentImageModal({
         logging: false,
         scrollX: 0,
         scrollY: 0,
-        windowWidth: 850,
+        windowWidth: exportWidth + 60,
         windowHeight: Math.max(targetHeight + 400, 1600),
         onclone: (clonedDoc, clonedElement) => {
           // 0. Inject style defaults ke cloned document untuk mencegah font fallback, offset baseline, & teks vertikal
@@ -139,8 +145,8 @@ export function DocumentImageModal({
             .font-semibold { font-weight: 600 !important; }
 
             /* ── min-w untuk kolom uraian ── */
-            [class*="min-w-"] { min-width: 180px !important; }
-            th[class*="min-w-"], td[class*="min-w-"] { min-width: 180px !important; }
+            [class*="min-w-"] { min-width: 220px !important; }
+            th[class*="min-w-"], td[class*="min-w-"] { min-width: 220px !important; }
 
             /* ── Pastikan badge, pill, bar judul tengah vertikal ── */
             span.rounded, span[class*="rounded"], div[class*="rounded"] {
@@ -152,7 +158,7 @@ export function DocumentImageModal({
             }
             th[rowspan], td[rowspan] {
               vertical-align: middle !important;
-              padding-top: 6px !important;
+              padding-top: 8px !important;
               padding-bottom: 6px !important;
             }
             /* Jangan biarkan sel harga wrap ke bawah */
@@ -166,8 +172,8 @@ export function DocumentImageModal({
           // 1. Reset root & body di dalam iframe klon agar tidak ada margin/padding/scrollbars
           clonedDoc.documentElement.style.margin = '0';
           clonedDoc.documentElement.style.padding = '0';
-          clonedDoc.documentElement.style.width = '820px';
-          clonedDoc.documentElement.style.minWidth = '820px';
+          clonedDoc.documentElement.style.width = exportWidthPx;
+          clonedDoc.documentElement.style.minWidth = exportWidthPx;
           clonedDoc.documentElement.style.height = 'auto';
           clonedDoc.documentElement.style.background = '#ffffff';
           clonedDoc.documentElement.style.writingMode = 'horizontal-tb';
@@ -175,8 +181,8 @@ export function DocumentImageModal({
 
           clonedDoc.body.style.margin = '0';
           clonedDoc.body.style.padding = '0';
-          clonedDoc.body.style.width = '820px';
-          clonedDoc.body.style.minWidth = '820px';
+          clonedDoc.body.style.width = exportWidthPx;
+          clonedDoc.body.style.minWidth = exportWidthPx;
           clonedDoc.body.style.height = 'auto';
           clonedDoc.body.style.background = '#ffffff';
           clonedDoc.body.style.overflow = 'visible';
@@ -187,8 +193,8 @@ export function DocumentImageModal({
           // 2. Unconstrain semua elemen ancestor di atas clonedElement
           let current: HTMLElement | null = clonedElement.parentElement;
           while (current && current !== clonedDoc.body) {
-            current.style.width = '820px';
-            current.style.maxWidth = '820px';
+            current.style.width = exportWidthPx;
+            current.style.maxWidth = exportWidthPx;
             current.style.minWidth = '0';
             current.style.padding = '0';
             current.style.margin = '0 auto';
@@ -201,12 +207,12 @@ export function DocumentImageModal({
           }
 
           // 3. Set styling persis untuk clonedElement (dokumen sheet A4)
-          clonedElement.style.width = '820px';
-          clonedElement.style.maxWidth = '820px';
-          clonedElement.style.minWidth = '820px';
+          clonedElement.style.width = exportWidthPx;
+          clonedElement.style.maxWidth = exportWidthPx;
+          clonedElement.style.minWidth = exportWidthPx;
           clonedElement.style.height = 'auto';
           clonedElement.style.margin = '0 auto';
-          clonedElement.style.padding = '28px 32px';
+          clonedElement.style.padding = isWideDocument ? '24px 24px' : '28px 32px';
           clonedElement.style.boxSizing = 'border-box';
           clonedElement.style.backgroundColor = '#ffffff';
           clonedElement.style.boxShadow = 'none';
@@ -257,8 +263,16 @@ export function DocumentImageModal({
               const c = cell as HTMLElement;
               c.style.overflow = 'visible';
               c.style.verticalAlign = 'middle';
-              if (c.classList.contains('whitespace-nowrap')) {
+              if (c.classList.contains('whitespace-nowrap') || c.querySelector('.whitespace-nowrap, .font-mono')) {
                 c.style.whiteSpace = 'nowrap';
+              }
+              if (c.tagName === 'TD' && (c as HTMLTableCellElement).cellIndex === 1 && !c.getAttribute('colspan')) {
+                c.style.minWidth = '220px';
+              }
+              if (c.tagName === 'TH' && c.hasAttribute('rowspan')) {
+                c.style.paddingTop = '10px';
+                c.style.paddingBottom = '6px';
+                c.style.verticalAlign = 'middle';
               }
               // Paksa whitespace-nowrap & inline-block pada span di dalam sel yang mengandung harga
               const nowrapSpans = c.querySelectorAll('.whitespace-nowrap, .font-mono');

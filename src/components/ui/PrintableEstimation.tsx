@@ -451,8 +451,8 @@ export function PrintableEstimation({
                 {hasOpsi2 && hasOpsi2Detail ? (
                   <>
                     <tr className="bg-slate-100 border-b border-black font-black text-black uppercase text-[9.5px]">
-                      <th rowSpan={2} className="py-2 px-1 w-6 text-center border-r border-black align-middle leading-tight font-black text-black">No</th>
-                      <th rowSpan={2} className="py-2 px-2 border-r border-black align-middle min-w-[180px] leading-tight font-black text-black">Saran / Perbaikan / Ganti Sparepart</th>
+                      <th rowSpan={2} className="py-2.5 px-1 w-6 text-center border-r border-black align-middle leading-snug font-black text-black">No</th>
+                      <th rowSpan={2} className="py-2.5 px-2 border-r border-black align-middle min-w-[200px] leading-snug font-black text-black">Saran / Perbaikan / Ganti Sparepart</th>
                       <th colSpan={4} className="p-1 text-center border-r border-black bg-slate-200/80 text-black font-black text-[10px] uppercase tracking-wider">
                         PILIHAN 1 (OPSI 1)
                       </th>
@@ -463,17 +463,17 @@ export function PrintableEstimation({
                     <tr className="bg-slate-50 border-b-2 border-black font-bold text-black uppercase text-[9px]">
                       <th className="p-1 w-7 text-center border-r border-black">QTY</th>
                       <th className="p-1 w-8 text-center border-r border-black">SAT</th>
-                      <th className="p-1 w-[76px] text-right border-r border-black">HRG SAT</th>
-                      <th className="p-1 w-[86px] text-right border-r border-black">TOTAL 1</th>
+                      <th className="p-1 w-[78px] text-right border-r border-black">HRG SAT</th>
+                      <th className="p-1 w-[95px] text-right border-r border-black">TOTAL 1</th>
                       <th className="p-1 w-7 text-center border-r border-black bg-blue-50/40 text-blue-950 font-black">QTY</th>
-                      <th className="p-1 w-[76px] text-right border-r border-black bg-blue-50/40 text-blue-950 font-black">HRG SAT</th>
-                      <th className="p-1 w-[86px] text-right bg-blue-50/40 text-blue-950 font-black">TOTAL 2</th>
+                      <th className="p-1 w-[78px] text-right border-r border-black bg-blue-50/40 text-blue-950 font-black">HRG SAT</th>
+                      <th className="p-1 w-[95px] text-right bg-blue-50/40 text-blue-950 font-black">TOTAL 2</th>
                     </tr>
                   </>
                 ) : (
                   <tr className="bg-slate-100 border-b-2 border-black font-black text-black uppercase text-[10px]">
                     <th className="p-1.5 w-7 text-center border-r border-black">No</th>
-                    <th className="p-1.5 border-r border-black min-w-[180px]">Saran / Perbaikan / Ganti Sparepart</th>
+                    <th className="p-1.5 border-r border-black min-w-[200px]">Saran / Perbaikan / Ganti Sparepart</th>
                     <th className="p-1.5 w-9 text-center border-r border-black">QTY</th>
                     <th className="p-1.5 w-11 text-center border-r border-black">Satuan</th>
                     <th className="p-1.5 w-[92px] text-right border-r border-black">Hrg Satuan</th>
@@ -523,7 +523,7 @@ export function PrintableEstimation({
                       <td className="p-1 text-center font-bold border-r border-black align-middle text-black">
                         {idx + 1}
                       </td>
-                      <td className="p-1 border-r border-black align-middle min-w-[180px]">
+                      <td className="p-1 border-r border-black align-middle min-w-[200px]">
                         <div className="font-bold text-black uppercase break-words whitespace-normal leading-snug">
                           {item.name}
                         </div>
@@ -617,7 +617,7 @@ export function PrintableEstimation({
                           <td className="p-1 text-center font-bold border-r border-black align-middle text-black">
                             {displayNum}
                           </td>
-                          <td className="p-1 border-r border-black align-middle min-w-[180px]">
+                          <td className="p-1 border-r border-black align-middle min-w-[200px]">
                             <div className="font-bold text-black uppercase break-words whitespace-normal leading-snug">
                               {item.name}
                             </div>
