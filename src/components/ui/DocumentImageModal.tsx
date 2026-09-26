@@ -119,20 +119,28 @@ export function DocumentImageModal({
             .break-words { word-break: break-word !important; overflow-wrap: break-word !important; }
 
             /* ── KRITIS: whitespace-nowrap harus terjaga agar harga range tidak wrap ke bawah ── */
-            .whitespace-nowrap { white-space: nowrap !important; }
-            span.whitespace-nowrap, td .whitespace-nowrap { white-space: nowrap !important; overflow: visible !important; }
+            .whitespace-nowrap {
+              white-space: nowrap !important;
+              display: inline-block !important;
+            }
+            span.whitespace-nowrap, td .whitespace-nowrap, td.whitespace-nowrap {
+              white-space: nowrap !important;
+              display: inline-block !important;
+              overflow: visible !important;
+            }
 
             /* ── font-mono untuk harga ── */
             .font-mono {
               font-family: 'Courier New', Courier, monospace !important;
               letter-spacing: -0.01em !important;
             }
-            .font-black { font-weight: 900 !important; }
+            .font-black { font-weight: 800 !important; }
             .font-bold  { font-weight: 700 !important; }
             .font-semibold { font-weight: 600 !important; }
 
             /* ── min-w untuk kolom uraian ── */
-            [class*="min-w-"] { min-width: 90px !important; }
+            [class*="min-w-"] { min-width: 180px !important; }
+            th[class*="min-w-"], td[class*="min-w-"] { min-width: 180px !important; }
 
             /* ── Pastikan badge, pill, bar judul tengah vertikal ── */
             span.rounded, span[class*="rounded"], div[class*="rounded"] {
@@ -140,12 +148,17 @@ export function DocumentImageModal({
             }
             th, td {
               vertical-align: middle !important;
-              white-space: normal;
+              line-height: 1.25 !important;
+            }
+            th[rowspan], td[rowspan] {
+              vertical-align: middle !important;
+              padding-top: 6px !important;
+              padding-bottom: 6px !important;
             }
             /* Jangan biarkan sel harga wrap ke bawah */
-            td span.font-mono, td .whitespace-nowrap {
+            td span.font-mono, td .whitespace-nowrap, td.whitespace-nowrap {
               white-space: nowrap !important;
-              display: inline !important;
+              display: inline-block !important;
             }
           `;
           clonedDoc.head.appendChild(styleTag);
@@ -244,11 +257,14 @@ export function DocumentImageModal({
               const c = cell as HTMLElement;
               c.style.overflow = 'visible';
               c.style.verticalAlign = 'middle';
-              // Paksa whitespace-nowrap pada span di dalam sel yang mengandung harga
+              if (c.classList.contains('whitespace-nowrap')) {
+                c.style.whiteSpace = 'nowrap';
+              }
+              // Paksa whitespace-nowrap & inline-block pada span di dalam sel yang mengandung harga
               const nowrapSpans = c.querySelectorAll('.whitespace-nowrap, .font-mono');
               nowrapSpans.forEach((s) => {
                 (s as HTMLElement).style.whiteSpace = 'nowrap';
-                (s as HTMLElement).style.display = 'inline';
+                (s as HTMLElement).style.display = 'inline-block';
                 (s as HTMLElement).style.overflow = 'visible';
               });
             });

@@ -353,20 +353,50 @@ function smartMergeInvoices(cloudItems: Invoice[], localItems: Invoice[]): Invoi
           customer_signed_name: cloud.customer_signed_name || local.customer_signed_name,
           customer_response: cloud.customer_response || local.customer_response,
           customer_response_note: cloud.customer_response_note || local.customer_response_note,
-          has_second_table: cloud.has_second_table ?? local.has_second_table,
+          has_second_table: Boolean(cloud.has_second_table || local.has_second_table),
           table1_title: cloud.table1_title || local.table1_title,
           table2_title: cloud.table2_title || local.table2_title,
-          items_table2: cloud.items_table2 || local.items_table2,
+          items_table2: (Array.isArray(cloud.items_table2) && cloud.items_table2.length > 0) ? cloud.items_table2 : local.items_table2,
+          has_opsi2: cloud.has_opsi2 ?? local.has_opsi2,
+          has_opsi2_detail: cloud.has_opsi2_detail ?? local.has_opsi2_detail,
+          has_range_price: (cloud as any).has_range_price ?? (local as any).has_range_price,
+          has_discount: cloud.has_discount ?? local.has_discount,
+          has_tax: cloud.has_tax ?? local.has_tax,
+          total_opsi1: cloud.total_opsi1 ?? local.total_opsi1,
+          total_opsi2: cloud.total_opsi2 ?? local.total_opsi2,
+          total_opsi1_max: (cloud as any).total_opsi1_max ?? (local as any).total_opsi1_max,
+          total_opsi2_max: (cloud as any).total_opsi2_max ?? (local as any).total_opsi2_max,
+          table1_total_opsi1: (cloud as any).table1_total_opsi1 ?? (local as any).table1_total_opsi1,
+          table1_total_opsi2: (cloud as any).table1_total_opsi2 ?? (local as any).table1_total_opsi2,
+          table2_total_opsi1: (cloud as any).table2_total_opsi1 ?? (local as any).table2_total_opsi1,
+          table2_total_opsi2: (cloud as any).table2_total_opsi2 ?? (local as any).table2_total_opsi2,
+          estimation_type: cloud.estimation_type || local.estimation_type,
+          estimation_tab: cloud.estimation_tab || local.estimation_tab,
+          estimation_date: cloud.estimation_date || local.estimation_date,
+          estimation_time: cloud.estimation_time || local.estimation_time,
+          vehicle_status: (cloud as any).vehicle_status || (local as any).vehicle_status,
+          payment_plan: (cloud as any).payment_plan || (local as any).payment_plan,
+          ttd_status: cloud.ttd_status || local.ttd_status,
+          ttd_token: (cloud as any).ttd_token || (local as any).ttd_token,
+          customer_approved_option: cloud.customer_approved_option || local.customer_approved_option,
+          tabs: (cloud as any).tabs || (local as any).tabs,
           vehicle: cloud.vehicle || local.vehicle,
           work_order: cloud.work_order || local.work_order,
           complaints: (cloud as any).complaints || (local as any).complaints || local.work_order?.complaints,
-        });
+        } as any as Invoice);
       } else {
         mergedMap.set(key, {
           ...cloud,
           ...local,
           id: cloud.id,
           items: (Array.isArray(local.items) && local.items.length > 0) ? local.items : cloud.items,
+          items_table2: (Array.isArray(local.items_table2) && local.items_table2.length > 0) ? local.items_table2 : cloud.items_table2,
+          has_second_table: Boolean(local.has_second_table || cloud.has_second_table),
+          table1_title: local.table1_title || cloud.table1_title,
+          table2_title: local.table2_title || cloud.table2_title,
+          has_opsi2: local.has_opsi2 ?? cloud.has_opsi2,
+          has_opsi2_detail: local.has_opsi2_detail ?? cloud.has_opsi2_detail,
+          has_range_price: (local as any).has_range_price ?? (cloud as any).has_range_price,
           estimated_duration: local.estimated_duration || cloud.estimated_duration,
           work_order: local.work_order || cloud.work_order,
           vehicle: local.vehicle || cloud.vehicle,
@@ -2854,41 +2884,6 @@ export class DBService {
           paid_at: localSaved.payment_status === 'paid' ? (localSaved.paid_at || nowIso) : null,
           admin_notes: localSaved.admin_notes || null,
           updated_at: nowIso,
-          // ── Field Estimasi Lengkap (wajib agar lembar estimasi tidak hilang saat sync) ──
-          estimation_type: localSaved.estimation_type || null,
-          estimation_tab: localSaved.estimation_tab || null,
-          estimation_date: localSaved.estimation_date || null,
-          estimation_time: localSaved.estimation_time || null,
-          vehicle_status: (localSaved as any).vehicle_status || null,
-          payment_plan: (localSaved as any).payment_plan || null,
-          has_discount: localSaved.has_discount ?? false,
-          has_opsi2: localSaved.has_opsi2 ?? false,
-          has_opsi2_detail: localSaved.has_opsi2_detail ?? false,
-          has_tax: localSaved.has_tax ?? false,
-          has_range_price: (localSaved as any).has_range_price ?? false,
-          total_opsi1: localSaved.total_opsi1 ?? null,
-          total_opsi2: localSaved.total_opsi2 ?? null,
-          total_opsi1_max: (localSaved as any).total_opsi1_max ?? null,
-          total_opsi2_max: (localSaved as any).total_opsi2_max ?? null,
-          estimator_name: (localSaved as any).estimator_name || null,
-          estimator_signature: (localSaved as any).estimator_signature || null,
-          // ── Double Estimasi (Tabel 1 & Tabel 2) ──
-          has_second_table: localSaved.has_second_table ?? false,
-          table1_title: localSaved.table1_title || null,
-          table2_title: localSaved.table2_title || null,
-          items_table2: localSaved.items_table2 || null,
-          table1_total_opsi1: localSaved.table1_total_opsi1 ?? null,
-          table1_total_opsi2: localSaved.table1_total_opsi2 ?? null,
-          table2_total_opsi1: localSaved.table2_total_opsi1 ?? null,
-          table2_total_opsi2: localSaved.table2_total_opsi2 ?? null,
-          // ── Approval & TTD ──
-          ttd_status: localSaved.ttd_status || null,
-          ttd_token: (localSaved as any).ttd_token || null,
-          customer_approved_option: localSaved.customer_approved_option || null,
-          customer_response: localSaved.customer_response || null,
-          customer_response_note: localSaved.customer_response_note || null,
-          customer_signed_name: localSaved.customer_signed_name || null,
-          customer_signed_at: localSaved.customer_signed_at || null,
         };
 
         const client = supabase;
@@ -2899,9 +2894,9 @@ export class DBService {
           .upsert(payload, { onConflict: 'invoice_number' })
           .select('*');
 
-        // Jika terjadi schema cache error karena kolom tidak ada di tabel invoices, hapus kolom offending dan retry secara rekursif/loop
+        // Jika terjadi schema cache error karena kolom tidak ada di tabel invoices, hapus kolom offending dan retry secara loop
         let schemaAttempts = 0;
-        while (error && error.message?.includes('Could not find the') && error.message?.includes('column of \'invoices\'') && schemaAttempts < 5) {
+        while (error && error.message?.includes('Could not find the') && error.message?.includes('in the schema cache') && schemaAttempts < 25) {
           schemaAttempts++;
           const match = error.message.match(/Could not find the '([^']+)' column/);
           if (match && match[1] && payload[match[1]] !== undefined) {
@@ -4965,10 +4960,14 @@ export class DBService {
             customer_approved_option: row.customer_approved_option,
             paid_at: row.paid_at || undefined,
             // ── Double Estimasi (Tabel 1 & Tabel 2) ──
-            has_second_table: row.has_second_table ?? false,
+            has_second_table: Boolean(row.has_second_table || (Array.isArray(row.items) && row.items.some((it: any) => it.section === 2))),
             table1_title: row.table1_title || undefined,
             table2_title: row.table2_title || undefined,
-            items_table2: Array.isArray(row.items_table2) ? row.items_table2 : (row.items_table2 || undefined),
+            items_table2: (Array.isArray(row.items_table2) && row.items_table2.length > 0)
+              ? row.items_table2
+              : (Array.isArray(row.items) && row.items.some((it: any) => it.section === 2)
+                  ? row.items.filter((it: any) => it.section === 2)
+                  : undefined),
             table1_total_opsi1: row.table1_total_opsi1 ?? undefined,
             table1_total_opsi1_max: row.table1_total_opsi1_max ?? undefined,
             table1_total_opsi2: row.table1_total_opsi2 ?? undefined,
@@ -4990,22 +4989,31 @@ export class DBService {
             } else {
               const existing = cloudInvoicesMap.get(key)!;
               cloudInvoicesMap.set(key, {
-                ...ext,
                 ...existing,
-                estimated_duration: existing.estimated_duration || ext.estimated_duration,
-                estimator_name: existing.estimator_name || ext.estimator_name,
-                estimator_signature: existing.estimator_signature || ext.estimator_signature,
-                customer_signature: existing.customer_signature || ext.customer_signature,
-                customer_signed_name: existing.customer_signed_name || ext.customer_signed_name,
-                customer_response: existing.customer_response || ext.customer_response,
-                customer_response_note: existing.customer_response_note || ext.customer_response_note,
-                has_second_table: existing.has_second_table ?? ext.has_second_table,
-                table1_title: existing.table1_title || ext.table1_title,
-                table2_title: existing.table2_title || ext.table2_title,
-                items_table2: existing.items_table2 || ext.items_table2,
-                vehicle: existing.vehicle || ext.vehicle,
-                work_order: existing.work_order || ext.work_order,
-                complaints: (existing as any).complaints || (ext as any).complaints || ext.work_order?.complaints,
+                ...ext,
+                id: existing.id || ext.id,
+                invoice_number: existing.invoice_number || ext.invoice_number,
+                payment_status: existing.payment_status === 'paid' ? 'paid' : (ext.payment_status || existing.payment_status),
+                paid_at: existing.paid_at || ext.paid_at,
+                subtotal: existing.subtotal || ext.subtotal,
+                total_amount: existing.total_amount || ext.total_amount,
+                items: (Array.isArray(ext.items) && ext.items.length > 0) ? ext.items : existing.items,
+                has_second_table: Boolean(ext.has_second_table || existing.has_second_table),
+                items_table2: (Array.isArray(ext.items_table2) && ext.items_table2.length > 0)
+                  ? ext.items_table2
+                  : existing.items_table2,
+                table1_title: ext.table1_title || existing.table1_title,
+                table2_title: ext.table2_title || existing.table2_title,
+                estimated_duration: ext.estimated_duration || existing.estimated_duration,
+                estimator_name: ext.estimator_name || existing.estimator_name,
+                estimator_signature: ext.estimator_signature || existing.estimator_signature,
+                customer_signature: ext.customer_signature || existing.customer_signature,
+                customer_signed_name: ext.customer_signed_name || existing.customer_signed_name,
+                customer_response: ext.customer_response || existing.customer_response,
+                customer_response_note: ext.customer_response_note || existing.customer_response_note,
+                vehicle: ext.vehicle || existing.vehicle,
+                work_order: ext.work_order || existing.work_order,
+                complaints: (ext as any).complaints || (existing as any).complaints || ext.work_order?.complaints,
               });
             }
           }
