@@ -435,8 +435,8 @@ function EstimationBuilderContent() {
       } catch {}
     }
 
-    // Validasi apakah draftData memiliki item yang terisi
-    const isDraftValid =
+    // Validasi apakah draftData memiliki item yang terisi (cek tabel 1 DAN tabel 2)
+    const hasDraftTable1Items =
       draftData &&
       Array.isArray(draftData.items) &&
       draftData.items.length > 0 &&
@@ -446,6 +446,17 @@ function EstimationBuilderContent() {
           (i.price_opsi1 !== undefined && i.price_opsi1 !== '' && i.price_opsi1 !== 0 && i.price_opsi1 !== '0') ||
           (i.price_opsi2 !== undefined && i.price_opsi2 !== '' && i.price_opsi2 !== 0 && i.price_opsi2 !== '0')
       );
+    const hasDraftTable2Items =
+      draftData &&
+      draftData.has_second_table &&
+      Array.isArray(draftData.items_table2) &&
+      draftData.items_table2.length > 0 &&
+      draftData.items_table2.some(
+        (i: any) =>
+          (i.name && i.name.trim()) ||
+          (i.price_opsi1 !== undefined && i.price_opsi1 !== '' && i.price_opsi1 !== 0 && i.price_opsi1 !== '0')
+      );
+    const isDraftValid = hasDraftTable1Items || hasDraftTable2Items;
 
     // Prioritas: Utamakan draftData terbaru agar data yang sedang diinputkan tidak hilang jika komputer mati atau direload
     let sourceData = existingEst;
@@ -453,12 +464,21 @@ function EstimationBuilderContent() {
       if (!existingEst) {
         sourceData = draftData;
       } else {
+        // Gabungkan existingEst (data tersimpan) dengan draftData (perubahan lokal terbaru).
+        // Untuk field double-estimasi, prioritaskan draftData jika ada nilainya, fallback ke existingEst.
         sourceData = {
           ...existingEst,
           ...draftData,
           id: existingEst.id,
           invoice_number: existingEst.invoice_number,
           created_at: existingEst.created_at,
+          // Pastikan field double-estimasi tidak hilang jika draft tidak menyertakannya
+          has_second_table: draftData.has_second_table !== undefined ? draftData.has_second_table : existingEst.has_second_table,
+          table1_title: draftData.table1_title || existingEst.table1_title,
+          table2_title: draftData.table2_title || existingEst.table2_title,
+          items_table2: (Array.isArray(draftData.items_table2) && draftData.items_table2.length > 0)
+            ? draftData.items_table2
+            : (existingEst.items_table2 || []),
         };
       }
     }

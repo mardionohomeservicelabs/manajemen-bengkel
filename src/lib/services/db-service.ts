@@ -89,12 +89,10 @@ export function sanitizeChecklistData(checklist: any): any {
     }
   }
 
-  // Jika ada estimation utama, bersihkan duplikasi tab 1/2/3 yang identik
-  if (clean.estimation) {
-    delete clean.estimation_tab_1;
-    delete clean.estimation_tab_2;
-    delete clean.estimation_tab_3;
-  }
+  // JANGAN hapus estimation_tab_X karena setiap tab bisa berisi data estimasi terpisah.
+  // Baris berikut sengaja dikomentari untuk mencegah data double-estimasi hilang:
+  // (sebelumnya kode ini menghapus estimation_tab_1/2/3 jika ada estimation utama)
+  // → FIX: pertahankan SEMUA key estimation_tab_* agar multi-tab tidak hilang.
 
   // Ringankan checkup_records: buang duplicate temporary checkup IDs
   if (clean.checkup_records && typeof clean.checkup_records === 'object') {
@@ -2886,6 +2884,77 @@ export class DBService {
           updated_at: nowIso,
         };
 
+        // Helper: tambahkan field ke payload HANYA jika nilainya bukan null/undefined/string-kosong.
+        // Ini mencegah error "Could not find column '...' in the schema cache" untuk kolom yang
+        // belum ada di tabel Supabase, karena Supabase memvalidasi nama kolom bahkan untuk nilai null.
+        const addIfDefined = (key: string, value: any) => {
+          if (value !== null && value !== undefined && value !== '') {
+            payload[key] = value;
+          }
+        };
+        const addBoolIfDefined = (key: string, value: any) => {
+          if (value !== null && value !== undefined) payload[key] = value;
+        };
+        const addNumIfDefined = (key: string, value: any) => {
+          if (value !== null && value !== undefined) payload[key] = value;
+        };
+
+        const ls = localSaved as any;
+
+        // ── Metadata Estimasi ─────────────────────────────────────────────────
+        addIfDefined('estimation_type', ls.estimation_type);
+        addIfDefined('estimation_tab', ls.estimation_tab);
+        addIfDefined('estimation_date', ls.estimation_date);
+        addIfDefined('estimation_time', ls.estimation_time);
+        addIfDefined('vehicle_status', ls.vehicle_status);
+        addIfDefined('payment_plan', ls.payment_plan);
+        addIfDefined('estimator_name', ls.estimator_name);
+        addIfDefined('estimator_signature', ls.estimator_signature || ls.signature_admin_url);
+        addIfDefined('estimated_duration', ls.estimated_duration);
+        addIfDefined('customer_response', ls.customer_response);
+        addIfDefined('customer_response_note', ls.customer_response_note);
+        addIfDefined('complaints', ls.complaints);
+        addIfDefined('tab_id', ls.tab_id);
+        addIfDefined('tabs', ls.tabs);
+        addIfDefined('ttd_status', ls.ttd_status);
+        addIfDefined('ttd_token', ls.ttd_token);
+        addIfDefined('signature_customer_url', ls.signature_customer_url || ls.customer_signature);
+        addIfDefined('signature_admin_url', ls.signature_admin_url || ls.estimator_signature);
+        addIfDefined('customer_signature', ls.customer_signature);
+        addIfDefined('customer_signed_at', ls.customer_signed_at);
+        addIfDefined('customer_signed_name', ls.customer_signed_name);
+        addIfDefined('customer_approved_option', ls.customer_approved_option);
+        addIfDefined('spk_number', ls.spk_number);
+        addIfDefined('petugas_name', ls.petugas_name || ls.sa_name);
+        addIfDefined('sa_name', ls.sa_name || ls.petugas_name);
+        // Boolean toggles
+        addBoolIfDefined('has_discount', ls.has_discount);
+        addBoolIfDefined('has_opsi2', ls.has_opsi2);
+        addBoolIfDefined('has_opsi2_detail', ls.has_opsi2_detail);
+        addBoolIfDefined('has_tax', ls.has_tax);
+        addBoolIfDefined('has_range_price', ls.has_range_price);
+        // Numerik totals
+        addNumIfDefined('total_opsi1', ls.total_opsi1);
+        addNumIfDefined('total_opsi1_max', ls.total_opsi1_max);
+        addNumIfDefined('total_opsi2', ls.total_opsi2);
+        addNumIfDefined('total_opsi2_max', ls.total_opsi2_max);
+
+        // ── Double Estimasi (Tabel 1 & Tabel 2) ──────────────────────────────
+        addBoolIfDefined('has_second_table', ls.has_second_table);
+        addIfDefined('table1_title', ls.table1_title);
+        addIfDefined('table2_title', ls.table2_title);
+        if (ls.has_second_table && Array.isArray(ls.items_table2) && ls.items_table2.length > 0) {
+          payload.items_table2 = ls.items_table2;
+        }
+        addNumIfDefined('subtotal_table1_opsi1', ls.subtotal_table1_opsi1);
+        addNumIfDefined('subtotal_table1_opsi2', ls.subtotal_table1_opsi2);
+        addNumIfDefined('subtotal_table2_opsi1', ls.subtotal_table2_opsi1);
+        addNumIfDefined('subtotal_table2_opsi2', ls.subtotal_table2_opsi2);
+        addNumIfDefined('table1_total_opsi1', ls.table1_total_opsi1);
+        addNumIfDefined('table1_total_opsi2', ls.table1_total_opsi2);
+        addNumIfDefined('table2_total_opsi1', ls.table2_total_opsi1);
+        addNumIfDefined('table2_total_opsi2', ls.table2_total_opsi2);
+
         const client = supabase;
         if (!client) return localSaved;
 
@@ -2894,9 +2963,11 @@ export class DBService {
           .upsert(payload, { onConflict: 'invoice_number' })
           .select('*');
 
-        // Jika terjadi schema cache error karena kolom tidak ada di tabel invoices, hapus kolom offending dan retry secara loop
+        // Jika terjadi schema cache error karena kolom tidak ada di tabel invoices,
+        // hapus kolom offending dan retry secara loop.
+        // Limit dinaikkan ke 60 untuk mengakomodasi banyak kolom estimasi baru.
         let schemaAttempts = 0;
-        while (error && error.message?.includes('Could not find the') && error.message?.includes('in the schema cache') && schemaAttempts < 25) {
+        while (error && error.message?.includes('Could not find the') && error.message?.includes('in the schema cache') && schemaAttempts < 60) {
           schemaAttempts++;
           const match = error.message.match(/Could not find the '([^']+)' column/);
           if (match && match[1] && payload[match[1]] !== undefined) {
@@ -2979,12 +3050,32 @@ export class DBService {
         }
 
         if (data && data[0]) {
+          const cloudRow = data[0];
           return {
+            // Spread localSaved terlebih dahulu agar semua field double-estimasi terjaga
             ...localSaved,
-            ...data[0],
-            items: (Array.isArray(data[0].items) && data[0].items.length > 0) ? data[0].items : localSaved.items,
-            signature_customer_url: data[0].signature_customer_url || localSaved.signature_customer_url,
-            signature_admin_url: data[0].signature_admin_url || localSaved.signature_admin_url,
+            // Override hanya field yang dikelola cloud (ID, timestamp, payment)
+            id: cloudRow.id || localSaved.id,
+            invoice_number: cloudRow.invoice_number || localSaved.invoice_number,
+            created_at: cloudRow.created_at || localSaved.created_at,
+            updated_at: cloudRow.updated_at || localSaved.updated_at,
+            payment_status: cloudRow.payment_status || localSaved.payment_status,
+            payment_method: cloudRow.payment_method || localSaved.payment_method,
+            paid_at: cloudRow.paid_at || localSaved.paid_at,
+            // Items: gunakan cloud jika lebih lengkap, fallback ke lokal
+            items: (Array.isArray(cloudRow.items) && cloudRow.items.length > 0) ? cloudRow.items : localSaved.items,
+            // Signature: gabungkan dari kedua sumber
+            signature_customer_url: cloudRow.signature_customer_url || localSaved.signature_customer_url || (localSaved as any).customer_signature,
+            signature_admin_url: cloudRow.signature_admin_url || localSaved.signature_admin_url || (localSaved as any).estimator_signature,
+            customer_signature: (localSaved as any).customer_signature || cloudRow.signature_customer_url,
+            // Double-estimasi: SELALU ambil dari localSaved (sumber kebenaran)
+            has_second_table: (localSaved as any).has_second_table ?? Boolean(cloudRow.has_second_table),
+            table1_title: (localSaved as any).table1_title || cloudRow.table1_title,
+            table2_title: (localSaved as any).table2_title || cloudRow.table2_title,
+            items_table2: (Array.isArray((localSaved as any).items_table2) && (localSaved as any).items_table2.length > 0)
+              ? (localSaved as any).items_table2
+              : (Array.isArray(cloudRow.items_table2) && cloudRow.items_table2.length > 0 ? cloudRow.items_table2 : (localSaved as any).items_table2),
+            // Relasi tetap dari lokal
             vehicle: localSaved.vehicle,
             work_order: localSaved.work_order,
           };
