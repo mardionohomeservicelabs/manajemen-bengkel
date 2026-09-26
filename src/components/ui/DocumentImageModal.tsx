@@ -65,12 +65,6 @@ export function DocumentImageModal({
         await document.fonts.ready;
       }
 
-      const isWideDocument = Boolean(
-        documentRef.current.querySelector('th[colspan="4"], th[colspan="3"], .estimation-items-table')
-      );
-      const exportWidth = isWideDocument ? 940 : 820;
-      const exportWidthPx = `${exportWidth}px`;
-
       const targetHeight = Math.max(
         documentRef.current.scrollHeight || 0,
         documentRef.current.offsetHeight || 0,
@@ -85,7 +79,7 @@ export function DocumentImageModal({
         logging: false,
         scrollX: 0,
         scrollY: 0,
-        windowWidth: exportWidth + 60,
+        windowWidth: 850,
         windowHeight: Math.max(targetHeight + 400, 1600),
         onclone: (clonedDoc, clonedElement) => {
           // 0. Inject style defaults ke cloned document untuk mencegah font fallback, offset baseline, & teks vertikal
@@ -105,66 +99,29 @@ export function DocumentImageModal({
               display: inline-block !important;
               vertical-align: middle !important;
             }
-
-            /* ── Tailwind utility overrides ── */
             .w-3\\.5, .h-3\\.5 { width: 14px !important; height: 14px !important; min-width: 14px !important; min-height: 14px !important; }
             .w-2\\.5, .h-2\\.5 { width: 10px !important; height: 10px !important; }
             .flex { display: flex !important; }
             .inline-flex { display: inline-flex !important; }
             .items-center { align-items: center !important; }
-            .items-end { align-items: flex-end !important; }
             .justify-center { justify-content: center !important; }
             .justify-between { justify-content: space-between !important; }
-            .text-right { text-align: right !important; }
-            .text-left { text-align: left !important; }
-            .text-center { text-align: center !important; }
             .grid-cols-12 { display: flex !important; flex-direction: row !important; width: 100% !important; }
             .col-span-4 { width: 33.333% !important; flex-shrink: 0 !important; }
             .col-span-8 { width: 66.667% !important; flex-grow: 1 !important; }
             .truncate { overflow: visible !important; text-overflow: clip !important; white-space: normal !important; }
             .break-words { word-break: break-word !important; overflow-wrap: break-word !important; }
+            .whitespace-nowrap { white-space: nowrap !important; }
 
-            /* ── KRITIS: whitespace-nowrap harus terjaga agar harga range tidak wrap ke bawah ── */
-            .whitespace-nowrap {
-              white-space: nowrap !important;
-              display: inline-block !important;
-            }
-            span.whitespace-nowrap, td .whitespace-nowrap, td.whitespace-nowrap {
-              white-space: nowrap !important;
-              display: inline-block !important;
-              overflow: visible !important;
-            }
-
-            /* ── font-mono untuk harga ── */
-            .font-mono {
-              font-family: 'Courier New', Courier, monospace !important;
-              letter-spacing: -0.01em !important;
-            }
-            .font-black { font-weight: 800 !important; }
-            .font-bold  { font-weight: 700 !important; }
-            .font-semibold { font-weight: 600 !important; }
-
-            /* ── min-w untuk kolom uraian ── */
-            [class*="min-w-"] { min-width: 220px !important; }
-            th[class*="min-w-"], td[class*="min-w-"] { min-width: 220px !important; }
-
-            /* ── Pastikan badge, pill, bar judul tengah vertikal ── */
+            /* Pastikan badge, pill, dan bar judul berada tepat di tengah vertikal */
             span.rounded, span[class*="rounded"], div[class*="rounded"] {
               vertical-align: middle !important;
             }
+            .leading-none, .leading-tight, .leading-snug {
+              line-height: normal !important;
+            }
             th, td {
               vertical-align: middle !important;
-              line-height: 1.25 !important;
-            }
-            th[rowspan], td[rowspan] {
-              vertical-align: middle !important;
-              padding-top: 8px !important;
-              padding-bottom: 6px !important;
-            }
-            /* Jangan biarkan sel harga wrap ke bawah */
-            td span.font-mono, td .whitespace-nowrap, td.whitespace-nowrap {
-              white-space: nowrap !important;
-              display: inline-block !important;
             }
           `;
           clonedDoc.head.appendChild(styleTag);
@@ -172,8 +129,8 @@ export function DocumentImageModal({
           // 1. Reset root & body di dalam iframe klon agar tidak ada margin/padding/scrollbars
           clonedDoc.documentElement.style.margin = '0';
           clonedDoc.documentElement.style.padding = '0';
-          clonedDoc.documentElement.style.width = exportWidthPx;
-          clonedDoc.documentElement.style.minWidth = exportWidthPx;
+          clonedDoc.documentElement.style.width = '820px';
+          clonedDoc.documentElement.style.minWidth = '820px';
           clonedDoc.documentElement.style.height = 'auto';
           clonedDoc.documentElement.style.background = '#ffffff';
           clonedDoc.documentElement.style.writingMode = 'horizontal-tb';
@@ -181,8 +138,8 @@ export function DocumentImageModal({
 
           clonedDoc.body.style.margin = '0';
           clonedDoc.body.style.padding = '0';
-          clonedDoc.body.style.width = exportWidthPx;
-          clonedDoc.body.style.minWidth = exportWidthPx;
+          clonedDoc.body.style.width = '820px';
+          clonedDoc.body.style.minWidth = '820px';
           clonedDoc.body.style.height = 'auto';
           clonedDoc.body.style.background = '#ffffff';
           clonedDoc.body.style.overflow = 'visible';
@@ -193,8 +150,8 @@ export function DocumentImageModal({
           // 2. Unconstrain semua elemen ancestor di atas clonedElement
           let current: HTMLElement | null = clonedElement.parentElement;
           while (current && current !== clonedDoc.body) {
-            current.style.width = exportWidthPx;
-            current.style.maxWidth = exportWidthPx;
+            current.style.width = '820px';
+            current.style.maxWidth = '820px';
             current.style.minWidth = '0';
             current.style.padding = '0';
             current.style.margin = '0 auto';
@@ -207,12 +164,12 @@ export function DocumentImageModal({
           }
 
           // 3. Set styling persis untuk clonedElement (dokumen sheet A4)
-          clonedElement.style.width = exportWidthPx;
-          clonedElement.style.maxWidth = exportWidthPx;
-          clonedElement.style.minWidth = exportWidthPx;
+          clonedElement.style.width = '820px';
+          clonedElement.style.maxWidth = '820px';
+          clonedElement.style.minWidth = '820px';
           clonedElement.style.height = 'auto';
           clonedElement.style.margin = '0 auto';
-          clonedElement.style.padding = isWideDocument ? '24px 24px' : '28px 32px';
+          clonedElement.style.padding = '28px 32px';
           clonedElement.style.boxSizing = 'border-box';
           clonedElement.style.backgroundColor = '#ffffff';
           clonedElement.style.boxShadow = 'none';
@@ -251,37 +208,12 @@ export function DocumentImageModal({
             el.style.overflow = 'visible';
           });
 
-          // 6. Pastikan semua tabel proporsional & sel harga tidak wrap
+          // 6. Pastikan semua tabel proporsional
           const tables = clonedElement.querySelectorAll('table');
           tables.forEach((table) => {
             (table as HTMLElement).style.width = '100%';
             (table as HTMLElement).style.borderCollapse = 'collapse';
             (table as HTMLElement).style.tableLayout = 'auto';
-            // Pastikan sel dengan whitespace-nowrap tidak terpotong
-            const allCells = table.querySelectorAll('th, td');
-            allCells.forEach((cell) => {
-              const c = cell as HTMLElement;
-              c.style.overflow = 'visible';
-              c.style.verticalAlign = 'middle';
-              if (c.classList.contains('whitespace-nowrap') || c.querySelector('.whitespace-nowrap, .font-mono')) {
-                c.style.whiteSpace = 'nowrap';
-              }
-              if (c.tagName === 'TD' && (c as HTMLTableCellElement).cellIndex === 1 && !c.getAttribute('colspan')) {
-                c.style.minWidth = '220px';
-              }
-              if (c.tagName === 'TH' && c.hasAttribute('rowspan')) {
-                c.style.paddingTop = '10px';
-                c.style.paddingBottom = '6px';
-                c.style.verticalAlign = 'middle';
-              }
-              // Paksa whitespace-nowrap & inline-block pada span di dalam sel yang mengandung harga
-              const nowrapSpans = c.querySelectorAll('.whitespace-nowrap, .font-mono');
-              nowrapSpans.forEach((s) => {
-                (s as HTMLElement).style.whiteSpace = 'nowrap';
-                (s as HTMLElement).style.display = 'inline-block';
-                (s as HTMLElement).style.overflow = 'visible';
-              });
-            });
           });
 
           // 7. Perbaiki tampilan checkbox Unicode (☑ ☐) — ganti agar konsisten di semua browser
