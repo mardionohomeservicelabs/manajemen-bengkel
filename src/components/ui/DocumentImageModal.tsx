@@ -99,29 +99,53 @@ export function DocumentImageModal({
               display: inline-block !important;
               vertical-align: middle !important;
             }
+
+            /* ── Tailwind utility overrides ── */
             .w-3\\.5, .h-3\\.5 { width: 14px !important; height: 14px !important; min-width: 14px !important; min-height: 14px !important; }
             .w-2\\.5, .h-2\\.5 { width: 10px !important; height: 10px !important; }
             .flex { display: flex !important; }
             .inline-flex { display: inline-flex !important; }
             .items-center { align-items: center !important; }
+            .items-end { align-items: flex-end !important; }
             .justify-center { justify-content: center !important; }
             .justify-between { justify-content: space-between !important; }
+            .text-right { text-align: right !important; }
+            .text-left { text-align: left !important; }
+            .text-center { text-align: center !important; }
             .grid-cols-12 { display: flex !important; flex-direction: row !important; width: 100% !important; }
             .col-span-4 { width: 33.333% !important; flex-shrink: 0 !important; }
             .col-span-8 { width: 66.667% !important; flex-grow: 1 !important; }
             .truncate { overflow: visible !important; text-overflow: clip !important; white-space: normal !important; }
             .break-words { word-break: break-word !important; overflow-wrap: break-word !important; }
-            .whitespace-nowrap { white-space: nowrap !important; }
 
-            /* Pastikan badge, pill, dan bar judul berada tepat di tengah vertikal */
+            /* ── KRITIS: whitespace-nowrap harus terjaga agar harga range tidak wrap ke bawah ── */
+            .whitespace-nowrap { white-space: nowrap !important; }
+            span.whitespace-nowrap, td .whitespace-nowrap { white-space: nowrap !important; overflow: visible !important; }
+
+            /* ── font-mono untuk harga ── */
+            .font-mono {
+              font-family: 'Courier New', Courier, monospace !important;
+              letter-spacing: -0.01em !important;
+            }
+            .font-black { font-weight: 900 !important; }
+            .font-bold  { font-weight: 700 !important; }
+            .font-semibold { font-weight: 600 !important; }
+
+            /* ── min-w untuk kolom uraian ── */
+            [class*="min-w-"] { min-width: 90px !important; }
+
+            /* ── Pastikan badge, pill, bar judul tengah vertikal ── */
             span.rounded, span[class*="rounded"], div[class*="rounded"] {
               vertical-align: middle !important;
             }
-            .leading-none, .leading-tight, .leading-snug {
-              line-height: normal !important;
-            }
             th, td {
               vertical-align: middle !important;
+              white-space: normal;
+            }
+            /* Jangan biarkan sel harga wrap ke bawah */
+            td span.font-mono, td .whitespace-nowrap {
+              white-space: nowrap !important;
+              display: inline !important;
             }
           `;
           clonedDoc.head.appendChild(styleTag);
@@ -208,12 +232,26 @@ export function DocumentImageModal({
             el.style.overflow = 'visible';
           });
 
-          // 6. Pastikan semua tabel proporsional
+          // 6. Pastikan semua tabel proporsional & sel harga tidak wrap
           const tables = clonedElement.querySelectorAll('table');
           tables.forEach((table) => {
             (table as HTMLElement).style.width = '100%';
             (table as HTMLElement).style.borderCollapse = 'collapse';
             (table as HTMLElement).style.tableLayout = 'auto';
+            // Pastikan sel dengan whitespace-nowrap tidak terpotong
+            const allCells = table.querySelectorAll('th, td');
+            allCells.forEach((cell) => {
+              const c = cell as HTMLElement;
+              c.style.overflow = 'visible';
+              c.style.verticalAlign = 'middle';
+              // Paksa whitespace-nowrap pada span di dalam sel yang mengandung harga
+              const nowrapSpans = c.querySelectorAll('.whitespace-nowrap, .font-mono');
+              nowrapSpans.forEach((s) => {
+                (s as HTMLElement).style.whiteSpace = 'nowrap';
+                (s as HTMLElement).style.display = 'inline';
+                (s as HTMLElement).style.overflow = 'visible';
+              });
+            });
           });
 
           // 7. Perbaiki tampilan checkbox Unicode (☑ ☐) — ganti agar konsisten di semua browser
