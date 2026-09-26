@@ -214,16 +214,16 @@ export function PrintableEstimation({
     );
   }
 
-  // Helper render subtotal/grand total: bila angka rentang, tampilkan stacked dua baris (di sel total bawah agar rapi)
+  // Helper render subtotal/grand total: harga range ditampilkan inline (satu baris) dengan separator ' – '
+  // Ukuran dan ketebalan font sama dengan harga biasa — tidak ditumpuk ke bawah
   function renderTotalCellCompact(min: number, max: number, customColor?: string) {
-    if (min === 0 && max === 0) return <span className={`font-mono ${customColor || ''}`}>Rp 0</span>;
-    if (min === max) return <span className={`font-mono ${customColor || ''}`}>{formatCurrency(min)}</span>;
-    // Untuk total/subtotal cell: tampilkan dua baris agar rapi
+    if (min === 0 && max === 0) return <span className={`font-mono font-black ${customColor || ''}`}>Rp 0</span>;
+    if (min === max) return <span className={`font-mono font-black ${customColor || ''}`}>{formatCurrency(min)}</span>;
+    // Range: inline satu baris — Rp X.000 – Rp Y.000
     return (
-      <div className={`flex flex-col items-end leading-snug text-right ${customColor || ''}`}>
-        <span className="font-mono font-black whitespace-nowrap">{formatCurrency(min)}</span>
-        <span className="font-mono font-semibold whitespace-nowrap opacity-75">– {formatCurrency(max)}</span>
-      </div>
+      <span className={`font-mono font-black whitespace-nowrap ${customColor || ''}`}>
+        {formatCurrency(min)}&nbsp;–&nbsp;{formatCurrency(max)}
+      </span>
     );
   }
 
@@ -536,18 +536,18 @@ export function PrintableEstimation({
                       {hasOpsi2 && (
                         hasOpsi2Detail ? (
                           <>
-                            <td className="p-1.5 text-center font-mono font-bold border-r border-black align-middle text-blue-950 bg-blue-50/20">
+                            <td className="p-1 text-center font-mono font-bold border-r border-black align-middle text-blue-950 bg-blue-50/20">
                               {qty2}
                             </td>
-                            <td className="p-1.5 text-right border-r border-black align-middle font-mono font-bold text-blue-950 bg-blue-50/20">
+                            <td className="p-1 text-right border-r border-black align-middle font-mono font-bold text-blue-950 bg-blue-50/20">
                               {renderCompactPrice(p2Info.priceDisplay, 'text-blue-950')}
                             </td>
-                            <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
+                            <td className="p-1 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
                               {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
                             </td>
                           </>
                         ) : (
-                          <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
+                          <td className="p-1 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
                             {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
                           </td>
                         )
@@ -630,18 +630,18 @@ export function PrintableEstimation({
                           {hasOpsi2 && (
                             hasOpsi2Detail ? (
                               <>
-                                <td className="p-1.5 text-center font-mono font-bold border-r border-black align-middle text-blue-950 bg-blue-50/20">
+                                <td className="p-1 text-center font-mono font-bold border-r border-black align-middle text-blue-950 bg-blue-50/20">
                                   {qty2}
                                 </td>
-                                <td className="p-1.5 text-right border-r border-black align-middle font-mono font-bold text-blue-950 bg-blue-50/20">
+                                <td className="p-1 text-right border-r border-black align-middle font-mono font-bold text-blue-950 bg-blue-50/20">
                                   {renderCompactPrice(p2Info.priceDisplay, 'text-blue-950')}
                                 </td>
-                                <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
+                                <td className="p-1 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
                                   {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
                                 </td>
                               </>
                             ) : (
-                              <td className="p-1.5 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
+                              <td className="p-1 text-right font-mono font-black text-blue-950 bg-blue-50/20 align-middle">
                                 {renderCompactPrice(p2Info.totalDisplay, 'text-blue-950')}
                               </td>
                             )
