@@ -4993,9 +4993,11 @@ export class DBService {
       }
 
       // 3. Fetch Invoices & Estimations — SMART MERGE
+      // Join ke vehicles_customers agar data kendaraan & pelanggan selalu tersedia
+      // terutama saat koreksi nota / pembayaran ulang yang sebelumnya hanya menyimpan vehicle_id
       const { data: invData, error: invErr } = await supabase
         .from('invoices')
-        .select('*')
+        .select('*, vehicle:vehicles_customers(id, customer_name, phone_number, license_plate, car_brand, car_model, car_year, current_mileage)')
         .order('created_at', { ascending: false });
 
       if (!invErr && invData) {
@@ -5008,6 +5010,17 @@ export class DBService {
             type: row.type || (row.invoice_number?.startsWith('EST-') ? 'estimation' : 'invoice'),
             work_order_id: row.work_order_id || undefined,
             vehicle_id: row.vehicle_id,
+            // Embed vehicle object dari join agar laporan keuangan selalu punya data kendaraan
+            vehicle: row.vehicle ? {
+              id: row.vehicle.id,
+              customer_name: row.vehicle.customer_name,
+              phone_number: row.vehicle.phone_number || '',
+              license_plate: row.vehicle.license_plate,
+              car_brand: row.vehicle.car_brand,
+              car_model: row.vehicle.car_model,
+              car_year: row.vehicle.car_year || undefined,
+              current_mileage: row.vehicle.current_mileage || 0,
+            } : undefined,
             items: Array.isArray(row.items) ? row.items : [],
             subtotal: Number(row.subtotal) || 0,
             discount_amount: Number(row.discount_amount) || 0,

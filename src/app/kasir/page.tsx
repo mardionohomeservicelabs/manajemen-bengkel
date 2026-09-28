@@ -571,6 +571,11 @@ function CashierContent() {
         type: 'invoice',
         work_order_id: selectedSpk.id,
         vehicle_id: selectedSpk.vehicle_id,
+        // Sertakan object vehicle & work_order secara langsung agar laporan keuangan
+        // selalu dapat menampilkan info kendaraan & pelanggan (mencegah data kosong saat
+        // mode koreksi nota / pembayaran susulan / reload dari Supabase)
+        vehicle: selectedSpk.vehicle || targetPaidInvoice?.vehicle || undefined,
+        work_order: selectedSpk || targetPaidInvoice?.work_order || undefined,
         items: uppercaseItems,
         subtotal: calculatedSubtotal,
         discount_amount: discountAmount,
