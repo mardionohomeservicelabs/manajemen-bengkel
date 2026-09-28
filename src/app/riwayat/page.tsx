@@ -503,6 +503,15 @@ function HistoryArchiveContent() {
                             </Link>
                           )}
                         </div>
+                      ) : entry.status === 'completed' && currentRole === 'owner' ? (
+                        <Link
+                          href={`/kasir?spkId=${entry.workOrder?.id}`}
+                          className="flex items-center justify-center space-x-2 bg-violet-50 hover:bg-violet-100 text-violet-900 border border-violet-300 hover:border-violet-500 px-3.5 py-2 rounded-xl text-xs font-bold shadow-2xs transition active:scale-95 group cursor-pointer"
+                          title="Buat Nota & Bayar Susulan di Kasir (Khusus Owner)"
+                        >
+                          <Receipt className="w-3.5 h-3.5 text-violet-600 group-hover:scale-110 transition" />
+                          <span>Bayar Sekarang</span>
+                        </Link>
                       ) : (
                         <div className="flex items-center justify-center space-x-1.5 bg-slate-100 text-slate-400 border border-slate-200 px-3 py-2 rounded-xl text-xs font-medium cursor-not-allowed">
                           <Receipt className="w-3.5 h-3.5 text-slate-300" />

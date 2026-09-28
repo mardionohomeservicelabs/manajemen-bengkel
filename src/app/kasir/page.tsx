@@ -372,14 +372,28 @@ function CashierContent() {
         (selectedSpk?.spk_number && inv.work_order_id === selectedSpk.spk_number))
   );
 
+  // Cek apakah ada nota apapun (termasuk yang belum lunas) untuk SPK ini
+  const allInvsForLock = allInvoices.length > 0 ? allInvoices : invoices;
+  const existingAnyInvoice = allInvsForLock.find(
+    (inv) =>
+      inv.type === 'invoice' &&
+      (inv.work_order_id === selectedSpk?.id ||
+        (selectedSpk?.spk_number && inv.work_order_id === selectedSpk.spk_number))
+  );
+
+  // SPK arsip (completed) yang belum pernah punya nota = owner bisa buat nota susulan langsung
+  const isArchivedWithoutInvoice =
+    selectedSpk?.status === 'completed' && !existingAnyInvoice;
+
   const isAlreadyFinished = Boolean(
-    selectedSpk?.status === 'completed' ||
+    (selectedSpk?.status === 'completed' && existingAnyInvoice) ||
     selectedSpk?.status === 'paid' ||
     existingPaidInvoice
   );
 
   // Khusus Owner dalam Mode Koreksi Nota: Buka kunci nota agar dapat diubah & dibayar ulang
-  const isLockedForRole = isAlreadyFinished && !(currentRole === 'owner' && isOwnerEditMode);
+  // Juga buka kunci jika SPK arsip belum pernah punya nota (owner bisa buat nota susulan)
+  const isLockedForRole = isAlreadyFinished && !(currentRole === 'owner' && (isOwnerEditMode || isArchivedWithoutInvoice));
 
   // Calculations
   const subtotal = items.reduce((sum, item) => sum + parseNumericPrice(item.subtotal), 0);
@@ -686,6 +700,35 @@ function CashierContent() {
       });
   }, [canAccessAll, selectedBranch, workOrders, allWorkOrders, allInvoices, invoices]);
 
+  // SPK yang sudah ter-arsip (status 'completed') NAMUN belum pernah ada nota/pembayaran sama sekali
+  // Khusus Owner: untuk memungkinkan pembayaran susulan jika admin lupa input nota
+  const archivedUnpaidOrders = React.useMemo(() => {
+    if (currentRole !== 'owner') return [];
+    const allInvs = allInvoices.length > 0 ? allInvoices : invoices;
+    const source = !canAccessAll
+      ? workOrders
+      : selectedBranch === 'ALL'
+      ? allWorkOrders
+      : allWorkOrders.filter((w) => resolveWorkOrderBranch(w) === selectedBranch);
+
+    return source
+      .filter((wo) => {
+        if (wo.status !== 'completed') return false;
+        // Cek apakah sudah ada invoice (nota) untuk SPK ini, apapun statusnya
+        const hasAnyInvoice = allInvs.some(
+          (inv) =>
+            inv.type === 'invoice' &&
+            (inv.work_order_id === wo.id || (wo.spk_number && inv.work_order_id === wo.spk_number))
+        );
+        return !hasAnyInvoice;
+      })
+      .sort((a, b) => {
+        const timeA = new Date(a.created_at || a.entry_date || 0).getTime() || 0;
+        const timeB = new Date(b.created_at || b.entry_date || 0).getTime() || 0;
+        return timeB - timeA;
+      });
+  }, [currentRole, canAccessAll, selectedBranch, workOrders, allWorkOrders, allInvoices, invoices]);
+
   return (
     <div>
       <div className="no-print space-y-6">
@@ -784,6 +827,18 @@ function CashierContent() {
               })
             )}
           </optgroup>
+          {currentRole === 'owner' && archivedUnpaidOrders.length > 0 && (
+            <optgroup label={`📁 Arsip Belum Dibayar — Pembayaran Susulan (${archivedUnpaidOrders.length} Unit - Khusus Owner)`}>
+              {archivedUnpaidOrders.map((wo) => {
+                const branchBadge = canAccessAll ? `[${resolveWorkOrderBranch(wo)}] ` : '';
+                return (
+                  <option key={wo.id} value={wo.id}>
+                    📁 [ARSIP - BELUM BAYAR] {branchBadge}{wo.spk_number} • {wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''} • {wo.vehicle?.customer_name} ({wo.vehicle?.car_brand} {wo.vehicle?.car_model})
+                  </option>
+                );
+              })}
+            </optgroup>
+          )}
           {currentRole === 'owner' && (
             <optgroup label={`🔧 Koreksi Nota Laporan (${activeBranch} - Khusus Owner)`}>
               {[...invoices, ...allInvoices]
@@ -840,9 +895,31 @@ function CashierContent() {
             </div>
           </div>
         )}
+        {/* Banner Pembayaran Susulan - SPK Arsip tanpa Nota (Khusus Owner) */}
+        {selectedSpk && isArchivedWithoutInvoice && currentRole === 'owner' && (
+          <div className="bg-violet-50 border-2 border-violet-400 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-violet-950 shadow-sm mt-3 animate-in fade-in duration-200">
+            <div className="flex items-start space-x-3">
+              <FileCheck className="w-5 h-5 text-violet-700 flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h4 className="text-xs font-black uppercase tracking-wide text-violet-950">
+                    Mode Pembayaran Susulan — SPK Arsip Belum Dibayar (Khusus Owner)
+                  </h4>
+                  <span className="text-[10px] font-mono font-black bg-violet-200 text-violet-950 px-2 py-0.5 rounded-md border border-violet-300">
+                    {selectedSpk.spk_number}
+                  </span>
+                </div>
+                <p className="text-xs text-violet-900 mt-0.5 leading-relaxed">
+                  SPK kendaraan <strong>{selectedSpk.vehicle?.license_plate ? formatPlate(selectedSpk.vehicle.license_plate) : ''} ({selectedSpk.vehicle?.customer_name})</strong> sudah diarsipkan namun belum pernah ada nota pembayaran. Sebagai Owner, Anda dapat membuat nota dan menyelesaikan pembayaran susulan untuk SPK ini.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
-        {/* Locked Banner: Mobil Sudah Selesai / Lunas (Hanya jika BUKAN dalam mode koreksi) */}
-        {selectedSpk && isAlreadyFinished && !isOwnerEditMode && (
+
+        {/* Locked Banner: Mobil Sudah Selesai / Lunas (Hanya jika BUKAN dalam mode koreksi dan bukan arsip tanpa nota) */}
+        {selectedSpk && isAlreadyFinished && !isOwnerEditMode && !isArchivedWithoutInvoice && (
           <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-emerald-950 shadow-sm mt-3 animate-in fade-in duration-200">
             <div className="flex items-start space-x-3">
               <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
