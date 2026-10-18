@@ -346,6 +346,8 @@ function EstimationBuilderContent() {
   const [currentDateStr, setCurrentDateStr] = useState<string>('');
   const lastLoadedSpkId = useRef<string>('');
   const loadedFormSpkIdRef = useRef<string>('');
+  // Timestamp terakhir kali data berhasil disimpan ke cloud (untuk mencegah Realtime event dari save sendiri menimpa state form)
+  const lastSaveTimestampRef = useRef<number>(0);
 
   useEffect(() => {
     const updateTime = () => {
@@ -739,6 +741,7 @@ function EstimationBuilderContent() {
         const found = availableOrders.find((w) => w.id === targetId || w.spk_number === targetId);
         if (found) {
           if (lastLoadedSpkId.current !== found.id) {
+            // SPK baru dipilih - load penuh
             lastLoadedSpkId.current = found.id;
             setSelectedSpk(found);
             setSelectedSpkId(found.id);
@@ -750,6 +753,8 @@ function EstimationBuilderContent() {
             loadEstimationForSpk(found);
           } else {
             // SPK sama tapi workOrders/invoices terupdate (misal perubahan dari perangkat lain / customer TTD / edit SPK)
+            // PENTING: Jangan reset form jika baru saja disimpan (dalam 5 detik terakhir) untuk mencegah race condition
+            const isFreshSave = Date.now() - lastSaveTimestampRef.current < 5000;
             setSelectedSpk(found);
             const updatedTabs = discoverTabsForSpk(found, invoices);
             if (updatedTabs.length > 0 && JSON.stringify(updatedTabs) !== JSON.stringify(tabList)) {
@@ -767,12 +772,14 @@ function EstimationBuilderContent() {
             const latestEst = estInChecklist || matchingInvoice;
             if (latestEst) {
               const isExternalUpdate =
+                !isFreshSave &&
                 latestEst.updated_at &&
                 currentEstimationRecord?.updated_at &&
                 new Date(latestEst.updated_at).getTime() > new Date(currentEstimationRecord.updated_at).getTime();
 
               const customerSig = latestEst.customer_signature || latestEst.signature_customer_url;
               if (customerSig && customerSig !== customerSignature) {
+                // Update tanda tangan customer yang baru diterima dari link TTD
                 setCustomerSignature(customerSig);
                 setCustomerSignedName(latestEst.customer_signed_name || found.vehicle?.customer_name || '');
                 if (latestEst.customer_response) setCustomerResponse(latestEst.customer_response);
@@ -789,9 +796,9 @@ function EstimationBuilderContent() {
                 if (latestEst.estimator_name) setEstimatorName(latestEst.estimator_name);
               }
 
-              // Jika ada pembaruan data eksternal dari perangkat lain dan pengguna tidak sedang mengetik aktif di form
-              const isUserTyping = typeof document !== 'undefined' && 
-                document.activeElement && 
+              // Jika ada pembaruan data eksternal dari perangkat lain dan pengguna tidak sedang mengetik aktif
+              const isUserTyping = typeof document !== 'undefined' &&
+                document.activeElement &&
                 (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
 
               if (isExternalUpdate && !isUserTyping) {
@@ -1731,6 +1738,8 @@ function EstimationBuilderContent() {
       }
 
       // 4. Segarkan state lokal
+      // Tandai waktu save agar Realtime event dari save sendiri tidak menimpa state form aktif
+      lastSaveTimestampRef.current = Date.now();
       refreshData();
 
       // 5. Update state tampilan & indikator tersimpan

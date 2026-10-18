@@ -3150,16 +3150,27 @@ export class DBService {
           (w.checklist_data as any)?.estimation?.id === idOrToken
       );
       if (foundWo && foundWo.checklist_data?.estimation) {
-        const est = foundWo.checklist_data.estimation;
+        const est = foundWo.checklist_data.estimation as any;
+        const clData = foundWo.checklist_data as any;
         const resolvedPetugas =
           est.petugas_name ||
-          (est as any).sa_name ||
+          est.sa_name ||
           foundWo.petugas_name ||
-          (foundWo.checklist_data as any)?.petugas_name ||
+          clData?.petugas_name ||
           (foundWo as any).sa_name ||
           foundWo.sa_profile?.full_name ||
           APP_USERS.find((u) => u.id === foundWo.sa_id)?.full_name ||
           undefined;
+
+        // Gabungkan items_table2 dari estimasi atau checklist_data jika ada
+        const estItemsTable2 = Array.isArray(est.items_table2) && est.items_table2.length > 0
+          ? est.items_table2
+          : (Array.isArray(clData?.items_table2) && clData.items_table2.length > 0 ? clData.items_table2 : []);
+        const estHasSecondTable = Boolean(
+          est.has_second_table ||
+          estItemsTable2.length > 0 ||
+          (Array.isArray(est.items) && est.items.some((it: any) => it.section === 2))
+        );
 
         return {
           estimation: {
@@ -3169,6 +3180,10 @@ export class DBService {
             work_order: foundWo,
             petugas_name: resolvedPetugas,
             sa_name: resolvedPetugas,
+            has_second_table: estHasSecondTable,
+            items_table2: estItemsTable2,
+            table1_title: est.table1_title || clData?.table1_title || undefined,
+            table2_title: est.table2_title || clData?.table2_title || undefined,
           },
           branch: b,
         };
@@ -3264,13 +3279,39 @@ export class DBService {
             APP_USERS.find((u) => u.id === woRecord?.sa_id)?.full_name ||
             undefined;
 
+          // Gabungkan items: prioritaskan nestedEst.items, fallback ke row.items dari tabel invoices
+          // PENTING: nestedEst bisa null jika invoice tidak disimpan di checklist_data WO,
+          // dalam kasus itu row.items sudah merupakan sumber kebenaran yang benar.
+          const finalItems = (nestedEst?.items && Array.isArray(nestedEst.items) && nestedEst.items.length > 0)
+            ? nestedEst.items
+            : rawItems;
+
+          // Double estimasi: cek dari nestedEst ATAU dari row langsung (karena bisa tersimpan di kedua tempat)
+          const finalHasSecondTable = Boolean(
+            nestedEst?.has_second_table ||
+            row.has_second_table ||
+            (Array.isArray(nestedEst?.items_table2) && nestedEst.items_table2.length > 0) ||
+            (Array.isArray(row.items_table2) && row.items_table2.length > 0) ||
+            (Array.isArray(finalItems) && finalItems.some((it: any) => it.section === 2))
+          );
+          const finalItemsTable2 =
+            (Array.isArray(nestedEst?.items_table2) && nestedEst.items_table2.length > 0)
+              ? nestedEst.items_table2
+              : (Array.isArray(row.items_table2) && row.items_table2.length > 0
+                  ? row.items_table2
+                  : (Array.isArray(finalItems) && finalItems.some((it: any) => it.section === 2)
+                      ? finalItems.filter((it: any) => it.section === 2)
+                      : []));
+
           const inv: Invoice = {
             id: row.id,
             invoice_number: row.invoice_number,
             type: row.type || 'estimation',
             work_order_id: row.work_order_id || woRecord?.id || row.work_order?.id || undefined,
             vehicle_id: row.vehicle_id,
-            items: rawItems,
+            items: finalHasSecondTable && finalItems.some((it: any) => it.section === 2)
+              ? finalItems.filter((it: any) => it.section !== 2)
+              : finalItems,
             subtotal: Number(nestedEst?.subtotal || row.subtotal) || 0,
             discount_amount: Number(nestedEst?.discount_amount || row.discount_amount) || 0,
             tax_percent: Number(nestedEst?.tax_percent || row.tax_percent) || 0,
@@ -3288,56 +3329,67 @@ export class DBService {
               row.work_order?.signature_url ||
               undefined,
             signature_admin_url:
-              nestedEst?.signature_admin_url || nestedEst?.estimator_signature || undefined,
+              nestedEst?.signature_admin_url || nestedEst?.estimator_signature || row.signature_admin_url || undefined,
             created_at: nestedEst?.created_at || row.created_at,
             updated_at: nestedEst?.updated_at || row.updated_at,
-            estimation_type: nestedEst?.estimation_type || undefined,
-            estimation_tab: nestedEst?.estimation_tab || nestedEst?.tab_id || undefined,
-            estimation_date: nestedEst?.estimation_date || undefined,
-            estimation_time: nestedEst?.estimation_time || undefined,
-            vehicle_status: nestedEst?.vehicle_status || undefined,
-            payment_plan: nestedEst?.payment_plan || undefined,
-            estimator_name: nestedEst?.estimator_name || undefined,
+            estimation_type: nestedEst?.estimation_type || row.estimation_type || undefined,
+            estimation_tab: nestedEst?.estimation_tab || nestedEst?.tab_id || row.estimation_tab || row.tab_id || undefined,
+            estimation_date: nestedEst?.estimation_date || row.estimation_date || undefined,
+            estimation_time: nestedEst?.estimation_time || row.estimation_time || undefined,
+            vehicle_status: nestedEst?.vehicle_status || row.vehicle_status || undefined,
+            payment_plan: nestedEst?.payment_plan || row.payment_plan || undefined,
+            estimator_name: nestedEst?.estimator_name || row.estimator_name || undefined,
             estimator_signature:
-              nestedEst?.estimator_signature || nestedEst?.signature_admin_url || undefined,
-            estimated_duration: nestedEst?.estimated_duration || undefined,
-            customer_response: nestedEst?.customer_response || undefined,
-            customer_response_note: nestedEst?.customer_response_note || undefined,
+              nestedEst?.estimator_signature || nestedEst?.signature_admin_url || row.estimator_signature || row.signature_admin_url || undefined,
+            estimated_duration: nestedEst?.estimated_duration || row.estimated_duration || undefined,
+            customer_response: nestedEst?.customer_response || row.customer_response || undefined,
+            customer_response_note: nestedEst?.customer_response_note || row.customer_response_note || undefined,
+            complaints: woRecord?.complaints || row.work_order?.complaints || nestedEst?.complaints || row.complaints || undefined,
             has_discount:
               nestedEst?.has_discount !== undefined
                 ? nestedEst.has_discount
-                : Number(row.discount_amount) > 0,
+                : (row.has_discount !== undefined ? row.has_discount : Number(row.discount_amount) > 0),
             has_opsi2: hasOpsi2,
-            has_opsi2_detail: Boolean(nestedEst?.has_opsi2_detail),
+            has_opsi2_detail: Boolean(nestedEst?.has_opsi2_detail || row.has_opsi2_detail),
             has_tax:
-              nestedEst?.has_tax !== undefined ? nestedEst.has_tax : Number(row.tax_percent) > 0,
-            has_range_price: nestedEst?.has_range_price || false,
+              nestedEst?.has_tax !== undefined ? nestedEst.has_tax : (row.has_tax !== undefined ? row.has_tax : Number(row.tax_percent) > 0),
+            has_range_price: Boolean(nestedEst?.has_range_price || row.has_range_price),
             total_opsi1:
               nestedEst?.total_opsi1 !== undefined
                 ? nestedEst.total_opsi1
-                : Number(row.subtotal || row.total_amount),
-            total_opsi1_max: nestedEst?.total_opsi1_max,
+                : (row.total_opsi1 !== undefined ? row.total_opsi1 : Number(row.subtotal || row.total_amount)),
+            total_opsi1_max: nestedEst?.total_opsi1_max ?? row.total_opsi1_max,
             total_opsi2:
               nestedEst?.total_opsi2 !== undefined
                 ? nestedEst.total_opsi2
-                : Number(row.total_amount),
-            total_opsi2_max: nestedEst?.total_opsi2_max,
-            ttd_status: nestedEst?.ttd_status || (nestedEst?.customer_signature ? 'signed' : 'pending'),
+                : (row.total_opsi2 !== undefined ? row.total_opsi2 : Number(row.total_amount)),
+            total_opsi2_max: nestedEst?.total_opsi2_max ?? row.total_opsi2_max,
+            ttd_status: nestedEst?.ttd_status || row.ttd_status || (nestedEst?.customer_signature ? 'signed' : 'pending'),
+            ttd_token: nestedEst?.ttd_token || row.ttd_token || undefined,
             customer_signature:
               nestedEst?.customer_signature ||
               nestedEst?.signature_customer_url ||
+              row.customer_signature ||
+              row.signature_customer_url ||
               woRecord?.signature_url ||
               row.work_order?.signature_url ||
               undefined,
-            customer_signed_at: nestedEst?.customer_signed_at || undefined,
-            customer_signed_name: nestedEst?.customer_signed_name || undefined,
-            customer_approved_option: nestedEst?.customer_approved_option || undefined,
+            customer_signed_at: nestedEst?.customer_signed_at || row.customer_signed_at || undefined,
+            customer_signed_name: nestedEst?.customer_signed_name || row.customer_signed_name || undefined,
+            customer_approved_option: nestedEst?.customer_approved_option || row.customer_approved_option || undefined,
+            spk_number: nestedEst?.spk_number || row.spk_number || woRecord?.spk_number || undefined,
+            tab_id: nestedEst?.tab_id || row.tab_id || undefined,
+            tabs: nestedEst?.tabs || row.tabs || undefined,
             vehicle: row.vehicle || undefined,
             work_order: woRecord || row.work_order || undefined,
-            complaints: woRecord?.complaints || row.work_order?.complaints || nestedEst?.complaints || undefined,
             petugas_name: resolvedPetugas,
             sa_name: resolvedPetugas,
-          };
+            // Double estimasi (Tabel 1 & Tabel 2) - KRITIS agar item tidak hilang di halaman TTD
+            has_second_table: finalHasSecondTable,
+            table1_title: nestedEst?.table1_title || row.table1_title || undefined,
+            table2_title: nestedEst?.table2_title || row.table2_title || undefined,
+            items_table2: finalItemsTable2,
+          } as any;
           return { estimation: inv, branch };
         }
 
@@ -4649,14 +4701,51 @@ export class DBService {
 
       if (b === targetBranch) {
         if (existingIdx !== -1) {
+          // Saat UPDATE via Realtime: gabungkan data cloud dengan lokal, prioritaskan cloud untuk field signature & status
+          // tapi pertahankan items lokal jika cloud mengirim items kosong (ini terjadi saat approveEstimationSignature
+          // hanya update payment_status dan updated_at tanpa menyertakan items kembali)
+          const existingInv = invs[existingIdx];
+          const cloudItems = Array.isArray(row.items) && row.items.length > 0 ? row.items : null;
+          const cloudItems2 = Array.isArray(row.items_table2) && row.items_table2.length > 0 ? row.items_table2 : null;
           invs[existingIdx] = {
-            ...invs[existingIdx],
+            ...existingInv,
             ...row,
-            payment_status: row.payment_status || invs[existingIdx].payment_status,
+            // Pertahankan items lokal jika cloud tidak mengirim items (partial update)
+            items: cloudItems || existingInv.items,
+            items_table2: cloudItems2 || existingInv.items_table2,
+            has_second_table: Boolean(row.has_second_table ?? existingInv.has_second_table),
+            table1_title: row.table1_title || existingInv.table1_title,
+            table2_title: row.table2_title || existingInv.table2_title,
+            // Pertahankan field estimasi yang tidak selalu dikirim lewat Realtime partial update
+            estimation_type: row.estimation_type || existingInv.estimation_type,
+            estimation_tab: row.estimation_tab || existingInv.estimation_tab,
+            tab_id: row.tab_id || (existingInv as any).tab_id,
+            tabs: row.tabs || (existingInv as any).tabs,
+            estimator_name: row.estimator_name || existingInv.estimator_name,
+            estimator_signature: row.estimator_signature || row.signature_admin_url || existingInv.estimator_signature,
+            estimated_duration: row.estimated_duration || existingInv.estimated_duration,
+            complaints: row.complaints || existingInv.complaints,
+            has_discount: row.has_discount ?? existingInv.has_discount,
+            has_opsi2: row.has_opsi2 ?? existingInv.has_opsi2,
+            has_opsi2_detail: row.has_opsi2_detail ?? existingInv.has_opsi2_detail,
+            has_tax: row.has_tax ?? existingInv.has_tax,
+            has_range_price: row.has_range_price ?? existingInv.has_range_price,
+            total_opsi1: row.total_opsi1 ?? existingInv.total_opsi1,
+            total_opsi1_max: row.total_opsi1_max ?? existingInv.total_opsi1_max,
+            total_opsi2: row.total_opsi2 ?? existingInv.total_opsi2,
+            total_opsi2_max: row.total_opsi2_max ?? existingInv.total_opsi2_max,
+            ttd_status: row.ttd_status || existingInv.ttd_status,
+            customer_signature: row.signature_customer_url || row.customer_signature || existingInv.customer_signature,
+            signature_customer_url: row.signature_customer_url || row.customer_signature || existingInv.signature_customer_url,
+            customer_signed_name: row.customer_signed_name || existingInv.customer_signed_name,
+            customer_approved_option: row.customer_approved_option || existingInv.customer_approved_option,
+            customer_response: row.customer_response || existingInv.customer_response,
+            payment_status: row.payment_status || existingInv.payment_status,
             updated_at: row.updated_at || new Date().toISOString(),
           };
           setLocal(key, invs);
         } else {
+          // INSERT via Realtime: buat objek lengkap dengan semua field estimasi
           const newInv: Invoice = {
             id: row.id,
             invoice_number: row.invoice_number,
@@ -4673,9 +4762,54 @@ export class DBService {
             balance_due: Number(row.balance_due) || 0,
             payment_status: row.payment_status || 'pending',
             payment_method: row.payment_method,
+            admin_notes: row.admin_notes || undefined,
             created_at: row.created_at || new Date().toISOString(),
             updated_at: row.updated_at || new Date().toISOString(),
-          };
+            // Field estimasi (penting agar data tidak hilang di device lain)
+            estimation_type: row.estimation_type || undefined,
+            estimation_tab: row.estimation_tab || undefined,
+            estimation_date: row.estimation_date || undefined,
+            estimation_time: row.estimation_time || undefined,
+            vehicle_status: row.vehicle_status || undefined,
+            payment_plan: row.payment_plan || undefined,
+            estimator_name: row.estimator_name || undefined,
+            estimator_signature: row.estimator_signature || row.signature_admin_url || undefined,
+            estimated_duration: row.estimated_duration || undefined,
+            customer_response: row.customer_response || undefined,
+            customer_response_note: row.customer_response_note || undefined,
+            complaints: row.complaints || undefined,
+            has_discount: row.has_discount ?? false,
+            has_opsi2: row.has_opsi2 ?? false,
+            has_opsi2_detail: row.has_opsi2_detail ?? false,
+            has_tax: row.has_tax ?? false,
+            has_range_price: row.has_range_price ?? false,
+            total_opsi1: row.total_opsi1,
+            total_opsi1_max: row.total_opsi1_max,
+            total_opsi2: row.total_opsi2,
+            total_opsi2_max: row.total_opsi2_max,
+            ttd_status: row.ttd_status || 'pending',
+            ttd_token: row.ttd_token || undefined,
+            customer_signature: row.signature_customer_url || row.customer_signature || undefined,
+            signature_customer_url: row.signature_customer_url || undefined,
+            signature_admin_url: row.signature_admin_url || undefined,
+            customer_signed_at: row.customer_signed_at || undefined,
+            customer_signed_name: row.customer_signed_name || undefined,
+            customer_approved_option: row.customer_approved_option || undefined,
+            spk_number: row.spk_number || undefined,
+            petugas_name: row.petugas_name || row.sa_name || undefined,
+            sa_name: row.sa_name || row.petugas_name || undefined,
+            tab_id: row.tab_id || undefined,
+            tabs: row.tabs || undefined,
+            // Double estimasi (Tabel 1 & Tabel 2) - KRITIS agar item tidak hilang
+            has_second_table: Boolean(row.has_second_table || (Array.isArray(row.items) && row.items.some((it: any) => it.section === 2))),
+            table1_title: row.table1_title || undefined,
+            table2_title: row.table2_title || undefined,
+            items_table2: Array.isArray(row.items_table2) && row.items_table2.length > 0
+              ? row.items_table2
+              : (Array.isArray(row.items) && row.items.some((it: any) => it.section === 2)
+                  ? row.items.filter((it: any) => it.section === 2)
+                  : undefined),
+          } as any;
           invs.unshift(newInv);
           setLocal(key, invs);
         }
