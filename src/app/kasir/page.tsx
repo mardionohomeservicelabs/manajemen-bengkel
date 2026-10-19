@@ -51,10 +51,17 @@ import {
   FileCheck,
   MessageSquare,
   RotateCcw,
+  Upload,
+  ImageIcon,
+  FileText,
+  Percent,
+  Hash,
+  CloudUpload,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { PrintableInvoice } from '@/components/ui/PrintableInvoice';
 import { SignatureCanvas } from '@/components/ui/SignatureCanvas';
+import { supabase } from '@/lib/supabase/client';
 
 function CashierContent() {
   const searchParams = useSearchParams();
@@ -131,11 +138,28 @@ function CashierContent() {
 
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [discountType, setDiscountType] = useState<'nominal' | 'percent'>('nominal');
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [taxPercent, setTaxPercent] = useState<number>(0);
   const [downPayment, setDownPayment] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [crmFollowupPeriod, setCrmFollowupPeriod] = useState<CRMReminderPeriod>('none');
   const [adminNotes, setAdminNotes] = useState<string>('');
+
+  // Nota Mode: 'create' = Buat Nota Manual | 'upload' = Upload Nota Pihak Ketiga
+  const [notaMode, setNotaMode] = useState<'create' | 'upload'>('create');
+
+  // Upload Nota State
+  const [uploadNotaSpkId, setUploadNotaSpkId] = useState<string>('');
+  const [uploadNotaSpk, setUploadNotaSpk] = useState<WorkOrder | null>(null);
+  const [uploadNotaTotal, setUploadNotaTotal] = useState<number | ''>('');
+  const [uploadNotaPaymentMethod, setUploadNotaPaymentMethod] = useState<PaymentMethod>('cash');
+  const [uploadNotaNotes, setUploadNotaNotes] = useState<string>('');
+  const [uploadNotaCrmPeriod, setUploadNotaCrmPeriod] = useState<CRMReminderPeriod>('none');
+  const [uploadNotaFile, setUploadNotaFile] = useState<File | null>(null);
+  const [uploadNotaPreviewUrl, setUploadNotaPreviewUrl] = useState<string>('');
+  const [uploadNotaIsProcessing, setUploadNotaIsProcessing] = useState<boolean>(false);
+  const uploadNotaFileRef = useRef<HTMLInputElement>(null);
 
   // Item Picker & Manual Item Input
   const [pickerSearch, setPickerSearch] = useState<string>('');
@@ -395,11 +419,168 @@ function CashierContent() {
   // Juga buka kunci jika SPK arsip belum pernah punya nota (owner bisa buat nota susulan)
   const isLockedForRole = isAlreadyFinished && !(currentRole === 'owner' && (isOwnerEditMode || isArchivedWithoutInvoice));
 
-  // Calculations
+  // Discount calculation (supports nominal & percent)
   const subtotal = items.reduce((sum, item) => sum + parseNumericPrice(item.subtotal), 0);
-  const taxAmount = (subtotal - discountAmount) * (taxPercent / 100);
-  const totalAmount = Math.max(0, subtotal - discountAmount + taxAmount);
+  const computedDiscountAmount = discountType === 'percent'
+    ? Math.round(subtotal * (discountPercent / 100))
+    : discountAmount;
+  const taxAmount = (subtotal - computedDiscountAmount) * (taxPercent / 100);
+  const totalAmount = Math.max(0, subtotal - computedDiscountAmount + taxAmount);
   const balanceDue = Math.max(0, totalAmount - downPayment);
+
+  // Compress & preview image before upload (max width 1400px, quality 0.78, output WebP/JPEG)
+  const handleUploadNotaFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      showToast('Format file tidak didukung. Gunakan JPG, PNG, atau WebP.', 'error');
+      return;
+    }
+    const maxSizeMB = 20;
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      showToast(`Ukuran file terlalu besar (maks ${maxSizeMB}MB).`, 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxW = 1400;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxW) {
+          h = Math.round((h * maxW) / w);
+          w = maxW;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) return;
+            const compressed = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
+            setUploadNotaFile(compressed);
+            setUploadNotaPreviewUrl(URL.createObjectURL(compressed));
+          },
+          'image/jpeg',
+          0.78
+        );
+      };
+      img.src = ev.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Submit Upload Nota Pihak Ketiga
+  const handleSubmitUploadNota = async () => {
+    if (!uploadNotaSpk) {
+      showToast('Pilih SPK kendaraan terlebih dahulu.', 'error');
+      return;
+    }
+    const totalNum = typeof uploadNotaTotal === 'number' ? uploadNotaTotal : Number(uploadNotaTotal) || 0;
+    if (totalNum <= 0) {
+      showToast('Total nota harus diisi dan lebih dari 0.', 'error');
+      return;
+    }
+
+    setUploadNotaIsProcessing(true);
+    showToast('Menyimpan nota upload ke database...', 'info');
+
+    try {
+      const branch = resolveWorkOrderBranch(uploadNotaSpk);
+      const invoiceNumber = await generateUniqueInvoiceNumberAsync('invoice', branch);
+
+      // Upload gambar nota ke Supabase Storage jika ada
+      let notaImageUrl: string | undefined = undefined;
+      if (uploadNotaFile && supabase) {
+        const filePath = `nota-upload/${branch}/${invoiceNumber}_${Date.now()}.jpg`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('nota-images')
+          .upload(filePath, uploadNotaFile, {
+            cacheControl: '86400',
+            upsert: false,
+            contentType: 'image/jpeg',
+          });
+        if (!uploadError && uploadData) {
+          const { data: publicData } = supabase.storage.from('nota-images').getPublicUrl(filePath);
+          notaImageUrl = publicData?.publicUrl;
+        }
+      }
+
+      // Buat satu item invoice untuk merepresentasikan nota pihak ketiga
+      const uploadItems: InvoiceItem[] = [
+        {
+          item_id: `upload-nota-${Date.now()}`,
+          code: 'NOTA-UPLOAD',
+          name: 'NOTA SERVIS PIHAK KETIGA (UPLOAD)',
+          is_service: true,
+          is_custom: true,
+          qty: 1,
+          unit: 'JASA',
+          price: totalNum,
+          subtotal: totalNum,
+        },
+      ];
+
+      const invoicePayload: Omit<Invoice, 'id'> & { id?: string } = {
+        invoice_number: invoiceNumber,
+        type: 'invoice',
+        work_order_id: uploadNotaSpk.id,
+        vehicle_id: uploadNotaSpk.vehicle_id,
+        vehicle: uploadNotaSpk.vehicle,
+        work_order: uploadNotaSpk,
+        items: uploadItems,
+        subtotal: totalNum,
+        discount_amount: 0,
+        tax_percent: 0,
+        tax_amount: 0,
+        total_amount: totalNum,
+        down_payment: totalNum,
+        balance_due: 0,
+        payment_status: 'paid',
+        payment_method: uploadNotaPaymentMethod,
+        paid_at: new Date().toISOString(),
+        admin_notes: (uploadNotaNotes || '') + (notaImageUrl ? `\n[FOTO NOTA: ${notaImageUrl}]` : '') + '\n[NOTA UPLOAD PIHAK KETIGA]',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        crm_followup_period: uploadNotaCrmPeriod,
+      };
+
+      await saveInvoiceAsync(invoicePayload, branch);
+
+      // Update status SPK ke paid
+      if (uploadNotaSpk.id) {
+        await updateWorkOrderStatusAsync(uploadNotaSpk.id, 'paid', branch);
+      }
+
+      DBService.setTransactionFollowupPeriod(uploadNotaSpk.id, uploadNotaCrmPeriod);
+
+      refreshData();
+      confetti({ particleCount: 80, spread: 65, origin: { y: 0.6 }, colors: ['#800000', '#059669', '#F59E0B'] });
+
+      showToast(`Nota upload ${invoiceNumber} berhasil disimpan! Total Rp ${totalNum.toLocaleString('id-ID')} masuk ke pemasukan bulanan.`, 'success');
+
+      // Reset form
+      setUploadNotaSpkId('');
+      setUploadNotaSpk(null);
+      setUploadNotaTotal('');
+      setUploadNotaPaymentMethod('cash');
+      setUploadNotaNotes('');
+      setUploadNotaCrmPeriod('none');
+      setUploadNotaFile(null);
+      setUploadNotaPreviewUrl('');
+      if (uploadNotaFileRef.current) uploadNotaFileRef.current.value = '';
+    } catch (err: any) {
+      console.error('Upload nota error:', err);
+      showToast(`Gagal menyimpan nota upload: ${err?.message || 'Terjadi kesalahan.'}`, 'error');
+    } finally {
+      setUploadNotaIsProcessing(false);
+    }
+  };
 
   const handleAddItem = (item: InventoryItem) => {
     setItems((prevItems) => {
@@ -558,8 +739,8 @@ function CashierContent() {
         (sum, item) => sum + parseNumericPrice(item.subtotal),
         0
       );
-      const calculatedTaxAmount = (calculatedSubtotal - discountAmount) * (taxPercent / 100);
-      const calculatedTotalAmount = Math.max(0, calculatedSubtotal - discountAmount + calculatedTaxAmount);
+      const calculatedTaxAmount = (calculatedSubtotal - computedDiscountAmount) * (taxPercent / 100);
+      const calculatedTotalAmount = Math.max(0, calculatedSubtotal - computedDiscountAmount + calculatedTaxAmount);
       const calculatedBalanceDue = Math.max(
         0,
         calculatedTotalAmount - (status === 'paid' ? calculatedTotalAmount : downPayment)
@@ -578,7 +759,7 @@ function CashierContent() {
         work_order: selectedSpk || targetPaidInvoice?.work_order || undefined,
         items: uppercaseItems,
         subtotal: calculatedSubtotal,
-        discount_amount: discountAmount,
+        discount_amount: computedDiscountAmount,
         tax_percent: taxPercent,
         tax_amount: calculatedTaxAmount,
         total_amount: calculatedTotalAmount,
@@ -999,7 +1180,334 @@ function CashierContent() {
         )}
       </div>
 
-      {/* Main Billing Grid */}
+      {/* ========================= NOTA MODE SWITCHER ========================= */}
+      <div className="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-card">
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => setNotaMode('create')}
+            className={`flex-1 flex items-center justify-center space-x-2 py-3 px-4 rounded-xl font-black text-xs transition ${
+              notaMode === 'create'
+                ? 'bg-maroon-800 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>✍️ Buat Nota</span>
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md ${
+              notaMode === 'create' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+            }`}>Input item detail + TTD</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setNotaMode('upload')}
+            className={`flex-1 flex items-center justify-center space-x-2 py-3 px-4 rounded-xl font-black text-xs transition ${
+              notaMode === 'upload'
+                ? 'bg-indigo-700 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            <CloudUpload className="w-4 h-4" />
+            <span>📷 Upload Nota</span>
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md ${
+              notaMode === 'upload' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+            }`}>Foto nota pihak ketiga</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ========================= UPLOAD NOTA SECTION ========================= */}
+      {notaMode === 'upload' && (
+        <div className="bg-white rounded-2xl border border-indigo-200 shadow-card overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-indigo-700 to-indigo-900 px-6 py-4 flex items-center space-x-3">
+            <CloudUpload className="w-5 h-5 text-white" />
+            <div>
+              <h3 className="font-black text-sm text-white">Upload Nota Servis Pihak Ketiga</h3>
+              <p className="text-[11px] text-indigo-200 mt-0.5">Foto nota pihak ketiga — Admin input total & metode bayar, otomatis masuk pemasukan bulanan</p>
+            </div>
+          </div>
+
+          <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Kiri: Form Input */}
+            <div className="space-y-4">
+              {/* Pilih SPK */}
+              <div>
+                <label className="block text-xs font-black text-slate-800 uppercase tracking-wider mb-1.5">
+                  Pilih SPK Kendaraan:
+                </label>
+                <select
+                  value={uploadNotaSpkId}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setUploadNotaSpkId(val);
+                    const allWos = allWorkOrders.length > 0 ? allWorkOrders : workOrders;
+                    const found = allWos.find((w) => w.id === val);
+                    setUploadNotaSpk(found || null);
+                  }}
+                  className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-bold"
+                >
+                  <option value="">-- Pilih SPK / Kendaraan --</option>
+                  <optgroup label="Antrean Kendaraan Siap Ditagih">
+                    {cashierOrders.map((wo) => (
+                      <option key={wo.id} value={wo.id}>
+                        {canAccessAll ? `[${resolveWorkOrderBranch(wo)}] ` : ''}{wo.spk_number} • {wo.vehicle?.license_plate ? formatPlate(wo.vehicle.license_plate) : ''} • {wo.vehicle?.customer_name}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {currentRole === 'owner' && archivedUnpaidOrders.length > 0 && (
+                    <optgroup label="📁 Arsip Belum Dibayar">
+                      {archivedUnpaidOrders.map((wo) => (
+                        <option key={wo.id} value={wo.id}>
+                          📁 {canAccessAll ? `[${resolveWorkOrderBranch(wo)}] ` : ''}{wo.spk_number} • {wo.vehicle?.customer_name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+                {uploadNotaSpk && (
+                  <div className="mt-2 p-3 bg-indigo-50 rounded-xl border border-indigo-200 flex items-center space-x-2 text-xs">
+                    <CheckCircle2 className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                    <div>
+                      <span className="font-black text-indigo-900">{uploadNotaSpk.vehicle?.customer_name}</span>
+                      <span className="text-indigo-600 ml-2">{uploadNotaSpk.vehicle?.license_plate ? formatPlate(uploadNotaSpk.vehicle.license_plate) : ''} — {uploadNotaSpk.vehicle?.car_brand} {uploadNotaSpk.vehicle?.car_model}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Total Nota */}
+              <div>
+                <label className="block text-xs font-black text-slate-800 uppercase tracking-wider mb-1.5">
+                  Total Tagihan Nota (Rp): <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-black text-slate-500">Rp</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    placeholder="0"
+                    value={uploadNotaTotal}
+                    onChange={(e) => setUploadNotaTotal(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full pl-10 pr-4 py-3 text-sm rounded-xl border border-slate-200 font-mono font-black text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+                {uploadNotaTotal !== '' && Number(uploadNotaTotal) > 0 && (
+                  <p className="text-xs text-indigo-700 font-bold mt-1 pl-1">
+                    ≈ {formatCurrency(Number(uploadNotaTotal))}
+                  </p>
+                )}
+              </div>
+
+              {/* Metode Pembayaran */}
+              <div>
+                <label className="block text-xs font-black text-slate-800 uppercase tracking-wider mb-2">
+                  Metode Pembayaran Customer:
+                </label>
+                <div className="grid grid-cols-1 gap-2">
+                  {[
+                    { id: 'cash', label: '💵 Tunai (Cash)', desc: 'Tunai di kasir' },
+                    { id: 'transfer_bca', label: '🏦 Transfer BCA', desc: 'BCA 2711235398 ARDIYANTO WIJAYA' },
+                    { id: 'transfer_bri', label: '🏦 Transfer BRI', desc: 'BRI 0086-0113-1974-508 ARDIYANTO WIJAYA' },
+                    { id: 'transfer_mandiri', label: '🏦 Transfer Mandiri', desc: 'Mandiri' },
+                    { id: 'qris', label: '📱 QRIS', desc: 'Scan QR Code' },
+                    { id: 'debit_card', label: '💳 Kartu Debit', desc: 'Gesek / Tap' },
+                    { id: 'credit_card', label: '💳 Kartu Kredit', desc: 'Kredit' },
+                  ].map((pm) => (
+                    <button
+                      key={pm.id}
+                      type="button"
+                      onClick={() => setUploadNotaPaymentMethod(pm.id as PaymentMethod)}
+                      className={`p-2.5 rounded-xl border text-left transition flex items-center space-x-3 ${
+                        uploadNotaPaymentMethod === pm.id
+                          ? 'bg-indigo-700 text-white border-indigo-800 shadow-xs'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex-1">
+                        <div className="font-bold text-xs">{pm.label}</div>
+                        <div className={`text-[10px] ${
+                          uploadNotaPaymentMethod === pm.id ? 'text-indigo-100' : 'text-slate-400'
+                        }`}>{pm.desc}</div>
+                      </div>
+                      {uploadNotaPaymentMethod === pm.id && (
+                        <CheckCircle2 className="w-4 h-4 text-indigo-200 flex-shrink-0" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Catatan */}
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Catatan Tambahan (Opsional):</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Nota ganti oli dari bengkel luar, dll..."
+                  value={uploadNotaNotes}
+                  onChange={(e) => setUploadNotaNotes(e.target.value)}
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+              </div>
+
+              {/* Follow-up CRM */}
+              <div className="pt-3 border-t border-slate-100">
+                <label className="block text-xs font-bold text-slate-700 mb-2 flex items-center space-x-1.5">
+                  <MessageSquare className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Jadwal Follow-Up CRM (Opsional):</span>
+                </label>
+                <div className="grid grid-cols-5 gap-1 text-center">
+                  {[
+                    { id: 'none', label: 'Tanpa', desc: 'Skip' },
+                    { id: '1_week', label: '1 Mgg', desc: '+7hr' },
+                    { id: '2_weeks', label: '2 Mgg', desc: '+14hr' },
+                    { id: '1_month', label: '1 Bln', desc: '+30hr' },
+                    { id: '3_months', label: '3 Bln', desc: '+90hr' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setUploadNotaCrmPeriod(opt.id as CRMReminderPeriod)}
+                      className={`p-1.5 rounded-lg border transition ${
+                        uploadNotaCrmPeriod === opt.id
+                          ? 'bg-indigo-700 text-white border-indigo-800 font-bold shadow-xs'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100 font-medium'
+                      }`}
+                    >
+                      <div className="text-[11px]">{opt.label}</div>
+                      <div className={`text-[9px] ${uploadNotaCrmPeriod === opt.id ? 'text-indigo-100' : 'text-slate-400'}`}>{opt.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Kanan: Upload Gambar Nota */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-black text-slate-800 uppercase tracking-wider mb-2">
+                  Foto / Gambar Nota Servis:
+                </label>
+
+                {/* Drop zone */}
+                <div
+                  onClick={() => uploadNotaFileRef.current?.click()}
+                  className={`relative border-2 border-dashed rounded-2xl overflow-hidden cursor-pointer transition group ${
+                    uploadNotaPreviewUrl
+                      ? 'border-indigo-400 bg-indigo-50'
+                      : 'border-slate-300 bg-slate-50/60 hover:border-indigo-400 hover:bg-indigo-50/40'
+                  }`}
+                  style={{ minHeight: '280px' }}
+                >
+                  {uploadNotaPreviewUrl ? (
+                    <>
+                      <img
+                        src={uploadNotaPreviewUrl}
+                        alt="Preview Nota"
+                        className="w-full h-full object-contain"
+                        style={{ maxHeight: '340px' }}
+                      />
+                      <div className="absolute inset-0 bg-indigo-900/60 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center space-y-2">
+                        <Upload className="w-8 h-8 text-white" />
+                        <span className="text-white text-xs font-bold">Ganti Foto</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center space-y-3 p-6">
+                      <div className="w-16 h-16 rounded-2xl bg-indigo-100 flex items-center justify-center">
+                        <ImageIcon className="w-8 h-8 text-indigo-500" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-black text-slate-700">Klik untuk unggah foto nota</p>
+                        <p className="text-xs text-slate-400 mt-1">JPG, PNG, WebP (maks. 20MB)</p>
+                        <p className="text-[10px] text-indigo-500 font-medium mt-1">✨ Otomatis dikompres di browser (hemat egress)</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <input
+                  ref={uploadNotaFileRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  onChange={handleUploadNotaFileChange}
+                  className="hidden"
+                />
+
+                {uploadNotaFile && (
+                  <div className="mt-2 flex items-center space-x-2 text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                    <ImageIcon className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+                    <div className="flex-1 truncate">
+                      <span className="font-bold">{uploadNotaFile.name}</span>
+                      <span className="text-slate-400 ml-2">({(uploadNotaFile.size / 1024).toFixed(0)} KB setelah kompresi)</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setUploadNotaFile(null);
+                        setUploadNotaPreviewUrl('');
+                        if (uploadNotaFileRef.current) uploadNotaFileRef.current.value = '';
+                      }}
+                      className="text-red-500 hover:text-red-700 p-1 rounded"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                <p className="text-[10px] text-slate-400 mt-2">
+                  * Foto nota bersifat opsional. Jika tidak diunggah, transaksi tetap masuk ke laporan pemasukan bulanan.
+                </p>
+              </div>
+
+              {/* Summary Box */}
+              {uploadNotaSpk && uploadNotaTotal !== '' && Number(uploadNotaTotal) > 0 && (
+                <div className="bg-indigo-50 border-2 border-indigo-300 rounded-2xl p-4 space-y-2">
+                  <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wide">Ringkasan Transaksi Upload Nota:</h4>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Pelanggan:</span>
+                      <span className="font-bold text-slate-900">{uploadNotaSpk.vehicle?.customer_name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Kendaraan:</span>
+                      <span className="font-bold text-slate-900">{uploadNotaSpk.vehicle?.license_plate ? formatPlate(uploadNotaSpk.vehicle.license_plate) : '-'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Metode Bayar:</span>
+                      <span className="font-bold text-indigo-900 uppercase">{uploadNotaPaymentMethod.replace(/_/g, ' ')}</span>
+                    </div>
+                    <div className="border-t border-indigo-200 pt-2 flex justify-between items-center">
+                      <span className="font-black text-slate-800">Total Masuk Pemasukan:</span>
+                      <span className="font-mono font-black text-indigo-900 text-sm">{formatCurrency(Number(uploadNotaTotal))}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Submit Button */}
+              <button
+                type="button"
+                onClick={handleSubmitUploadNota}
+                disabled={uploadNotaIsProcessing || !uploadNotaSpk || uploadNotaTotal === '' || Number(uploadNotaTotal) <= 0}
+                className="w-full inline-flex items-center justify-center space-x-2.5 bg-indigo-700 hover:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-sm py-3.5 px-6 rounded-xl shadow-md transition"
+              >
+                <CloudUpload className="w-5 h-5" />
+                <span>
+                  {uploadNotaIsProcessing
+                    ? 'Menyimpan ke Database...'
+                    : 'Simpan & Catat ke Pemasukan Bulanan'}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Billing Grid — hanya tampil saat mode Buat Nota */}
+      {notaMode === 'create' && (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left 4 Cols: Tambah Item Tambahan (Manual & Inventory) */}
         <div className="lg:col-span-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-card space-y-4">
@@ -1409,18 +1917,84 @@ function CashierContent() {
                 <span className="font-mono font-bold">{formatCurrency(subtotal)}</span>
               </div>
 
-              {currentRole === 'owner' && (
-                <div className="flex justify-between items-center text-slate-600">
-                  <span className="font-medium">Diskon (Rp):</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={discountAmount}
-                    onChange={(e) => setDiscountAmount(Number(e.target.value))}
-                    className="w-24 text-right p-1 rounded border border-slate-200 font-mono bg-white font-bold"
-                  />
+              {/* Potongan / Diskon — tersedia untuk semua role */}
+              <div className="space-y-1.5 py-1.5 border-y border-slate-200">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-700">Potongan / Diskon:</span>
+                  {/* Toggle Nominal vs Persen */}
+                  <div className="flex bg-white rounded-lg border border-slate-200 p-0.5 gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => { setDiscountType('nominal'); setDiscountPercent(0); setDiscountAmount(0); }}
+                      className={`px-2 py-1 rounded-md font-bold text-[10px] transition flex items-center space-x-1 ${
+                        discountType === 'nominal'
+                          ? 'bg-maroon-700 text-white shadow-xs'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      <Hash className="w-3 h-3" />
+                      <span>Rp</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setDiscountType('percent'); setDiscountAmount(0); setDiscountPercent(0); }}
+                      className={`px-2 py-1 rounded-md font-bold text-[10px] transition flex items-center space-x-1 ${
+                        discountType === 'percent'
+                          ? 'bg-maroon-700 text-white shadow-xs'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      <Percent className="w-3 h-3" />
+                      <span>%</span>
+                    </button>
+                  </div>
                 </div>
-              )}
+
+                {discountType === 'nominal' ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Nominal (Rp):</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1000"
+                      value={discountAmount}
+                      onChange={(e) => setDiscountAmount(Number(e.target.value))}
+                      className="w-28 text-right p-1 rounded border border-slate-200 font-mono bg-white font-bold outline-none focus:ring-1 focus:ring-maroon-600"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Persen (%):</span>
+                      <div className="flex items-center space-x-1">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value={discountPercent}
+                          onChange={(e) => setDiscountPercent(Math.min(100, Number(e.target.value)))}
+                          className="w-16 text-right p-1 rounded border border-slate-200 font-mono bg-white font-bold outline-none focus:ring-1 focus:ring-maroon-600"
+                        />
+                        <span className="text-slate-400">%</span>
+                      </div>
+                    </div>
+                    {discountPercent > 0 && (
+                      <div className="flex justify-between text-[10px] text-emerald-700 font-bold pl-1">
+                        <span>Hemat:</span>
+                        <span className="font-mono">- {formatCurrency(computedDiscountAmount)}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {computedDiscountAmount > 0 && (
+                  <div className="flex justify-between items-center text-slate-600 font-bold">
+                    <span>Total Potongan:</span>
+                    <span className="font-mono text-emerald-700">- {formatCurrency(computedDiscountAmount)}</span>
+                  </div>
+                )}
+              </div>
 
               <div className="border-t-2 border-slate-300 pt-2 flex justify-between text-sm font-black text-maroon-900">
                 <span>Total Tagihan:</span>
@@ -1429,7 +2003,7 @@ function CashierContent() {
 
               <div className="pt-2 border-t border-slate-200 flex justify-between text-xs font-bold text-slate-800">
                 <span>Metode Terpilih:</span>
-                <span className="uppercase text-maroon-800">{paymentMethod.replace('_', ' ')}</span>
+                <span className="uppercase text-maroon-800">{paymentMethod.replace(/_/g, ' ')}</span>
               </div>
             </div>
           </div>
@@ -1460,6 +2034,7 @@ function CashierContent() {
           </div>
         </div>
       </div>
+      )}
 
       {/* MODAL 1: REVIEW NOTA & DUAL SIGNATURE BEFORE SETTLEMENT */}
       {isSignModalOpen && selectedSpk && (
