@@ -220,10 +220,9 @@ export function PrintableGeneralCheckup({
                     {[
                       { label: '2. Sensor MAF (Mass Air Flow)', clean: checkup.sensor_maf_cleaned, damaged: checkup.sensor_maf_damaged, repl: checkup.sensor_maf_suggest_replace },
                       { label: '3. Sensor ISC (Idle Speed Control)', clean: checkup.sensor_isc_cleaned, damaged: checkup.sensor_isc_damaged, repl: checkup.sensor_isc_suggest_replace },
-                      { label: '4. Sensor Airflow Engine', clean: checkup.sensor_airflow_cleaned, damaged: checkup.sensor_airflow_damaged, repl: checkup.sensor_airflow_suggest_replace },
-                      { label: '5. Throttle Body Valve', clean: checkup.throttle_body_cleaned, damaged: checkup.throttle_body_damaged, repl: checkup.throttle_body_suggest_replace },
-                      { label: '6. Busi / Spark Plug', clean: checkup.spark_plug_checked, damaged: checkup.spark_plug_damaged, repl: checkup.spark_plug_suggest_replace },
-                      { label: '7. Coil Pengapian Mesin', clean: checkup.ignition_coil_checked, damaged: checkup.ignition_coil_damaged, repl: checkup.ignition_coil_suggest_replace },
+                      { label: '4. Throttle Body Valve', clean: checkup.throttle_body_cleaned, damaged: checkup.throttle_body_damaged, repl: checkup.throttle_body_suggest_replace },
+                      { label: '5. Busi / Spark Plug', clean: checkup.spark_plug_checked, damaged: checkup.spark_plug_damaged, repl: checkup.spark_plug_suggest_replace },
+                      { label: '6. Coil Pengapian Mesin', clean: checkup.ignition_coil_checked, damaged: checkup.ignition_coil_damaged, repl: checkup.ignition_coil_suggest_replace },
                     ].map((row, idx) => (
                       <tr key={idx} className="hover:bg-slate-50">
                         <td className="p-1.5 font-bold text-black border-r border-black">{row.label}</td>

@@ -166,7 +166,7 @@ export function PrintableACCheckup({
             <table className="w-full text-left border-collapse text-[11px]">
               <tbody className="divide-y divide-black">
                 <tr className="hover:bg-slate-50">
-                  <td className="p-2 font-bold text-black border-r border-black">Kompresor &amp; Clutch</td>
+                  <td className="p-2 font-bold text-black border-r border-black">Kompresor</td>
                   <td className="p-2 w-32 text-center">{formatStatusBadge(checkup.compressor_clutch)}</td>
                 </tr>
                 <tr className="hover:bg-slate-50">

@@ -910,10 +910,9 @@ function NewCheckupPageContent() {
                 {([
                   { label: '2. Bersihkan Sensor MAF', state: sensorMAF, set: setSensorMAF },
                   { label: '3. Bersihkan Sensor ISC', state: sensorISC, set: setSensorISC },
-                  { label: '4. Bersihkan Sensor Airflow', state: sensorAirflow, set: setSensorAirflow },
-                  { label: '5. Bersihkan Throttle Body Module', state: throttleBody, set: setThrottleBody },
-                  { label: '6. Cek Busi Spark Plug', state: sparkPlug, set: setSparkPlug },
-                  { label: '7. Cek Coil Pengapian', state: ignitionCoil, set: setIgnitionCoil },
+                  { label: '4. Bersihkan Throttle Body Module', state: throttleBody, set: setThrottleBody },
+                  { label: '5. Cek Busi Spark Plug', state: sparkPlug, set: setSparkPlug },
+                  { label: '6. Cek Coil Pengapian', state: ignitionCoil, set: setIgnitionCoil },
                 ] as const).map((row, idx) => (
                   <div
                     key={idx}
@@ -1086,7 +1085,7 @@ function NewCheckupPageContent() {
               </h3>
               <div className="space-y-2">
                 {[
-                  { name: 'Kompresor & Clutch', val: acCompressor, set: setAcCompressor },
+                  { name: 'Kompresor', val: acCompressor, set: setAcCompressor },
                   { name: 'Drive Belt (Tali Kipas)', val: acDriveBelt, set: setAcDriveBelt },
                   { name: 'Kondensor AC & Radiator', val: acCondenser, set: setAcCondenser },
                   { name: 'Selang & Pipa AC', val: acHoses, set: setAcHoses },
