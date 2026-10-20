@@ -2064,6 +2064,7 @@ export class DBService {
     if (idx === -1) return false;
 
     const oldStatus = orders[idx].status;
+    const unlockedOrder = orders[idx];
     orders[idx].status = targetStatus;
     orders[idx].finish_date = undefined;
     orders[idx].updated_at = nowIso;
@@ -2084,6 +2085,38 @@ export class DBService {
         }
       }
     });
+
+    // ─── PERBAIKAN: Reset invoice terkait agar mobil keluar dari arsip ───────
+    // Ketika mobil dibuka kembali ke antrean, semua invoice yang terhubung
+    // harus di-reset payment_status-nya ke 'pending' agar filter arsip
+    // (isPaid) tidak lagi menahan mobil ini di halaman arsip.
+    const spkNumber = unlockedOrder.spk_number;
+
+    for (const b of allBranches) {
+      const invKey = getBranchKey(BASE_STORAGE_KEYS.INVOICES, b);
+      const invs = getLocal<Invoice[]>(invKey, []);
+      let changed = false;
+      const updatedInvs = invs.map((inv) => {
+        const isLinked =
+          inv.work_order_id === id ||
+          inv.work_order_id === spkNumber ||
+          inv.work_order?.id === id ||
+          inv.work_order?.spk_number === spkNumber;
+        if (isLinked && inv.payment_status === 'paid') {
+          changed = true;
+          return {
+            ...inv,
+            payment_status: 'pending' as const,
+            paid_at: undefined,
+            updated_at: nowIso,
+          };
+        }
+        return inv;
+      });
+      if (changed) {
+        setLocal(invKey, updatedInvs);
+      }
+    }
 
     this.logAudit(
       'Owner',
@@ -2112,6 +2145,24 @@ export class DBService {
           if (spkToMatch) {
             await supabase.from('work_orders').update(updatePayload).eq('spk_number', spkToMatch);
           }
+        }
+
+        // Reset invoice payment_status di Supabase juga
+        const invoiceResetPayload = {
+          payment_status: 'pending',
+          paid_at: null,
+          updated_at: nowIso,
+        };
+        // Cari berdasarkan work_order_id = id atau spk_number
+        await supabase
+          .from('invoices')
+          .update(invoiceResetPayload)
+          .eq('work_order_id', id);
+        if (spkNumber) {
+          await supabase
+            .from('invoices')
+            .update(invoiceResetPayload)
+            .eq('work_order_id', spkNumber);
         }
       } catch (err) {
         console.warn('Supabase unlockWorkOrderAsync exception:', err);
