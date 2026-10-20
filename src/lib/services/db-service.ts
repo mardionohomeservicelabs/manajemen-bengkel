@@ -314,9 +314,17 @@ function smartMergeInvoices(cloudItems: Invoice[], localItems: Invoice[]): Invoi
     if (!local) {
       mergedMap.set(key, cloud);
     } else {
-      // 1. ATURAN EMAS PEMBAYARAN: Status 'paid' (Lunas) MUTLAK menang atas status 'pending'
-      // Mencegah device lain yang belum sync menimpa pembayaran yang sudah selesai kembali menjadi pending
+      const cloudTime = new Date(cloud.updated_at || cloud.paid_at || cloud.created_at || 0).getTime();
+      const localTime = new Date(local.updated_at || local.paid_at || local.created_at || 0).getTime();
+
+      // ─── ATURAN PEMBAYARAN ─────────────────────────────────────────────────
+      // Status 'paid' menang atas 'pending' KECUALI jika cloud (sumber otoritas)
+      // sudah memiliki timestamp lebih baru dengan status 'pending' — artinya
+      // ada operasi unlock/reset yang valid dari Owner yang sudah tersimpan di cloud.
+      const cloudNewerBySignificantMargin = cloudTime > localTime + 500; // +500ms toleransi
+
       if (cloud.payment_status === 'paid' && local.payment_status !== 'paid') {
+        // Cloud bilang paid, lokal belum paid → cloud menang
         mergedMap.set(key, {
           ...local,
           ...cloud,
@@ -325,6 +333,17 @@ function smartMergeInvoices(cloudItems: Invoice[], localItems: Invoice[]): Invoi
         return;
       }
       if (local.payment_status === 'paid' && cloud.payment_status !== 'paid') {
+        if (cloudNewerBySignificantMargin) {
+          // Cloud lebih baru DAN sudah bukan 'paid' → Owner sudah reset (unlock)
+          // Cloud menang, ikuti status terbaru dari cloud
+          mergedMap.set(key, {
+            ...local,
+            ...cloud,
+            items: (Array.isArray(cloud.items) && cloud.items.length > 0) ? cloud.items : local.items,
+          });
+          return;
+        }
+        // Cloud lebih lama atau sama, lokal masih paid → pertahankan paid dari lokal
         mergedMap.set(key, {
           ...cloud,
           ...local,
@@ -333,10 +352,6 @@ function smartMergeInvoices(cloudItems: Invoice[], localItems: Invoice[]): Invoi
         });
         return;
       }
-
-      // 2. Jika status sama, bandingkan timestamp rekonsiliasi terbaru
-      const cloudTime = new Date(cloud.updated_at || cloud.paid_at || cloud.created_at || 0).getTime();
-      const localTime = new Date(local.updated_at || local.paid_at || local.created_at || 0).getTime();
 
       if (cloudTime >= localTime) {
         mergedMap.set(key, {

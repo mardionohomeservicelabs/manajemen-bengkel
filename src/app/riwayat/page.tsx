@@ -64,6 +64,9 @@ function HistoryArchiveContent() {
   const [deletingEntry, setDeletingEntry] = useState<VehicleArchiveEntry | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Unlock state (Owner)
+  const [unlockingId, setUnlockingId] = useState<string | null>(null);
+
   // Preview modals
   const [selectedWorkOrder, setSelectedWorkOrder] = useState<WorkOrder | null>(null);
   const [selectedEstimation, setSelectedEstimation] = useState<Invoice | null>(null);
@@ -121,30 +124,33 @@ function HistoryArchiveContent() {
     return null;
   };
 
-  // Build unified Vehicle Archive Entries (hanya mobil yang sudah selesai & lunas)
+  // Build unified Vehicle Archive Entries
+  // PENTING: Gunakan HANYA status work order 'completed' sebagai penentu arsip.
+  // Jangan gunakan invoice.payment_status karena:
+  // 1. smartMergeInvoices melindungi 'paid' dari di-reset (golden rule)
+  // 2. Saat Owner membuka kembali mobil, status WO berubah ke 'servicing'
+  //    → mobil harus langsung keluar dari arsip tanpa tergantung invoice
   const archiveEntries = useMemo(() => {
     const entries: VehicleArchiveEntry[] = [];
     const seenSpkNumbers = new Set<string>();
 
-    // Hanya dari work orders yang statusnya completed ATAU sudah ada nota yang paid
     workOrders.forEach((wo) => {
-      const inv = findInvoice(wo);
-      const isPaid = inv?.payment_status === 'paid';
-      const isCompleted = wo.status === 'completed';
-
-      // Hanya masukkan arsip jika sudah selesai servis DAN sudah pembayaran nota
-      if (!isPaid && !isCompleted) return;
+      // Hanya work order yang benar-benar diarsipkan (status 'completed')
+      // Work order yang di-unlock (status 'servicing', 'queue', dll.) TIDAK masuk arsip
+      if (wo.status !== 'completed') return;
 
       // Hindari double entry berdasarkan nomor SPK
       if (seenSpkNumbers.has(wo.spk_number)) return;
       seenSpkNumbers.add(wo.spk_number);
 
+      const inv = findInvoice(wo);
+      const isPaid = inv?.payment_status === 'paid';
       const est = findEstimation(wo);
 
       entries.push({
         id: wo.id,
         spkNumber: wo.spk_number,
-        entryDate: inv?.paid_at || wo.created_at || wo.entry_date || '',
+        entryDate: inv?.paid_at || wo.finish_date || wo.updated_at || wo.created_at || wo.entry_date || '',
         licensePlate: wo.vehicle?.license_plate || '',
         carBrand: wo.vehicle?.car_brand || '',
         carModel: wo.vehicle?.car_model || '',
@@ -366,15 +372,21 @@ function HistoryArchiveContent() {
                             {formatCurrency(entry.totalInvoice)}
                           </span>
                         )}
-                        {currentRole === 'owner' && entry.workOrder && (entry.workOrder.status === 'completed' || entry.workOrder.status === 'paid') && (
+                        {/* Tombol Buka Kunci: hanya tampil untuk Owner, semua entry di arsip pasti status 'completed' */}
+                        {currentRole === 'owner' && entry.workOrder && (
                           <button
                             type="button"
-                            onClick={() => unlockWorkOrderAsync(entry.workOrder!.id, 'servicing')}
-                            className="inline-flex items-center space-x-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded-lg text-xs transition border border-emerald-300 shadow-2xs cursor-pointer"
+                            disabled={unlockingId === entry.workOrder.id}
+                            onClick={async () => {
+                              setUnlockingId(entry.workOrder!.id);
+                              await unlockWorkOrderAsync(entry.workOrder!.id, 'servicing');
+                              setUnlockingId(null);
+                            }}
+                            className="inline-flex items-center space-x-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded-lg text-xs transition border border-emerald-300 shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Buka Kunci SPK (Pindah kembali ke Sedang Dikerjakan)"
                           >
-                            <Unlock className="w-3.5 h-3.5 text-emerald-700" />
-                            <span>Buka Kunci Mobil</span>
+                            <Unlock className={`w-3.5 h-3.5 text-emerald-700 ${unlockingId === entry.workOrder.id ? 'animate-spin' : ''}`} />
+                            <span>{unlockingId === entry.workOrder.id ? 'Membuka...' : 'Buka Kunci Mobil'}</span>
                           </button>
                         )}
                         {currentRole === 'owner' && (
